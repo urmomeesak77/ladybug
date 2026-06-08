@@ -54,8 +54,11 @@ Single workflow file: `.github/workflows/ci.yml`.
   5. **Lint:** `vendor/bin/pint --test` (fails on style violations; reports
      only, no rewrite).
   6. **Test + coverage:** `php artisan test --coverage-clover=coverage.clover`.
-  7. **Coverage gate:** inline `php -r` script parses `coverage.clover`
-     (`coveredstatements / statements`) and exits non-zero below **90%**.
+  7. **Coverage gate:** a small standalone Python script
+     (`.github/scripts/check_coverage.py`, stdlib only) parses `coverage.clover`
+     (`coveredstatements / statements`) and exits non-zero below **90%**. Python
+     is preinstalled on `ubuntu-latest`, and a stdlib script is unit-testable
+     locally — preferable to an inline `php -r` one-liner.
 
 ### Job: `frontend` (React / Vite)
 
