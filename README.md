@@ -30,7 +30,7 @@ This starts three services pinned to the versions CI uses:
 | Service  | Image / build | Host port | Notes |
 |----------|---------------|-----------|-------|
 | backend  | `docker/php` (PHP 8.3) | `8000` | `php artisan serve`; seeds `.env` + app key on first run |
-| mysql    | `mysql:8.0`   | `4444` → 3306 | database `ladybug`, root password `root` (dev only) |
+| mysql    | `mysql:8.0`   | `4444` → 3306 | database `trashdb`, root password `root` (dev only) |
 | frontend | `node:20`     | `5173` | Vite dev server |
 
 Verify the backend is live:
@@ -41,6 +41,37 @@ curl http://localhost:8000/api/health      # -> {"status":"ok"}
 
 > On Windows, prefer `http://127.0.0.1:5173` for the frontend — `localhost` may
 > resolve to IPv6 first and collide with another local dev server.
+
+## Database & persistence
+
+The schema lives in Laravel migrations (`backend/database/migrations/`) and the dev
+database is named **`trashdb`**.
+
+**Fresh checkout** — the `mysql` service creates an empty `trashdb` automatically
+from `MYSQL_DATABASE`; apply the schema with:
+
+```sh
+docker compose up -d mysql backend
+docker compose exec backend php artisan migrate
+```
+
+**Data persists across container and image removal.** MySQL data is stored in the
+named Docker volume `mysql-data` (mounted at `/var/lib/mysql`), which is independent
+of container and image lifecycles. `docker compose down` (without `-v`) and even
+`docker rmi mysql:8.0` leave the data intact — `docker compose up -d` reattaches the
+same volume. Data is destroyed **only** by a deliberate wipe:
+
+```sh
+docker compose down -v                 # removes containers AND the volume
+docker volume rm ladybug_mysql-data    # or remove the volume directly
+```
+
+> **Pre-existing volume note.** A `mysql-data` volume created before this feature
+> initialised the database as `ladybug` and keeps it (MySQL only seeds
+> `MYSQL_DATABASE` on first init). Either create `trashdb` once —
+> `docker compose exec mysql mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS trashdb;"`
+> then `php artisan migrate` — or recreate the volume with `docker compose down -v`
+> for a clean `trashdb` (destroys existing data).
 
 ## Environment / secrets
 
