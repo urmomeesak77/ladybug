@@ -145,5 +145,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/001-infra-scaffold/plan.md` (feature: Project Infrastructure Scaffold).
+`specs/002-database-schema/plan.md` (feature: Persistent Database Schema (Posts + Users)).
 <!-- SPECKIT END -->
