@@ -6,7 +6,7 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_DATABASE: ladybug
+      MYSQL_DATABASE: trashdb
       MYSQL_ROOT_PASSWORD: root
     ports:
       - "4444:3306" # host 4444 -> container 3306
@@ -29,9 +29,14 @@ services:
              grep -q '^APP_KEY=base64:' .env || php artisan key:generate;
              php artisan serve --host=0.0.0.0 --port=8000"
     environment:
+      # Target the MySQL service for DB work (migrations, app queries). Without
+      # this the .env default (sqlite) wins and `artisan migrate` never reaches
+      # trashdb. Sessions/cache stay file-backed (below), so the dev server runs
+      # even when MySQL is down.
+      DB_CONNECTION: mysql
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_DATABASE: ladybug
+      DB_DATABASE: trashdb
       DB_USERNAME: root
       DB_PASSWORD: root
       # File-backed drivers keep the dev server working without running migrations.

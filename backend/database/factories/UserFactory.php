@@ -28,6 +28,9 @@ class UserFactory extends Factory
     {
         return [
             'name' => fake()->name(),
+            // 10-char public account identifier; the column is unique and
+            // non-null, so the factory mints one (assigned, not mass-assigned).
+            'hash' => Str::random(10),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),

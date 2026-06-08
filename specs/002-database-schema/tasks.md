@@ -34,8 +34,8 @@ testing. This is a **backend-only** feature (Laravel migrations + models); no fr
 
 **Purpose**: Configure the database name (`trashdb`) that every story's verification runs against.
 
-- [ ] T001 Rename the dev database to `trashdb` in `docker-compose.yml` (`mysql` service `MYSQL_DATABASE` and the `backend` service `DB_DATABASE`), changing the value from `ladybug` to `trashdb` (FR-014, research R7).
-- [ ] T002 [P] Update `backend/.env.example` so `DB_DATABASE=trashdb` (no real secrets; placeholders only — FR-010, FR-014).
+- [x] T001 Rename the dev database to `trashdb` in `docker-compose.yml` (`mysql` service `MYSQL_DATABASE` and the `backend` service `DB_DATABASE`), changing the value from `ladybug` to `trashdb` (FR-014, research R7).
+- [x] T002 [P] Update `backend/.env.example` so `DB_DATABASE=trashdb` (no real secrets; placeholders only — FR-010, FR-014).
 
 ---
 
@@ -45,7 +45,7 @@ testing. This is a **backend-only** feature (Laravel migrations + models); no fr
 
 **⚠️ CRITICAL**: All story test tasks depend on this phase.
 
-- [ ] T003 Verify `backend/phpunit.xml` sets `DB_CONNECTION=sqlite` and `DB_DATABASE=:memory:` so `RefreshDatabase` applies the migrations per test against SQLite in-memory; confirm migration files are the only schema source and `app` is the only coverage `source` (research R2, plan Constitution Check VII).
+- [x] T003 Verify `backend/phpunit.xml` sets `DB_CONNECTION=sqlite` and `DB_DATABASE=:memory:` so `RefreshDatabase` applies the migrations per test against SQLite in-memory; confirm migration files are the only schema source and `app` is the only coverage `source` (research R2, plan Constitution Check VII).
 
 **Checkpoint**: Database name configured and test harness confirmed — story work can begin.
 
@@ -62,16 +62,16 @@ case-sensitive `hash`, nullable FK) behave as specified.
 
 ### Tests for User Story 1 (write first; must FAIL before implementation) ⚠️
 
-- [ ] T004 [P] [US1] Schema feature test in `backend/tests/Feature/Database/SchemaTest.php`: assert `trashposts` and `users` exist with every expected column; assert excluded columns (`temp`, `oldfile`, `text`, free-text `user`) are ABSENT; assert `trashposts.hash`, `users.hash`, `users.email` reject duplicates; assert `hash` case-sensitive distinctness (`abcdefghij` ≠ `ABCDEFGHIJ`); assert `trashposts.user_id` rejects a non-existent user and allows null (FR-001, FR-002, FR-003, FR-004, FR-005, SC-001, SC-004).
-- [ ] T005 [P] [US1] Trashpost model unit test in `backend/tests/Unit/Models/TrashpostTest.php`: assert `$table = 'trashposts'`, `$fillable` set, datetime casts, `SoftDeletes` (soft delete sets `deleted_at` and hides row from default queries), and `user()` `belongsTo` relationship (data-model.md).
-- [ ] T006 [P] [US1] User model unit test (amend) in `backend/tests/Unit/Models/UserTest.php`: assert `hash` can be set and read, `password`/`remember_token` hidden, and `posts()` `hasMany` returns the user's `Trashpost` rows (data-model.md).
+- [x] T004 [P] [US1] Schema feature test in `backend/tests/Feature/Database/SchemaTest.php`: assert `trashposts` and `users` exist with every expected column; assert excluded columns (`temp`, `oldfile`, `text`, free-text `user`) are ABSENT; assert `trashposts.hash`, `users.hash`, `users.email` reject duplicates; assert `hash` case-sensitive distinctness (`abcdefghij` ≠ `ABCDEFGHIJ`); assert `trashposts.user_id` rejects a non-existent user and allows null (FR-001, FR-002, FR-003, FR-004, FR-005, SC-001, SC-004).
+- [x] T005 [P] [US1] Trashpost model unit test in `backend/tests/Unit/Models/TrashpostTest.php`: assert `$table = 'trashposts'`, `$fillable` set, datetime casts, `SoftDeletes` (soft delete sets `deleted_at` and hides row from default queries), and `user()` `belongsTo` relationship (data-model.md).
+- [x] T006 [P] [US1] User model unit test (amend) in `backend/tests/Unit/Models/UserTest.php`: assert `hash` can be set and read, `password`/`remember_token` hidden, and `posts()` `hasMany` returns the user's `Trashpost` rows (data-model.md).
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Amend `backend/database/migrations/0001_01_01_000000_create_users_table.php` to add a `hash` column inside the existing `Schema::create('users', ...)`: `varchar(10)`, `unique`, driver-aware `->collation('utf8mb4_bin')` only when driver is `mysql` (research R1, R2; contracts/schema.md).
-- [ ] T008 [US1] Create migration `backend/database/migrations/2026_06_08_000000_create_trashposts_table.php` with `up()` building all columns per contracts/schema.md (`id`; nullable unique `hash` varchar(10), driver-aware `utf8mb4_bin`; nullable `title`/`type`/`file`/`youtube`; nullable `foreignId('user_id')->constrained('users')->nullOnDelete()`; nullable `comment`/`metadata` text; `created_at` `->useCurrent()`; `updated_at` `->useCurrent()` + driver-aware `->useCurrentOnUpdate()`; nullable `activated_at`/`deleted_at`) and `down()` `Schema::dropIfExists('trashposts')` (FR-001, FR-001a, FR-006; research R2/R3/R4).
-- [ ] T009 [P] [US1] Create `backend/app/Models/Trashpost.php`: `declare(strict_types=1)`, `$table='trashposts'`, `$fillable=['hash','title','type','file','youtube','user_id','comment','metadata']`, `use SoftDeletes`, datetime casts for the four timestamps, and `user()` `belongsTo(User::class)` (data-model.md; PSR-12, functions <30 lines).
-- [ ] T010 [US1] Amend `backend/app/Models/User.php`: add `posts()` `hasMany(Trashpost::class)`; keep `$fillable` as `['name','email','password']` (assign `hash` explicitly, not mass-assignable) and `$hidden`/`casts` unchanged (data-model.md).
+- [x] T007 [US1] Amend `backend/database/migrations/0001_01_01_000000_create_users_table.php` to add a `hash` column inside the existing `Schema::create('users', ...)`: `varchar(10)`, `unique`, driver-aware `->collation('utf8mb4_bin')` only when driver is `mysql` (research R1, R2; contracts/schema.md).
+- [x] T008 [US1] Create migration `backend/database/migrations/2026_06_08_000000_create_trashposts_table.php` with `up()` building all columns per contracts/schema.md (`id`; nullable unique `hash` varchar(10), driver-aware `utf8mb4_bin`; nullable `title`/`type`/`file`/`youtube`; nullable `foreignId('user_id')->constrained('users')->nullOnDelete()`; nullable `comment`/`metadata` text; `created_at` `->useCurrent()`; `updated_at` `->useCurrent()` + driver-aware `->useCurrentOnUpdate()`; nullable `activated_at`/`deleted_at`) and `down()` `Schema::dropIfExists('trashposts')` (FR-001, FR-001a, FR-006; research R2/R3/R4).
+- [x] T009 [P] [US1] Create `backend/app/Models/Trashpost.php`: `declare(strict_types=1)`, `$table='trashposts'`, `$fillable=['hash','title','type','file','youtube','user_id','comment','metadata']`, `use SoftDeletes`, datetime casts for the four timestamps, and `user()` `belongsTo(User::class)` (data-model.md; PSR-12, functions <30 lines).
+- [x] T010 [US1] Amend `backend/app/Models/User.php`: add `posts()` `hasMany(Trashpost::class)`; keep `$fillable` as `['name','email','password']` (assign `hash` explicitly, not mass-assignable) and `$hidden`/`casts` unchanged (data-model.md).
 
 **Checkpoint**: Schema applies on a fresh DB; both tables and models pass their tests — MVP complete and independently demoable.
 
@@ -88,8 +88,8 @@ not CI-testable).
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Confirm `docker-compose.yml` mounts the durable named volume `mysql-data` at `/var/lib/mysql` on the `mysql` service (so containers/images can be removed without data loss); adjust if missing (FR-007, SC-002, research R6).
-- [ ] T012 [P] [US2] Update the project setup docs (`README.md`) to cover: clean-checkout bring-up to a `trashdb` schema-applied DB, the note for pre-existing `mysql-data` volumes (create `trashdb` once / `migrate:fresh`), and that data is destroyed only by an explicit `docker compose down -v` / `docker volume rm` (FR-007, FR-008, SC-002, SC-003; quickstart §3).
+- [x] T011 [US2] Confirm `docker-compose.yml` mounts the durable named volume `mysql-data` at `/var/lib/mysql` on the `mysql` service (so containers/images can be removed without data loss); adjust if missing (FR-007, SC-002, research R6).
+- [x] T012 [P] [US2] Update the project setup docs (`README.md`) to cover: clean-checkout bring-up to a `trashdb` schema-applied DB, the note for pre-existing `mysql-data` volumes (create `trashdb` once / `migrate:fresh`), and that data is destroyed only by an explicit `docker compose down -v` / `docker volume rm` (FR-007, FR-008, SC-002, SC-003; quickstart §3).
 
 **Checkpoint**: Persistence mechanism verified and documented; a new machine can reach a working DB from docs alone.
 
@@ -105,11 +105,11 @@ to empty, confirming each step is reversible and leaves no leftover objects.
 
 ### Tests for User Story 3 (write first; must FAIL before implementation) ⚠️
 
-- [ ] T013 [P] [US3] Migration reversibility test in `backend/tests/Feature/Database/MigrationReversibilityTest.php`: assert `trashposts` and `users` exist after migrate, `migrate:rollback` drops both with no leftover objects (FK removed before `users`), and a re-run rebuilds them cleanly (FR-006, SC-005; quickstart §4).
+- [x] T013 [P] [US3] Migration reversibility test in `backend/tests/Feature/Database/MigrationReversibilityTest.php`: assert `trashposts` and `users` exist after migrate, `migrate:rollback` drops both with no leftover objects (FK removed before `users`), and a re-run rebuilds them cleanly (FR-006, SC-005; quickstart §4).
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Verify/finish `down()` in both migrations so rollback drops cleanly in reverse timestamp order — `2026_06_08_000000_create_trashposts_table.php` (drops `trashposts`, removing the FK first) and `0001_01_01_000000_create_users_table.php` (drops `users`) — with `up()`/`down()` reversible and no raw SQL (FR-006, FR-009, SC-005).
+- [x] T014 [US3] Verify/finish `down()` in both migrations so rollback drops cleanly in reverse timestamp order — `2026_06_08_000000_create_trashposts_table.php` (drops `trashposts`, removing the FK first) and `0001_01_01_000000_create_users_table.php` (drops `users`) — with `up()`/`down()` reversible and no raw SQL (FR-006, FR-009, SC-005).
 
 **Checkpoint**: Migrations apply and roll back repeatably; schema is recreatable anywhere.
 
@@ -119,9 +119,9 @@ to empty, confirming each step is reversible and leaves no leftover objects.
 
 **Purpose**: Enforce conventions, coverage, and end-to-end validation.
 
-- [ ] T015 [P] Run `vendor/bin/pint --test` in `backend/` and fix any style violations in the new/changed files (Constitution Principle II; CI lint gate).
-- [ ] T016 Run the coverage gate: `vendor/bin/phpunit --coverage-clover coverage.clover` in `backend/`, then `python ../.github/scripts/check_coverage.py coverage.clover` — confirm ≥90% (FR-011, Principle VII; quickstart §5).
-- [ ] T017 Execute the `quickstart.md` end-to-end validation (bring up, migrate, constraint checks, persistence teardown, rollback) and confirm expected results (SC-001..SC-006).
+- [x] T015 [P] Run `vendor/bin/pint --test` in `backend/` and fix any style violations in the new/changed files (Constitution Principle II; CI lint gate).
+- [x] T016 Run the coverage gate: `vendor/bin/phpunit --coverage-clover coverage.clover` in `backend/`, then `python ../.github/scripts/check_coverage.py coverage.clover` — confirm ≥90% (FR-011, Principle VII; quickstart §5).
+- [x] T017 Execute the `quickstart.md` end-to-end validation (bring up, migrate, constraint checks, persistence teardown, rollback) and confirm expected results (SC-001..SC-006).
 
 ---
 

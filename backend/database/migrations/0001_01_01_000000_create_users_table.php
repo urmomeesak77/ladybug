@@ -15,6 +15,13 @@ return new class () extends Migration {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            // Stable public account identifier (case-sensitive, unique). The
+            // utf8mb4_bin collation only exists on MySQL; SQLite's default
+            // binary comparison already distinguishes case (research R2).
+            $hash = $table->string('hash', 10)->unique();
+            if (Schema::getConnection()->getDriverName() === 'mysql') {
+                $hash->collation('utf8mb4_bin');
+            }
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
