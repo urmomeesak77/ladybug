@@ -27,8 +27,12 @@ def main(argv):
         print("usage: check_coverage.py <clover.xml> <min_percent>", file=sys.stderr)
         return 2
     clover_path = argv[1]
-    min_percent = float(argv[2])
-    percent = coverage_percent(clover_path)
+    try:
+        min_percent = float(argv[2])
+        percent = coverage_percent(clover_path)
+    except (FileNotFoundError, ET.ParseError, ValueError) as error:
+        print(f"coverage gate error: {error}", file=sys.stderr)
+        return 2
     print(f"coverage: {percent:.2f}% (min {min_percent:.2f}%)")
     if percent < min_percent:
         print("coverage gate FAILED", file=sys.stderr)

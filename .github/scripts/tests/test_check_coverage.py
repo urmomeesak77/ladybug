@@ -49,6 +49,22 @@ class CoverageGateTest(unittest.TestCase):
         result = run_gate(0, 0, 90)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_missing_file_errors(self):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "does_not_exist.xml", "90"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout)
+
+    def test_wrong_arg_count_errors(self):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
