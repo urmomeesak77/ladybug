@@ -20,6 +20,7 @@ Existing columns consumed by this feature (see
 | `file` | string, nullable | Image filename (`{code}.{ext}`); drives image-URL building. Null ⇒ no image. |
 | `youtube` | string, nullable | Serialized as-is; link-only posts have `file` null. |
 | `user_id` | FK users, nullable | Serialized as-is (owner reference). |
+| `username` | string, nullable | Denormalized owner name; serialized as-is for feed/post rendering. |
 | `comment` | text, nullable | Serialized as-is. |
 | `metadata` | text, nullable | Serialized as-is; optional image-width fallback source. |
 | `created_at` | datetime | Serialized as-is. |
@@ -32,6 +33,13 @@ Existing columns consumed by this feature (see
 
 **Ordering**: `activated_at DESC, id DESC` (deterministic; supports the keyset cursor).
 
+**Cursor predicate**: "strictly older than the cursor post" in this ordering is the
+lexicographic keyset
+`(activated_at < cursor.activated_at) OR (activated_at = cursor.activated_at AND id < cursor.id)`
+— **not** `activated_at < cursor AND id < cursor.id`, which would skip any post whose
+`activated_at` is older than the cursor but whose `id` is larger (activation is not
+monotonic with insertion). The OR-form guarantees no gap and no duplicate (FR-005 / SC-001).
+
 ### Feed page (query result, not persisted)
 
 An ordered, bounded slice of visible posts. Inputs:
@@ -39,7 +47,7 @@ An ordered, bounded slice of visible posts. Inputs:
 | Input | Source | Rule |
 |-------|--------|------|
 | `limit` | query string | Default 10; clamp to [1, 50]; invalid ⇒ 10. |
-| `start` | query string | A post `hash`. When it resolves to a real post, restrict to posts strictly older (`activated_at <` AND `id <` the cursor post). Unknown/malformed ⇒ ignored. |
+| `start` | query string | A post `hash`. When it resolves to a real post, restrict to posts strictly older via the keyset predicate above (`activated_at < cursor` OR equal-`activated_at` with smaller `id`). Unknown/malformed ⇒ ignored. |
 
 ### Image size set (derived, not persisted)
 
@@ -64,6 +72,7 @@ the `public` disk at `MediaPath::imageRelativePath($size, $code, $ext)`.
   "file": "ab3xyz.jpg",         // or null
   "youtube": null,              // or a parsed YouTube ref
   "user_id": 7,                 // or null
+  "username": "memelord",       // or null (denormalized owner name)
   "comment": "…",
   "metadata": "…",
   "created_at": "2026-06-01T12:00:00.000000Z",

@@ -20,10 +20,12 @@ Any other query parameters are ignored in this feature (no title/type/user filte
 ### Ordering & pagination
 
 - Order: `activated_at DESC, id DESC`.
-- Cursor semantics: with a resolvable `start`, results satisfy
-  `activated_at < cursor.activated_at AND id < cursor.id`. Iterating by passing the
-  last item's `hash` as the next `start` walks the entire visible set with **no
-  duplicates and no gaps**.
+- Cursor semantics: with a resolvable `start`, results satisfy the keyset predicate
+  `(activated_at < cursor.activated_at) OR (activated_at = cursor.activated_at AND id < cursor.id)`.
+  (The simpler `activated_at < cursor AND id < cursor.id` is **wrong** — it skips posts
+  whose `activated_at` is older but whose `id` is larger, since activation is not
+  monotonic with insertion.) Iterating by passing the last item's `hash` as the next
+  `start` walks the entire visible set with **no duplicates and no gaps**.
 
 ### Responses
 
@@ -77,6 +79,7 @@ GET /api/posts/<deleted>    → 404   (soft-deleted)
 | `file` | string\|null | Image filename `{code}.{ext}`; null for link-only posts. |
 | `youtube` | string\|null | |
 | `user_id` | int\|null | Owner reference. |
+| `username` | string\|null | Denormalized owner name (for rendering). |
 | `comment` | string\|null | |
 | `metadata` | string\|null | |
 | `created_at` | string (ISO-8601) | |

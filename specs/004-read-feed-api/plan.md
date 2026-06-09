@@ -123,4 +123,9 @@ pattern.
 
 ## Complexity Tracking
 
-> No Constitution Check violations — section intentionally empty.
+One documented deviation from the literal wording of the Constitution's Technology &
+Architecture Constraints; no principle is violated in spirit.
+
+| Item | Constitution wording | What this feature does | Why it is acceptable |
+|------|----------------------|------------------------|----------------------|
+| Feed pagination strategy | Tech & Architecture Constraints: "Pagination is **page-based** and reflected in the URL; the page size for feed loads is 10…" | **Cursor (keyset)** pagination via a `start` post `hash` + capped `limit`, both reflected in the URL; page size default 10. | Principle III's intent — URL-reflected, bookmarkable, refresh-safe feed paging that loads 10 at a time — is fully satisfied. Cursor paging is *more* stable for an append-heavy endless feed (no skips/duplicates as rows arrive) and keeps the public token a real meme id (Principle V). It mirrors the established prototype contract. The 200-entry "Load more" page break remains a frontend concern this API supports but does not implement. Resolve permanently via a PATCH constitution clarification that "page-based" admits a `hash` cursor; until then this row records the deviation. |

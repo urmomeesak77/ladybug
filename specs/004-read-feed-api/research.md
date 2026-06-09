@@ -22,11 +22,15 @@ decisions and why they were taken.
 
 ## R2 — Ordering and tie-break
 
-- **Decision**: Order by `activated_at DESC, id DESC`. The cursor filter is
-  `activated_at < $cursor->activated_at AND id < $cursor->id`.
+- **Decision**: Order by `activated_at DESC, id DESC`. The cursor filter is the
+  lexicographic keyset
+  `(activated_at < $cursor->activated_at) OR (activated_at = $cursor->activated_at AND id < $cursor->id)`.
 - **Rationale**: `activated_at` is newest-first feed order; `id` is the monotonic
-  tie-break so posts sharing an `activated_at` (or null-second precision) keep a total
-  order and the cursor never skips or repeats. This mirrors the prototype.
+  tie-break so posts sharing an `activated_at` (or second-precision) keep a total order.
+  The keyset must be the OR-form: a flat `activated_at < cursor AND id < cursor.id` would
+  drop any post older by `activated_at` but with a larger `id` (activation is not
+  monotonic with insertion — a draft can be activated long after newer posts), creating a
+  gap and violating FR-005 / SC-001. The OR-form never skips or repeats.
 - **Alternatives considered**: Order by `id` only — rejected: activation, not
   insertion, defines feed recency. Order by `created_at` — rejected: a post is visible
   from `activated_at`, which is the meaningful "appeared in feed" moment.
