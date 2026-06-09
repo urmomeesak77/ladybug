@@ -1,0 +1,91 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Http\Controllers;
+
+use App\Models\Trashpost;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+final class TrashpostsApiControllerTest extends TestCase {
+    use RefreshDatabase;
+
+    public function test_feed_returns_visible_posts_newest_first_under_a_data_envelope(): void {
+        $older = Trashpost::factory()->visible()->create(['activated_at' => now()->subDay()]);
+        $newer = Trashpost::factory()->visible()->create(['activated_at' => now()]);
+
+        $response = $this->getJson('/api/posts');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.0.id', $newer->id);
+        $response->assertJsonPath('data.1.id', $older->id);
+    }
+
+    public function test_feed_item_exposes_the_documented_json_shape(): void {
+        $post = Trashpost::factory()->visible()->create();
+
+        $response = $this->getJson('/api/posts');
+
+        $response->assertJsonStructure([
+            'data' => [[
+                'id', 'hash', 'title', 'type', 'file', 'youtube',
+                'user_id', 'username', 'comment', 'metadata',
+                'created_at', 'updated_at', 'activated_at', 'deleted_at',
+                'url', 'url_api',
+            ]],
+        ]);
+        $response->assertJsonPath('data.0.url', "/posts/{$post->hash}");
+        $this->assertStringEndsWith(
+            "/api/posts/{$post->hash}",
+            $response->json('data.0.url_api'),
+        );
+    }
+
+    public function test_feed_caps_a_page_at_ten_posts(): void {
+        Trashpost::factory()->count(12)->visible()->create();
+
+        $this->getJson('/api/posts')->assertJsonCount(10, 'data');
+    }
+
+    public function test_feed_is_publicly_readable_without_an_auth_header(): void {
+        Trashpost::factory()->visible()->create();
+
+        // No Sanctum actingAs / Authorization header: the read feed is public (FR-012).
+        $this->getJson('/api/posts')->assertOk();
+    }
+
+    public function test_feed_cursor_paging_walks_pages_with_no_overlap_or_gap(): void {
+        $posts = Trashpost::factory()->count(5)->visible()->create();
+        $allIds = $posts->pluck('id')->sort()->values()->all();
+
+        $page1 = $this->getJson('/api/posts?limit=2');
+        $page1->assertJsonCount(2, 'data');
+        $cursor = $page1->json('data.1.hash');
+
+        $page2 = $this->getJson("/api/posts?limit=2&start={$cursor}");
+        $page2->assertJsonCount(2, 'data');
+
+        $seen = array_merge($page1->json('data.*.id'), $page2->json('data.*.id'));
+        $this->assertSame($seen, array_unique($seen), 'pages must not overlap');
+    }
+
+    public function test_feed_cursor_includes_an_older_post_with_a_larger_id(): void {
+        // The non-monotonic-id scenario: an older post inserted after the cursor.
+        $cursor = Trashpost::factory()->visible()->create(['activated_at' => now()]);
+        $olderButLargerId = Trashpost::factory()->visible()->create(['activated_at' => now()->subDay()]);
+
+        $response = $this->getJson("/api/posts?start={$cursor->hash}");
+
+        $response->assertJsonPath('data.0.id', $olderButLargerId->id);
+    }
+
+    public function test_feed_returns_an_empty_data_array_when_no_posts_are_visible(): void {
+        Trashpost::factory()->hidden()->create();
+
+        $response = $this->getJson('/api/posts');
+
+        $response->assertOk();
+        $response->assertExactJson(['data' => []]);
+    }
+}
