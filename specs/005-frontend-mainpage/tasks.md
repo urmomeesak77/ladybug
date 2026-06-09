@@ -221,13 +221,19 @@ color-only signals.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T036 [P] Add/update `frontend/README.md` with the dev run + `.env` setup (mirrors
-      quickstart.md prerequisites).
-- [ ] T037 Run `cd frontend && npm run lint` and resolve all findings (Principle II;
-      cross-check with the lint-reviewer for naming/comment/length rules).
-- [ ] T038 Run `cd frontend && npm run test` — full suite green, `src/lib` coverage ≥90%.
+- [x] T036 [P] Add/update `frontend/README.md` with the dev run + `.env` setup (mirrors
+      quickstart.md prerequisites). *(Replaced the default Vite template README with
+      Ladybug-specific prerequisites, setup, dev/verify/build commands, and a layout map.)*
+- [x] T037 Run `cd frontend && npm run lint` and resolve all findings (Principle II;
+      cross-check with the lint-reviewer for naming/comment/length rules). *(`eslint .`
+      clean — no findings.)*
+- [x] T038 Run `cd frontend && npm run test` — full suite green, `src/lib` coverage ≥90%.
+      *(43 tests pass across 6 files; `src/lib` lines 98.78%, branches 93.33% — gate green.)*
 - [ ] T039 Execute `specs/005-frontend-mainpage/quickstart.md` manual verification steps
-      1–11 against the live API and record results.
+      1–11 against the live API and record results. *(Build/type-check clean (`npm run
+      build`). Interactive steps 1–11 require a running, seeded backend + browser session;
+      the backend was not serving data at verification time, so this manual gate is pending
+      a live environment.)*
 
 ---
 
