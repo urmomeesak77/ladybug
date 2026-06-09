@@ -1,0 +1,66 @@
+/* Base global styles: design tokens + a minimal reset. Dark-mode overrides for these
+   custom properties arrive in US3 via a `prefers-color-scheme` media query (T033). */
+
+:root {
+  /* Color tokens (light mode defaults). */
+  --color-bg: #f7f7f8;
+  --color-surface: #ffffff;
+  --color-border: #d8d8de;
+  --color-text: #1b1b1f;
+  --color-text-muted: #5c5c66;
+  --color-accent: #c8102e;
+  --color-accent-text: #ffffff;
+  --color-focus: #1a73e8;
+
+  /* Spacing scale. */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+
+  /* Layout tokens. */
+  --layout-max-width: 48rem;
+  --radius-md: 0.5rem;
+}
+
+/* Reset: predictable box model and no surprise default margins. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body,
+h1,
+h2,
+h3,
+p,
+figure,
+ul,
+ol {
+  margin: 0;
+}
+
+html {
+  /* Stop iOS text auto-inflation while honoring user font-size choices. */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+/* Honor a fully visible focus ring for keyboard users (Principle IV). */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}

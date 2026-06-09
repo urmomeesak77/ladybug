@@ -1,0 +1,94 @@
+import { describe, expect, it } from 'vitest';
+
+import type { FeedPost } from '../../src/lib/feedModel';
+import {
+  feedReducer,
+  hasMore,
+  initialFeedState,
+  isPageBreak,
+  nextStart,
+} from '../../src/lib/pagination';
+
+// The reducer only inspects post counts and hashes, so a minimal stub suffices.
+function posts(n: number): FeedPost[] {
+  return Array.from({ length: n }, (_, i) => ({
+    hash: `hash-${i}`,
+    title: null,
+    permalink: `/posts/hash-${i}`,
+    media: { kind: 'none' },
+  }));
+}
+
+describe('nextStart', () => {
+  it('returns the last item hash as the keyset cursor', () => {
+    expect(nextStart([{ hash: 'a' }, { hash: 'b' }])).toBe('b');
+  });
+
+  it('returns undefined for an empty list', () => {
+    expect(nextStart([])).toBeUndefined();
+  });
+});
+
+describe('isPageBreak', () => {
+  it('is false below 200 and true once 200 entries are loaded', () => {
+    expect(isPageBreak(0)).toBe(false);
+    expect(isPageBreak(199)).toBe(false);
+    expect(isPageBreak(200)).toBe(true);
+    expect(isPageBreak(210)).toBe(true);
+  });
+});
+
+describe('hasMore', () => {
+  it('is true only for a full batch', () => {
+    expect(hasMore(posts(10), 10)).toBe(true);
+    expect(hasMore(posts(9), 10)).toBe(false);
+    expect(hasMore([], 10)).toBe(false);
+  });
+});
+
+describe('feedReducer', () => {
+  it('moves idle → loading on the first load', () => {
+    const state = feedReducer(initialFeedState, { type: 'loadStart' });
+
+    expect(state.status).toBe('loading');
+  });
+
+  it('appends a full batch and stays loadable', () => {
+    const loading = feedReducer(initialFeedState, { type: 'loadStart' });
+    const loaded = feedReducer(loading, { type: 'loadSuccess', posts: posts(10), limit: 10 });
+
+    expect(loaded.status).toBe('loaded');
+    expect(loaded.posts).toHaveLength(10);
+  });
+
+  it('reaches end on a short batch', () => {
+    const loading = feedReducer(initialFeedState, { type: 'loadStart' });
+    const loaded = feedReducer(loading, { type: 'loadSuccess', posts: posts(4), limit: 10 });
+
+    expect(loaded.status).toBe('end');
+  });
+
+  it('reports empty when the very first batch is empty', () => {
+    const loading = feedReducer(initialFeedState, { type: 'loadStart' });
+    const loaded = feedReducer(loading, { type: 'loadSuccess', posts: [], limit: 10 });
+
+    expect(loaded.status).toBe('empty');
+  });
+
+  it('keeps already-loaded posts on error', () => {
+    const loading = feedReducer(initialFeedState, { type: 'loadStart' });
+    const loaded = feedReducer(loading, { type: 'loadSuccess', posts: posts(10), limit: 10 });
+    const more = feedReducer(loaded, { type: 'loadStart' });
+    const errored = feedReducer(more, { type: 'loadError' });
+
+    expect(errored.status).toBe('error');
+    expect(errored.posts).toHaveLength(10);
+  });
+
+  it('blocks a duplicate loadStart while a load is in flight', () => {
+    const loading = feedReducer(initialFeedState, { type: 'loadStart' });
+    const again = feedReducer(loading, { type: 'loadStart' });
+
+    expect(again).toBe(loading);
+  });
+});

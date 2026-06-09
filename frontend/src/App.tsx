@@ -1,11 +1,21 @@
-// Minimal placeholder shell. Real pages, routing, and API wiring arrive with their
-// own features; the scaffold only needs a mountable component so the app builds.
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+
+import PageLayout from './components/PageLayout';
+import HomePage from './pages/HomePage';
+import NotFoundPage from './pages/NotFoundPage';
+import PostPlaceholderPage from './pages/PostPlaceholderPage';
+
 function App() {
   return (
-    <main>
-      <h1>Ladybug</h1>
-      <p>Infrastructure scaffold is up.</p>
-    </main>
+    <BrowserRouter>
+      <PageLayout>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/posts/:hash" element={<PostPlaceholderPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </PageLayout>
+    </BrowserRouter>
   );
 }
 
