@@ -88,4 +88,37 @@ final class TrashpostsApiControllerTest extends TestCase {
         $response->assertOk();
         $response->assertExactJson(['data' => []]);
     }
+
+    public function test_show_returns_a_visible_post_under_a_data_envelope(): void {
+        $post = Trashpost::factory()->visible()->create();
+
+        $response = $this->getJson("/api/posts/{$post->hash}");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.id', $post->id);
+        $response->assertJsonPath('data.hash', $post->hash);
+    }
+
+    public function test_show_is_publicly_readable_without_an_auth_header(): void {
+        $post = Trashpost::factory()->visible()->create();
+
+        // No Sanctum actingAs / Authorization header: single-post reads are public (FR-012).
+        $this->getJson("/api/posts/{$post->hash}")->assertOk();
+    }
+
+    public function test_show_returns_404_for_an_unknown_hash(): void {
+        $this->getJson('/api/posts/__nomatch__')->assertNotFound();
+    }
+
+    public function test_show_returns_404_for_a_hidden_post(): void {
+        $post = Trashpost::factory()->hidden()->create();
+
+        $this->getJson("/api/posts/{$post->hash}")->assertNotFound();
+    }
+
+    public function test_show_returns_404_for_a_soft_deleted_post(): void {
+        $post = Trashpost::factory()->deleted()->create();
+
+        $this->getJson("/api/posts/{$post->hash}")->assertNotFound();
+    }
 }

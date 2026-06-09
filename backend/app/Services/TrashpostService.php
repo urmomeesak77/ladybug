@@ -31,6 +31,16 @@ class TrashpostService {
     }
 
     /**
+     * The single visible post with this public hash, or null when none matches.
+     *
+     * Reuses the visibility builder, so hidden (not activated), soft-deleted, and
+     * unknown hashes all resolve to null — the controller maps that to a 404.
+     */
+    public function findVisibleByHash(string $hash): ?Trashpost {
+        return $this->visible()->where('hash', $hash)->first();
+    }
+
+    /**
      * Base query for publicly visible posts: activated and (via SoftDeletes) not trashed.
      */
     private function visible(): Builder {

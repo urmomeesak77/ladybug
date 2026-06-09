@@ -114,4 +114,29 @@ final class TrashpostServiceTest extends TestCase {
 
         $this->assertTrue($this->service()->feed([])->isEmpty());
     }
+
+    public function test_find_visible_by_hash_returns_the_post_for_a_visible_hash(): void {
+        $post = Trashpost::factory()->visible()->create();
+
+        $found = $this->service()->findVisibleByHash($post->hash);
+
+        $this->assertNotNull($found);
+        $this->assertSame($post->id, $found->id);
+    }
+
+    public function test_find_visible_by_hash_returns_null_for_a_hidden_post(): void {
+        $post = Trashpost::factory()->hidden()->create();
+
+        $this->assertNull($this->service()->findVisibleByHash($post->hash));
+    }
+
+    public function test_find_visible_by_hash_returns_null_for_a_soft_deleted_post(): void {
+        $post = Trashpost::factory()->deleted()->create();
+
+        $this->assertNull($this->service()->findVisibleByHash($post->hash));
+    }
+
+    public function test_find_visible_by_hash_returns_null_for_an_unknown_hash(): void {
+        $this->assertNull($this->service()->findVisibleByHash('__nomatch__'));
+    }
 }

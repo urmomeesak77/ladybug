@@ -88,13 +88,13 @@ unknown, a hidden (`activated_at` null), and a soft-deleted post → 404 each.
 
 ### Tests for User Story 2 (write first, ensure they FAIL) ⚠️
 
-- [ ] T010 [P] [US2] Add `findVisibleByHash()` cases to `backend/tests/Unit/Services/TrashpostServiceTest.php`: returns the post for a visible `hash`; returns `null` for hidden, soft-deleted, and unknown `hash`.
-- [ ] T011 [P] [US2] Add `show` cases to `backend/tests/Feature/Http/Controllers/TrashpostsApiControllerTest.php`: `GET /api/posts/{hash}` returns `200 { "data": {…} }` for a visible post (no auth header — FR-012); returns `404` for unknown, hidden, and soft-deleted `hash`.
+- [X] T010 [P] [US2] Add `findVisibleByHash()` cases to `backend/tests/Unit/Services/TrashpostServiceTest.php`: returns the post for a visible `hash`; returns `null` for hidden, soft-deleted, and unknown `hash`.
+- [X] T011 [P] [US2] Add `show` cases to `backend/tests/Feature/Http/Controllers/TrashpostsApiControllerTest.php`: `GET /api/posts/{hash}` returns `200 { "data": {…} }` for a visible post (no auth header — FR-012); returns `404` for unknown, hidden, and soft-deleted `hash`.
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Implement `App\Services\TrashpostService::findVisibleByHash(string $hash): ?Trashpost` in `backend/app/Services/TrashpostService.php`, reusing the same visibility builder so hidden/deleted/unknown all resolve to `null`.
-- [ ] T013 [US2] Add `show(string $hash)` to `App\Http\Controllers\TrashpostsApiController` in `backend/app/Http/Controllers/TrashpostsApiController.php`: call `findVisibleByHash`, `abort(404)` (or throw `ModelNotFoundException`) on `null`, else return a single `TrashpostResource`.
+- [X] T012 [US2] Implement `App\Services\TrashpostService::findVisibleByHash(string $hash): ?Trashpost` in `backend/app/Services/TrashpostService.php`, reusing the same visibility builder so hidden/deleted/unknown all resolve to `null`.
+- [X] T013 [US2] Add `show(string $hash)` to `App\Http\Controllers\TrashpostsApiController` in `backend/app/Http/Controllers/TrashpostsApiController.php`: call `findVisibleByHash`, `abort(404)` (or throw `ModelNotFoundException`) on `null`, else return a single `TrashpostResource`.
 
 **Checkpoint**: Feed (US1) and single-post (US2) endpoints both work independently.
 

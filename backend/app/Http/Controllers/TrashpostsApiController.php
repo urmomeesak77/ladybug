@@ -19,4 +19,17 @@ class TrashpostsApiController extends Controller {
     public function index(Request $request): AnonymousResourceCollection {
         return TrashpostResource::collection($this->service->feed($request->query()));
     }
+
+    /**
+     * GET /api/posts/{hash} — a single visible post, or 404 when no visible post matches
+     * (unknown, not activated, or soft-deleted all resolve to null in the service).
+     */
+    public function show(string $hash): TrashpostResource {
+        $post = $this->service->findVisibleByHash($hash);
+        if ($post === null) {
+            abort(404);
+        }
+
+        return new TrashpostResource($post);
+    }
 }
