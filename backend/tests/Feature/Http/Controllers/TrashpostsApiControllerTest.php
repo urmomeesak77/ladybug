@@ -134,9 +134,11 @@ final class TrashpostsApiControllerTest extends TestCase {
         $response = $this->getJson("/api/posts/{$post->hash}");
 
         $response->assertOk();
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
         $response->assertJsonPath('data.sizes', [
-            ['url' => Storage::disk('public')->url(MediaPath::imageRelativePath('300', 'abc1234567', 'jpg')), 'width' => 300],
-            ['url' => Storage::disk('public')->url(MediaPath::imageRelativePath('100', 'abc1234567', 'jpg')), 'width' => 100],
+            ['url' => $disk->url(MediaPath::imageRelativePath('300', 'abc1234567', 'jpg')), 'width' => 300],
+            ['url' => $disk->url(MediaPath::imageRelativePath('100', 'abc1234567', 'jpg')), 'width' => 100],
         ]);
         $this->assertNotNull($response->json('data.default'));
     }

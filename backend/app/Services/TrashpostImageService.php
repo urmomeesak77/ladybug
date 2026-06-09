@@ -43,6 +43,9 @@ class TrashpostImageService {
      * @return array<string, string>
      */
     private function existingSizeUrls(string $code, string $ext): array {
+        // Storage::disk() is typed as the base Filesystem contract, which omits url();
+        // the runtime instance is a FilesystemAdapter that implements it.
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
         $disk = Storage::disk('public');
         $urls = [];
         foreach (MediaPath::imageSizes() as $size) {

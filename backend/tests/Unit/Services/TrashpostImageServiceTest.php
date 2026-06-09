@@ -38,7 +38,10 @@ final class TrashpostImageServiceTest extends TestCase {
     }
 
     private function urlFor(string $size): string {
-        return Storage::disk('public')->url(MediaPath::imageRelativePath($size, self::CODE, self::EXT));
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+
+        return $disk->url(MediaPath::imageRelativePath($size, self::CODE, self::EXT));
     }
 
     public function test_lists_only_the_numeric_sizes_present_on_disk(): void {
