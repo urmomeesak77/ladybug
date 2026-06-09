@@ -1,11 +1,11 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.1.0 → 1.1.1
-Bump rationale (latest): PATCH — clarified Principle V's public-code format (exactly 10
-chars, charset `[A-Za-z0-9-_]` to match the stated YouTube-style intent) and aligned the
-stale "11-char `[A-Z0-9-]`" reference in Technology & Architecture Constraints to it. No
-principle added or redefined = PATCH bump.
+Version change: 1.1.1 → 1.2.0
+Bump rationale (latest): MINOR — added Principle VIII (Responsive, Multi-Device Layout), a
+new non-negotiable requirement that the site work across mobile, tablet, and desktop
+viewports. Also corrected the footer Version line, which had remained at 1.1.0 after the
+1.1.1 amendment. New principle added = MINOR bump.
 
 History:
   - 1.0.0 (2026-06-08): Initial ratification — first concrete constitution replacing
@@ -15,11 +15,15 @@ History:
   - 1.1.1 (2026-06-09): Clarified Principle V code format (10 chars, `[A-Za-z0-9-_]`) and
     fixed the contradicting length/charset reference in Technology & Architecture
     Constraints. Wording/consistency fix only.
+  - 1.2.0 (2026-06-09): Added Principle VIII (Responsive, Multi-Device Layout); extended the
+    Manual verification gate and Technology & Architecture Constraints to cover responsive
+    behavior; corrected the stale footer Version line (1.1.0 → 1.2.0).
 
-Modified principles: N/A (no existing principle redefined; Principle V clarified only)
+Modified principles: N/A (no existing principle redefined)
 Added sections:
   - Core Principles I–VI (1.0.0)
   - Core Principle VII — Test Coverage & Organization (1.1.0)
+  - Core Principle VIII — Responsive, Multi-Device Layout (1.2.0)
   - Technology & Architecture Constraints
   - Development Workflow & Quality Gates (Test Gate added in 1.1.0)
   - Governance
@@ -32,7 +36,7 @@ Templates requiring updates:
   - .specify/templates/tasks-template.md ........... ✅ compatible (no constitution refs)
   - .specify/templates/checklist-template.md ....... ✅ compatible (no constitution refs)
 
-Follow-up TODOs: None. RATIFICATION_DATE set to today (initial adoption).
+Follow-up TODOs: None. RATIFICATION_DATE set to original adoption (2026-06-08).
 -->
 
 # Ladybug Constitution
@@ -154,6 +158,25 @@ The codebase MUST be backed by meaningful automated tests.
 Rationale: A public upload site needs a safety net for validation and navigation logic;
 mirroring the source tree keeps tests discoverable as the codebase grows.
 
+### VIII. Responsive, Multi-Device Layout
+
+The site MUST be usable across the full range of common viewport sizes.
+
+- Layouts MUST adapt fluidly to mobile, tablet, and desktop widths. There MUST be no
+  horizontal scrolling, clipped content, or overlapping elements at common breakpoints
+  (roughly 320px through wide desktop).
+- The document MUST declare a responsive viewport (`<meta name="viewport">`), and layouts MUST
+  use relative/fluid units and CSS media queries (or equivalent) rather than fixed pixel
+  widths that assume a single screen size.
+- Content (feed, single-meme page, forms, menus) MUST reflow rather than overflow. Images and
+  embeds — including YouTube players — MUST scale within their container while preserving
+  aspect ratio.
+- On touch/small screens, interactive controls MUST have adequate target size and spacing, and
+  navigation plus the feed MUST remain fully operable by touch.
+
+Rationale: A meme-sharing feed is consumed heavily on phones; a layout that works only on
+desktop fails the majority of its audience.
+
 ## Technology & Architecture Constraints
 
 - **Backend**: Laravel (PHP 8.1+) with Sanctum for authentication. Server-side image handling
@@ -169,6 +192,9 @@ mirroring the source tree keeps tests discoverable as the codebase grows.
   for memes.
 - **Theming**: Driven by `prefers-color-scheme` with optional persisted override (Principle
   IV).
+- **Responsive layout**: The frontend MUST be built mobile-first and adapt across mobile,
+  tablet, and desktop viewports via fluid units and CSS media queries (Principle VIII); fixed
+  single-width layouts are not acceptable.
 - Any deviation from this stack, or any new package, falls under Principle I and requires
   prior approval.
 
@@ -184,8 +210,9 @@ mirroring the source tree keeps tests discoverable as the codebase grows.
 - **Test gate**: Tests MUST pass and total coverage MUST stay at or above 90% (Principle VII)
   before merge. New code arrives with its mirrored tests under `tests/`.
 - **Manual verification**: In addition to automated tests, changes affecting navigation,
-  theming, upload, or the meme page MUST be manually verified against the Back/Forward/Refresh
-  and light/dark requirements before being called done.
+  theming, layout, upload, or the meme page MUST be manually verified against the
+  Back/Forward/Refresh, light/dark, and responsive (mobile/tablet/desktop) requirements before
+  being called done.
 
 ## Governance
 
@@ -202,4 +229,4 @@ This constitution supersedes other practices where they conflict. When a referen
 - **Runtime guidance**: Day-to-day coding style is governed by `docs/CODING_CONVENTIONS.md`;
   this constitution governs the non-negotiable boundaries above it.
 
-**Version**: 1.1.0 | **Ratified**: 2026-06-08 | **Last Amended**: 2026-06-08
+**Version**: 1.2.0 | **Ratified**: 2026-06-08 | **Last Amended**: 2026-06-09
