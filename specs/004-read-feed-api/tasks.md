@@ -129,8 +129,8 @@ without error; a post with at least one size exposes a usable `default`.
 
 **Purpose**: Style, coverage gate, and optional manual validation.
 
-- [ ] T018 [P] Run `vendor/bin/pint --test` against `backend/` (in the `php:8.3-cli` container) and fix any style violations in the new files.
-- [ ] T019 Run the full suite with coverage in the container: `php artisan test --coverage-clover=coverage.xml` then `python ../.github/scripts/check_coverage.py coverage.xml`; confirm all suites green and total line coverage ≥ 90%.
+- [X] T018 [P] Run `vendor/bin/pint --test` against `backend/` (in the `php:8.3-cli` container) and fix any style violations in the new files.
+- [X] T019 Run the full suite with coverage in the container: `php artisan test --coverage-clover=coverage.xml` then `python ../.github/scripts/check_coverage.py coverage.xml`; confirm all suites green and total line coverage ≥ 90%.
 - [ ] T020 [P] (Optional) Manual smoke per `specs/004-read-feed-api/quickstart.md` against seeded media (`php artisan serve` + the `curl`/`jq` checks): default page 10, `limit` clamp, cursor pages don't overlap, `sizes` point only at existing files, unknown hash ⇒ 404.
 
 ---
