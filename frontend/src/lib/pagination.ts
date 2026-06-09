@@ -9,6 +9,14 @@ export function nextStart(items: { hash: string }[]): string | undefined {
   return items.length === 0 ? undefined : items[items.length - 1].hash;
 }
 
+// US2: turn the URL `?after` page cursor into the keyset `start` for the page's first
+// batch. They are the same value (request the batch *after* that hash); a missing or blank
+// cursor (incl. `useSearchParams().get('after')` returning null) means the newest page.
+export function pageStart(after: string | null | undefined): string | undefined {
+  const trimmed = after?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 // Once this many entries are loaded on a page, stop auto-loading and show "Load more".
 export function isPageBreak(count: number): boolean {
   return count >= PAGE_BREAK;

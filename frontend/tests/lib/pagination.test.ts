@@ -7,6 +7,7 @@ import {
   initialFeedState,
   isPageBreak,
   nextStart,
+  pageStart,
 } from '../../src/lib/pagination';
 
 // The reducer only inspects post counts and hashes, so a minimal stub suffices.
@@ -26,6 +27,23 @@ describe('nextStart', () => {
 
   it('returns undefined for an empty list', () => {
     expect(nextStart([])).toBeUndefined();
+  });
+});
+
+describe('pageStart', () => {
+  it('uses the URL page cursor as the first keyset start', () => {
+    expect(pageStart('hash-42')).toBe('hash-42');
+  });
+
+  it('trims surrounding whitespace from the cursor', () => {
+    expect(pageStart('  hash-42  ')).toBe('hash-42');
+  });
+
+  it('treats null/undefined/empty/blank as the newest page', () => {
+    expect(pageStart(null)).toBeUndefined();
+    expect(pageStart(undefined)).toBeUndefined();
+    expect(pageStart('')).toBeUndefined();
+    expect(pageStart('   ')).toBeUndefined();
   });
 });
 
