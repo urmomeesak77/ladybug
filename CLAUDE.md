@@ -145,5 +145,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/002-database-schema/plan.md` (feature: Persistent Database Schema (Posts + Users)).
+`specs/003-media-storage/plan.md` (feature: Media Storage Location (Seed from Prototype)).
 <!-- SPECKIT END -->
