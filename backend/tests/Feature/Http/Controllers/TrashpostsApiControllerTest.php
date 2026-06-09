@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Controllers;
 
 use App\Models\Trashpost;
+use App\Support\MediaPath;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 final class TrashpostsApiControllerTest extends TestCase {
@@ -32,7 +34,7 @@ final class TrashpostsApiControllerTest extends TestCase {
                 'id', 'hash', 'title', 'type', 'file', 'youtube',
                 'user_id', 'username', 'comment', 'metadata',
                 'created_at', 'updated_at', 'activated_at', 'deleted_at',
-                'url', 'url_api',
+                'url', 'url_api', 'original', 'default', 'sizes',
             ]],
         ]);
         $response->assertJsonPath('data.0.url', "/posts/{$post->hash}");
@@ -120,5 +122,34 @@ final class TrashpostsApiControllerTest extends TestCase {
         $post = Trashpost::factory()->deleted()->create();
 
         $this->getJson("/api/posts/{$post->hash}")->assertNotFound();
+    }
+
+    public function test_show_returns_only_image_sizes_present_on_disk(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->visible()->create(['file' => 'abc1234567.jpg']);
+        foreach (['original', '300', '100'] as $size) {
+            Storage::disk('public')->put(MediaPath::imageRelativePath($size, 'abc1234567', 'jpg'), 'x');
+        }
+
+        $response = $this->getJson("/api/posts/{$post->hash}");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.sizes', [
+            ['url' => Storage::disk('public')->url(MediaPath::imageRelativePath('300', 'abc1234567', 'jpg')), 'width' => 300],
+            ['url' => Storage::disk('public')->url(MediaPath::imageRelativePath('100', 'abc1234567', 'jpg')), 'width' => 100],
+        ]);
+        $this->assertNotNull($response->json('data.default'));
+    }
+
+    public function test_show_returns_empty_image_data_for_a_link_only_post(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->visible()->linkOnly()->create();
+
+        $response = $this->getJson("/api/posts/{$post->hash}");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.original', null);
+        $response->assertJsonPath('data.default', null);
+        $response->assertJsonPath('data.sizes', []);
     }
 }
