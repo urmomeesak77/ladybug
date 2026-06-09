@@ -11,12 +11,11 @@ function HomePage() {
   const after = pageStart(searchParams.get('after'));
 
   useEffect(() => {
-    document.title = 'Ladybug — Latest memes';
+    document.title = 'online-trash';
   }, []);
 
   return (
-    <section aria-labelledby="home-heading">
-      <h1 id="home-heading">Latest memes</h1>
+    <section aria-label="Memes">
       {/* Remount the feed when the page cursor changes so each page loads fresh, not
           appended to the previous page (US2 page break / Back-Forward). */}
       <Feed key={after ?? 'newest'} after={after} />

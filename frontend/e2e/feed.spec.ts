@@ -8,9 +8,8 @@ test.describe('Home feed', () => {
   test('renders the shell and the newest memes', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.getByRole('link', { name: 'Ladybug' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'online-trash' })).toBeVisible();
     await expect(page.getByRole('navigation')).toBeVisible();
-    await expect(page.getByRole('heading', { level: 1, name: 'Latest memes' })).toBeVisible();
 
     // The first batch is 10 newest-first entries, each a list item with a titled heading.
     const items = page.locator('.feed__list > li');
