@@ -35,7 +35,7 @@ implementable and testable. This feature touches the Laravel **`backend/`** only
 
 **Purpose**: Confirm the baseline tooling the feature relies on is in place.
 
-- [ ] T001 [P] Verify the Laravel `public` filesystem disk is configured in `backend/config/filesystems.php` (used by `Storage::disk('public')` for image existence/URLs) and that PHPUnit + coverage tooling (`backend/phpunit.xml`, `pcov`/Clover) is present for the ≥ 90% gate. No code change if already correct; this only de-risks the image-URL and coverage tasks.
+- [X] T001 [P] Verify the Laravel `public` filesystem disk is configured in `backend/config/filesystems.php` (used by `Storage::disk('public')` for image existence/URLs) and that PHPUnit + coverage tooling (`backend/phpunit.xml`, `pcov`/Clover) is present for the ≥ 90% gate. No code change if already correct; this only de-risks the image-URL and coverage tasks.
 
 ---
 
@@ -45,8 +45,8 @@ implementable and testable. This feature touches the Laravel **`backend/`** only
 
 **⚠️ CRITICAL**: No user-story work can begin until this phase is complete.
 
-- [ ] T002 Add the `Illuminate\Database\Eloquent\Factories\HasFactory` trait to `App\Models\Trashpost` in `backend/app/Models/Trashpost.php` so tests can call `Trashpost::factory()`. (`activated_at` is set by the factory via Eloquent's force-fill, so it need not be in `$fillable`.)
-- [ ] T003 [P] Create `Database\Factories\TrashpostFactory` in `backend/database/factories/TrashpostFactory.php` with a base definition generating `hash` via `App\Utils\Str::createUniqueHash()` (canonical 10-char code, not ad-hoc Faker), plus `type`, `file = {code}.{ext}`, `username`, and `activated_at = now()`; states: `visible()` (activated, not deleted), `hidden()` (`activated_at = null`), `deleted()` (soft-deleted / `trashed`), and `linkOnly()` (`file = null`, `youtube` set). Mirror the `UserFactory` pattern.
+- [X] T002 Add the `Illuminate\Database\Eloquent\Factories\HasFactory` trait to `App\Models\Trashpost` in `backend/app/Models/Trashpost.php` so tests can call `Trashpost::factory()`. (`activated_at` is set by the factory via Eloquent's force-fill, so it need not be in `$fillable`.)
+- [X] T003 [P] Create `Database\Factories\TrashpostFactory` in `backend/database/factories/TrashpostFactory.php` with a base definition generating `hash` via `App\Utils\Str::createUniqueHash()` (canonical 10-char code, not ad-hoc Faker), plus `type`, `file = {code}.{ext}`, `username`, and `activated_at = now()`; states: `visible()` (activated, not deleted), `hidden()` (`activated_at = null`), `deleted()` (soft-deleted / `trashed`), and `linkOnly()` (`file = null`, `youtube` set). Mirror the `UserFactory` pattern.
 
 **Checkpoint**: Factory + model wiring ready — user stories can now proceed.
 
