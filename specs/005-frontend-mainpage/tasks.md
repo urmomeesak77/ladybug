@@ -36,12 +36,12 @@ components/hooks are thin glue.
 
 **Purpose**: Add the approved dependency, environment template, and base styling shell.
 
-- [ ] T001 Add `react-router-dom` to `dependencies` in `frontend/package.json` and run
+- [x] T001 Add `react-router-dom` to `dependencies` in `frontend/package.json` and run
       `npm install` in `frontend/` (the one approved new runtime dep — constitution
       baseline; no other runtime deps).
-- [ ] T002 [P] Create `frontend/.env.example` with `VITE_API_BASE_URL=http://localhost:8000`
+- [x] T002 [P] Create `frontend/.env.example` with `VITE_API_BASE_URL=http://localhost:8000`
       (API origin per research D9; `.env` itself stays uncommitted).
-- [ ] T003 [P] Create base global stylesheet `frontend/src/styles/theme.css` defining
+- [x] T003 [P] Create base global stylesheet `frontend/src/styles/theme.css` defining
       light-mode CSS custom properties (colors, spacing, layout tokens) and a CSS reset
       (`box-sizing`, no default margins); import it from `frontend/src/main.tsx`.
 
@@ -56,19 +56,19 @@ render without this.
 
 **⚠️ CRITICAL**: Complete before starting any user story.
 
-- [ ] T004 [P] Create `frontend/src/components/NavMenu.tsx` — fixed anonymous nav with
+- [x] T004 [P] Create `frontend/src/components/NavMenu.tsx` — fixed anonymous nav with
       labeled links: Home (`/`) and Login/register (`/login`); semantic `<nav>` landmark
       (per contracts/components.md; aria-current refined in US2/US3).
-- [ ] T005 Create `frontend/src/components/PageLayout.tsx` — `<header>` site
+- [x] T005 Create `frontend/src/components/PageLayout.tsx` — `<header>` site
       wordmark + `<NavMenu />` + `<main>` landmark rendering `{children}` (depends on T004).
-- [ ] T006 [P] Create `frontend/src/pages/PostPlaceholderPage.tsx` — reads `:hash` route
+- [x] T006 [P] Create `frontend/src/pages/PostPlaceholderPage.tsx` — reads `:hash` route
       param and shows a placeholder ("single-meme page coming soon") for `/posts/:hash`.
-- [ ] T007 [P] Create `frontend/src/pages/NotFoundPage.tsx` — accessible not-found view for
+- [x] T007 [P] Create `frontend/src/pages/NotFoundPage.tsx` — accessible not-found view for
       the `*` route.
-- [ ] T008 Rewrite `frontend/src/App.tsx` — `BrowserRouter` with routes `/` → `HomePage`,
+- [x] T008 Rewrite `frontend/src/App.tsx` — `BrowserRouter` with routes `/` → `HomePage`,
       `/posts/:hash` → `PostPlaceholderPage`, `*` → `NotFoundPage`, all wrapped in
       `PageLayout` (depends on T005, T006, T007; `HomePage` is stubbed until T023).
-- [ ] T009 Update `frontend/src/main.tsx` to render `<App />` (entry wiring; depends on T008).
+- [x] T009 Update `frontend/src/main.tsx` to render `<App />` (entry wiring; depends on T008).
 
 **Checkpoint**: App boots, shell + nav render, routes resolve (HomePage stub for now).
 
@@ -86,53 +86,53 @@ reachable.
 
 ### Tests for User Story 1 (write first — must FAIL before implementation) ⚠️
 
-- [ ] T010 [P] [US1] `frontend/tests/lib/feedModel.test.ts` — media precedence
+- [x] T010 [P] [US1] `frontend/tests/lib/feedModel.test.ts` — media precedence
       (youtube→image→none), srcset assembly widest-first, non-empty `alt`, no fabricated
       URLs, null-image ⇒ `none`/title-only (data-model.md derivation rules).
-- [ ] T011 [P] [US1] `frontend/tests/lib/youtube.test.ts` — valid id/URL forms →
+- [x] T011 [P] [US1] `frontend/tests/lib/youtube.test.ts` — valid id/URL forms →
       `youtube-nocookie.com/embed/<id>`; junk/unparseable → `null` (research D6).
-- [ ] T012 [P] [US1] `frontend/tests/lib/api.test.ts` — `buildFeedUrl` clamps `limit` to
+- [x] T012 [P] [US1] `frontend/tests/lib/api.test.ts` — `buildFeedUrl` clamps `limit` to
       `[1,50]` (default 10), omits/URL-encodes `start`; `fetchFeed` maps `data[]` via
       `mapPost` and classifies HTTP/network errors into a typed result
       (contracts/feed-api-consumption.md).
-- [ ] T013 [P] [US1] `frontend/tests/lib/pagination.test.ts` — `nextStart` = last item's
+- [x] T013 [P] [US1] `frontend/tests/lib/pagination.test.ts` — `nextStart` = last item's
       `hash`; `isPageBreak` true at exactly 200; `hasMore` false on short/empty batch;
       reducer in-flight guard blocks duplicate loads (FR-015).
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] Create `frontend/src/lib/feedModel.ts` — `ImageSize`, `FeedMediaKind`,
+- [x] T014 [P] [US1] Create `frontend/src/lib/feedModel.ts` — `ImageSize`, `FeedMediaKind`,
       `FeedPost`, `FeedMedia` types + `mapPost(raw)` and `pickImageSource(post)`; make T010
       pass.
-- [ ] T015 [P] [US1] Create `frontend/src/lib/youtube.ts` — `toEmbedUrl(raw): string | null`;
+- [x] T015 [P] [US1] Create `frontend/src/lib/youtube.ts` — `toEmbedUrl(raw): string | null`;
       make T011 pass.
-- [ ] T016 [US1] Create `frontend/src/lib/api.ts` — `buildFeedUrl(params)` and
+- [x] T016 [US1] Create `frontend/src/lib/api.ts` — `buildFeedUrl(params)` and
       `fetchFeed(params): Promise<FeedResult>` reading `VITE_API_BASE_URL`; make T012 pass
       (depends on T014).
-- [ ] T017 [US1] Create `frontend/src/lib/pagination.ts` — `nextStart(items)`,
+- [x] T017 [US1] Create `frontend/src/lib/pagination.ts` — `nextStart(items)`,
       `isPageBreak(count)`, `hasMore(batch, limit)`, and the page-state reducer; make T013
       pass.
-- [ ] T018 [US1] Create `frontend/src/hooks/useFeed.ts` — feed state machine for the newest
+- [x] T018 [US1] Create `frontend/src/hooks/useFeed.ts` — feed state machine for the newest
       page: initial load, append-on-scroll, end/empty/error + retry, concurrent-load guard;
       delegates math to `lib/pagination`, IO to `lib/api` (depends on T016, T017).
-- [ ] T019 [P] [US1] Create `frontend/src/components/states/` views (`LoadingState.tsx`,
+- [x] T019 [P] [US1] Create `frontend/src/components/states/` views (`LoadingState.tsx`,
       `EmptyState.tsx`, `EndOfFeedState.tsx`, `ErrorState.tsx` with a Retry action) per
       data-model.md "Feed UI states".
-- [ ] T020 [P] [US1] Create `frontend/src/components/MemeMedia.tsx` — `image` ⇒
+- [x] T020 [P] [US1] Create `frontend/src/components/MemeMedia.tsx` — `image` ⇒
       `<img srcset/sizes/loading="lazy" alt>` with an `onError` fallback for a
       runtime-broken image (degrade to title-only, no broken element — spec edge case);
       `youtube` ⇒ `<iframe>` using only `media.embedUrl`; `none` ⇒ title-only fallback
       (depends on T014).
-- [ ] T021 [US1] Create `frontend/src/components/FeedItem.tsx` — renders the post title +
+- [x] T021 [US1] Create `frontend/src/components/FeedItem.tsx` — renders the post title +
       `<MemeMedia />` (permalink wrapping added in US2) (depends on T020).
-- [ ] T022 [US1] Create `frontend/src/components/Feed.tsx` — calls `useFeed`, renders
+- [x] T022 [US1] Create `frontend/src/components/Feed.tsx` — calls `useFeed`, renders
       `FeedItem`s, an `IntersectionObserver` sentinel for auto-load, the "Load more" control
       at the 200-entry break, and the state views from T019; renders only the posts the API
       returns (FR-014) (depends on T018, T019, T021).
-- [ ] T023 [US1] Create `frontend/src/pages/HomePage.tsx` — sets `<h1>`/page title and mounts
+- [x] T023 [US1] Create `frontend/src/pages/HomePage.tsx` — sets `<h1>`/page title and mounts
       `<Feed />` (newest page only; `?after` handling added in US2); wire into `App.tsx`
       route replacing the stub (depends on T022, T008).
-- [ ] T024 [US1] Run `cd frontend && npm run test` — confirm T010–T013 pass and `src/lib`
+- [x] T024 [US1] Run `cd frontend && npm run test` — confirm T010–T013 pass and `src/lib`
       coverage stays ≥90%.
 
 **Checkpoint**: MVP — the feed loads, scrolls, and appends against the live API.
