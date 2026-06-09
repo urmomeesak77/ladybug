@@ -30,6 +30,7 @@ class Trashpost extends Model {
         'file',
         'youtube',
         'user_id',
+        'username',
         'comment',
         'metadata',
     ];
