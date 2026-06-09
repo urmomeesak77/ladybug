@@ -1,2 +1,5 @@
 # Claude Code machine-local settings
 .claude/settings.local.json
+
+# Scratch/screenshot dir (local only)
+temp/
