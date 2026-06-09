@@ -7,6 +7,49 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Media storage layout
+
+All Ladybug media lives on the Laravel `public` disk under
+`storage/app/public/`. This is the single canonical destination for the seeded
+prototype library **and** every future image/video upload — no other location is
+used. The authoritative contract is
+[`specs/003-media-storage/contracts/media-layout.md`](../specs/003-media-storage/contracts/media-layout.md);
+the rules below are a summary.
+
+| Media type | Path (relative to the `public` disk) |
+|------------|--------------------------------------|
+| Image | `image/trash/{size}/{shard}/{code}.{ext}` |
+| Video | `video/trash/{shard}/{code}.{ext}` (no size variants) |
+
+- **`{size}`** ∈ `original, 800, 500, 300, 100` (images only; not every image has
+  every variant — missing variants are never fabricated). Videos are not resized.
+- **`{shard}`** = the lowercased first character of the filename, or `other` when
+  that character is not `[a-z0-9]`. Keeps any one directory from holding the whole
+  library. Images and videos shard identically.
+- **`{ext}`** allowlist for images: `jpg, jpeg, png, gif` (case-insensitive). Any
+  other file (notably `.gitignore`) is **not** media and is never copied or served.
+- Path/shard/extension logic is implemented once in
+  [`app/Support/MediaPath.php`](app/Support/MediaPath.php) and shared by the seed
+  command and the future upload feature.
+
+### Seeding the existing library
+
+```bash
+php artisan media:seed --source="C:\projects\trash\storage\app\public\image\trash"
+```
+
+Copies the Trashpost prototype's images into the layout above, idempotently, and
+prints a verification report (per-size source-vs-dest counts, checksum mismatches,
+stray files). The source path defaults to `MEDIA_SEED_SOURCE` in `.env`
+(see `.env.example`). Add `--dry-run` to report without writing.
+
+### Version control
+
+The media payload is **user content, not source code**, and is excluded from git
+by `storage/app/public/.gitignore` (`*` + `!.gitignore`). No media file under
+`image/trash/` or `video/trash/` is ever staged or committed; only the layout
+contract, the ignore rule, and the code/tests are.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
