@@ -66,11 +66,15 @@ class TrashpostService {
         }
 
         // Keyset: posts strictly older than the cursor on (activated_at, id) —
-        // activated earlier, or at the same instant with a smaller id. Values are
-        // bound as parameters; the parentheses keep this OR from escaping the
-        // visibility filter. The OR-form (not the flat `activated_at < c AND
-        // id < c.id`) avoids skipping posts activated earlier but inserted later
-        // (larger id).
+        // activated earlier, or at the same instant with a smaller id; not the
+        // flat `activated_at < c AND id < c.id`, which would skip posts activated
+        // earlier but inserted later (larger id).
+        //
+        // The OR-form (not the equivalent row-value `(activated_at, id) < (?, ?)`)
+        // is deliberate: verified via EXPLAIN ANALYZE on MySQL 8, only the OR-form
+        // is optimized into a backward range *seek* on trashposts_feed_index
+        // (~10 index rows/page); the row-value form degrades to scanning the whole
+        // newer prefix and filtering. Values are bound as parameters.
         $builder->whereRaw(
             '(activated_at < ? or (activated_at = ? and id < ?))',
             [$cursor->activated_at, $cursor->activated_at, $cursor->id],

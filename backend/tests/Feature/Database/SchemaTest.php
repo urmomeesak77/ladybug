@@ -30,6 +30,15 @@ final class SchemaTest extends TestCase {
         ]));
     }
 
+    public function test_trashposts_has_a_composite_feed_index_on_activated_at_and_id(): void {
+        // The feed keyset orders by (activated_at DESC, id DESC) and seeks by the
+        // same tuple; without this index every page degrades to a filesort.
+        $hasIndex = collect(Schema::getIndexes('trashposts'))
+            ->contains(fn (array $index) => $index['columns'] === ['activated_at', 'id']);
+
+        $this->assertTrue($hasIndex, 'trashposts needs a composite index on (activated_at, id)');
+    }
+
     public function test_excluded_columns_are_absent(): void {
         foreach (['temp', 'oldfile', 'text', 'user'] as $column) {
             $this->assertFalse(
