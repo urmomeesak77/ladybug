@@ -150,20 +150,25 @@ tab and refresh — the same page is restored (not the newest); Back/Forward res
 correct view; clicking an entry navigates to its `/posts/{hash}` permalink; the nav links
 route to Home and Login/register.
 
-- [ ] T025 [US2] Extend `frontend/src/lib/pagination.ts` (+ `tests/lib/pagination.test.ts`)
+- [x] T025 [US2] Extend `frontend/src/lib/pagination.ts` (+ `tests/lib/pagination.test.ts`)
       so the page cursor (`after`) seeds the page's first `start` and the page-break advance
       computes the next page's `after` hash; write the new assertions first, then implement
-      (keeps ≥90% coverage).
-- [ ] T026 [US2] Update `frontend/src/pages/HomePage.tsx` to read the `?after` search param
+      (keeps ≥90% coverage). *(New `pageStart(after)` normalizes the URL cursor→keyset start;
+      page-break advance reuses the existing `nextStart`.)*
+- [x] T026 [US2] Update `frontend/src/pages/HomePage.tsx` to read the `?after` search param
       (react-router `useSearchParams`) and pass it to `useFeed`/`Feed`, restoring that page
-      on load/refresh (FR-005, depends on T023, T025).
-- [ ] T027 [US2] Update `frontend/src/components/Feed.tsx` so the "Load more" control is a
+      on load/refresh (FR-005, depends on T023, T025). *(Feed remounts via `key` per cursor
+      so each page loads fresh.)*
+- [x] T027 [US2] Update `frontend/src/components/Feed.tsx` so the "Load more" control is a
       router `Link`/`useNavigate` that advances the URL to `/?after=<lastHash>` at the page
       break (FR-004/FR-005, depends on T026).
-- [ ] T028 [US2] Update `frontend/src/components/FeedItem.tsx` to wrap the entry in a router
+- [x] T028 [US2] Update `frontend/src/components/FeedItem.tsx` to wrap the entry in a router
       `Link` to `post.permalink` (`/posts/{hash}`) with meaningful link text (FR-007).
-- [ ] T029 [US2] Update `frontend/src/components/NavMenu.tsx` — Home (`/`) and Login/register
+      *(Title is the link text; whole-article wrapping avoided so the media/iframe is not
+      nested inside an `<a>`.)*
+- [x] T029 [US2] Update `frontend/src/components/NavMenu.tsx` — Home (`/`) and Login/register
       (`/login`) destinations with `aria-current` on the active route (FR-001, US2 scenario 4).
+      *(Already satisfied by `NavLink`, which sets `aria-current="page"` on the active route.)*
 
 **Checkpoint**: URL reflects feed page; permalinks + nav + Back/Forward/Refresh all work.
 
@@ -181,29 +186,34 @@ color-only signals.
 
 ### Tests for User Story 3 (write first — must FAIL before implementation) ⚠️
 
-- [ ] T030 [P] [US3] `frontend/tests/lib/theme.test.ts` — `prefersDark()` and
-      `watchScheme(cb)` over a mocked `matchMedia` (research D8).
+- [x] T030 [P] [US3] `frontend/tests/lib/theme.test.ts` — `prefersDark()` and
+      `watchScheme(cb)` over a mocked `matchMedia` (research D8). *(matchMedia stubbed via
+      `vi.stubGlobal` so the helpers run in the node test env without jsdom.)*
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] Create `frontend/src/lib/theme.ts` — `prefersDark(): boolean` and
+- [x] T031 [US3] Create `frontend/src/lib/theme.ts` — `prefersDark(): boolean` and
       `watchScheme(cb)`; make T030 pass.
-- [ ] T032 [US3] Create `frontend/src/hooks/useTheme.ts` — applies `prefers-color-scheme` to
+- [x] T032 [US3] Create `frontend/src/hooks/useTheme.ts` — applies `prefers-color-scheme` to
       the document and updates on change; wraps `lib/theme` (depends on T031); consume it in
-      `App.tsx` or `PageLayout.tsx`.
-- [ ] T033 [P] [US3] Extend `frontend/src/styles/theme.css` with a
+      `App.tsx` or `PageLayout.tsx`. *(Sets `documentElement.style.colorScheme`; consumed in
+      `App.tsx`.)*
+- [x] T033 [P] [US3] Extend `frontend/src/styles/theme.css` with a
       `@media (prefers-color-scheme: dark)` block overriding the custom properties; ensure
-      color is never the sole signal (FR-011/FR-012).
-- [ ] T034 [P] [US3] Add responsive layout CSS (mobile-first, fluid units + media queries)
+      color is never the sole signal (FR-011/FR-012). *(Active nav uses weight+underline,
+      not color alone.)*
+- [x] T034 [P] [US3] Add responsive layout CSS (mobile-first, fluid units + media queries)
       for header/nav/feed; images and the YouTube `<iframe>` scale within their container
       preserving aspect ratio; no horizontal scroll 320px→wide desktop (FR-010, Principle
       VIII). Also confirm `frontend/index.html` declares
       `<meta name="viewport" content="width=device-width, initial-scale=1">` (Principle VIII
-      MUST) and add it if absent.
-- [ ] T035 [US3] Accessibility pass across `NavMenu`, `Feed`, `FeedItem`, `MemeMedia`, and
+      MUST) and add it if absent. *(Viewport meta already present; iframe in a 16:9
+      aspect-ratio box.)*
+- [x] T035 [US3] Accessibility pass across `NavMenu`, `Feed`, `FeedItem`, `MemeMedia`, and
       `states/*`: non-empty descriptive `alt` and iframe `title`, labeled links/controls,
       an `aria-live` region for loading/end/error status, sane keyboard tab order
-      (FR-012/FR-013, SC-007).
+      (FR-012/FR-013, SC-007). *(Made `Feed`'s persistent wrapper the single `aria-live`
+      region; removed nested live roles from the state views to avoid double announcements.)*
 
 **Checkpoint**: All three stories functional, themed, responsive, and accessible.
 
