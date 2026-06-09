@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Trashpost;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -66,12 +67,25 @@ class TrashpostService {
         }
 
         // Wrap the OR group so it cannot escape the visibility filter.
-        $builder->where(function (Builder $query) use ($cursor): void {
-            $query->where('activated_at', '<', $cursor->activated_at)
-                ->orWhere(function (Builder $tie) use ($cursor): void {
-                    $tie->where('activated_at', '=', $cursor->activated_at)
-                        ->where('id', '<', $cursor->id);
-                });
-        });
+        $builder->where($this->strictlyOlderThan($cursor));
+    }
+
+    /**
+     * Group predicate selecting posts strictly older than $cursor on the
+     * (activated_at, id) keyset: either activated earlier, or activated at the
+     * same instant but with a smaller id. The OR-form (not a flat
+     * `activated_at < c AND id < c.id`) keeps posts activated earlier yet
+     * inserted later — larger id — from being skipped.
+     */
+    private function strictlyOlderThan(Trashpost $cursor): Closure {
+        $activatedAt = $cursor->activated_at;
+        $id = $cursor->id;
+
+        return static function (Builder $group) use ($activatedAt, $id): void {
+            $group->where('activated_at', '<', $activatedAt)
+                ->orWhere(static fn (Builder $tie): Builder => $tie
+                    ->where('activated_at', '=', $activatedAt)
+                    ->where('id', '<', $id));
+        };
     }
 }
