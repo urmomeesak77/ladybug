@@ -1,18 +1,31 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 
 import { fetchFeed } from '../lib/api';
+import { readSnapshot, writeSnapshot } from '../lib/feedCache';
+import type { FeedState } from '../lib/pagination';
 import { feedReducer, initialFeedState, isPageBreak, nextStart } from '../lib/pagination';
 
 const BATCH_SIZE = 10;
 
+// Build the reducer's initial state from a saved snapshot so Back/Forward and refresh
+// re-render the posts the user already loaded instead of refetching the newest page.
+function hydrate(cacheKey: string): FeedState {
+  const snapshot = readSnapshot(sessionStorage, cacheKey);
+  if (snapshot && snapshot.posts.length > 0) {
+    return { status: snapshot.status, posts: snapshot.posts };
+  }
+  return initialFeedState;
+}
+
 // Feed state machine for one page: initial load, append-on-scroll, end/empty/error +
 // retry. Math lives in lib/pagination, IO in lib/api; this hook is the React glue.
-// A ref guards against concurrent fetches under rapid scroll (FR-015) — more reliable
-// than reading reducer state inside the async callback.
-export function useFeed(after?: string) {
-  const [state, dispatch] = useReducer(feedReducer, initialFeedState);
+// `cacheKey` identifies the feed URL so its posts/cursor/anchor persist to sessionStorage.
+export function useFeed(after: string | undefined, cacheKey: string) {
+  const [state, dispatch] = useReducer(feedReducer, cacheKey, hydrate);
   const isLoadingRef = useRef(false);
-  const cursorRef = useRef<string | undefined>(after);
+  const cursorRef = useRef<string | undefined>(
+    readSnapshot(sessionStorage, cacheKey)?.cursor ?? after,
+  );
 
   const load = useCallback(async () => {
     if (isLoadingRef.current) {
@@ -31,9 +44,30 @@ export function useFeed(after?: string) {
     isLoadingRef.current = false;
   }, []);
 
+  // Auto-load the first batch only when nothing was hydrated from the snapshot.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (state.posts.length === 0) {
+      void load();
+    }
+    // Run once on mount; `load` is stable and `state` is read only for the initial value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist the loaded feed on every settled change, preserving the scroll anchor that
+  // useScrollRestoration writes separately.
+  useEffect(() => {
+    if (state.status === 'idle' || state.status === 'loading' || state.status === 'error') {
+      return;
+    }
+    const previous = readSnapshot(sessionStorage, cacheKey);
+    writeSnapshot(sessionStorage, cacheKey, {
+      posts: state.posts,
+      cursor: cursorRef.current,
+      status: state.status,
+      anchorHash: previous?.anchorHash ?? null,
+      anchorOffset: previous?.anchorOffset ?? 0,
+    });
+  }, [state.posts, state.status, cacheKey]);
 
   const atPageBreak = isPageBreak(state.posts.length);
   // Auto-load only while the API has more and we have not hit the explicit page break.
