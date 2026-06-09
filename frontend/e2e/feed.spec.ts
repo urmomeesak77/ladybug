@@ -48,4 +48,33 @@ test.describe('Home feed', () => {
       page.getByRole('heading', { level: 1, name: 'Single-meme page coming soon' }),
     ).toBeVisible();
   });
+
+  test('restores scroll position after returning from a post', async ({ page }) => {
+    await page.goto('/');
+    const items = page.locator('.feed__list > li');
+    await expect(items).toHaveCount(10);
+
+    // Load a second batch, then scroll partway into it so the position is non-trivial.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(items).toHaveCount(20);
+    await page.evaluate(() => window.scrollTo(0, Math.round(document.body.scrollHeight / 2)));
+    // Let the throttled scroll capture (150ms) persist the anchor.
+    await page.waitForTimeout(300);
+
+    const before = await page.evaluate(() => window.scrollY);
+    expect(before).toBeGreaterThan(0);
+
+    // Open a post and navigate back.
+    const link = items.nth(12).locator('h2 a');
+    const href = await link.getAttribute('href');
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`${href}$`));
+    await page.goBack();
+
+    // The previously loaded posts are restored and the scroll lands where we left off.
+    await expect(items).toHaveCount(20);
+    await expect
+      .poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - before))
+      .toBeLessThan(150);
+  });
 });
