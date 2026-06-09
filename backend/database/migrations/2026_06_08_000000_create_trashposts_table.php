@@ -10,8 +10,7 @@ return new class () extends Migration {
     /**
      * Run the migrations.
      */
-    public function up(): void
-    {
+    public function up(): void {
         // utf8mb4_bin collation and ON UPDATE CURRENT_TIMESTAMP exist only on
         // MySQL (runtime); SQLite (tests) degrades to portable equivalents
         // without losing the asserted behaviour (research R2, R3).
@@ -43,8 +42,7 @@ return new class () extends Migration {
     /**
      * Reverse the migrations.
      */
-    public function down(): void
-    {
+    public function down(): void {
         Schema::dropIfExists('trashposts');
     }
 };

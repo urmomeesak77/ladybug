@@ -8,8 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Trashpost extends Model
-{
+class Trashpost extends Model {
     use SoftDeletes;
 
     /**
@@ -38,8 +37,7 @@ class Trashpost extends Model
     /**
      * Get the owning user, or null for an unowned post.
      */
-    public function user(): BelongsTo
-    {
+    public function user(): BelongsTo {
         return $this->belongsTo(User::class);
     }
 
@@ -48,8 +46,7 @@ class Trashpost extends Model
      *
      * @return array<string, string>
      */
-    protected function casts(): array
-    {
+    protected function casts(): array {
         return [
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

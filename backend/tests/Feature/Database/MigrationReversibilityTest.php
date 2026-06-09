@@ -11,10 +11,8 @@ use Tests\TestCase;
  * Drives the migrations directly (no RefreshDatabase) to prove they build
  * forward, roll back to empty, and rebuild cleanly against the in-memory DB.
  */
-final class MigrationReversibilityTest extends TestCase
-{
-    public function test_migrations_roll_back_and_re_apply_cleanly(): void
-    {
+final class MigrationReversibilityTest extends TestCase {
+    public function test_migrations_roll_back_and_re_apply_cleanly(): void {
         $this->artisan('migrate')->assertSuccessful();
         $this->assertTrue(Schema::hasTable('trashposts'));
         $this->assertTrue(Schema::hasTable('users'));

@@ -9,19 +9,16 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
-final class SeedMediaCommandTest extends TestCase
-{
+final class SeedMediaCommandTest extends TestCase {
     private string $source;
 
-    protected function setUp(): void
-    {
+    protected function setUp(): void {
         parent::setUp();
         Storage::fake('public');
         $this->source = $this->makeFixtureSource();
     }
 
-    protected function tearDown(): void
-    {
+    protected function tearDown(): void {
         File::deleteDirectory($this->source);
         parent::tearDown();
     }
@@ -30,8 +27,7 @@ final class SeedMediaCommandTest extends TestCase
      * Build a small prototype-shaped source tree: a few sizes/shards, mixed
      * jpg/jpeg/png/gif, plus stray .gitignore and a stray non-media file.
      */
-    private function makeFixtureSource(): string
-    {
+    private function makeFixtureSource(): string {
         $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'media-seed-' . uniqid();
 
         $files = [
@@ -56,8 +52,7 @@ final class SeedMediaCommandTest extends TestCase
         return $root;
     }
 
-    public function test_it_copies_media_into_the_canonical_layout(): void
-    {
+    public function test_it_copies_media_into_the_canonical_layout(): void {
         $exit = Artisan::call('media:seed', ['--source' => $this->source]);
         $disk = Storage::disk('public');
 
@@ -71,8 +66,7 @@ final class SeedMediaCommandTest extends TestCase
         $this->assertSame('tiny-abc', $disk->get('image/trash/100/a/abc.jpeg'));
     }
 
-    public function test_it_never_copies_stray_non_media_files(): void
-    {
+    public function test_it_never_copies_stray_non_media_files(): void {
         Artisan::call('media:seed', ['--source' => $this->source]);
         $disk = Storage::disk('public');
 
@@ -85,8 +79,7 @@ final class SeedMediaCommandTest extends TestCase
         $this->assertStringContainsString('stray skipped (source): 4', $output);
     }
 
-    public function test_dry_run_writes_nothing_but_still_reports(): void
-    {
+    public function test_dry_run_writes_nothing_but_still_reports(): void {
         $exit = Artisan::call('media:seed', ['--source' => $this->source, '--dry-run' => true]);
         $output = Artisan::output();
 
@@ -96,8 +89,7 @@ final class SeedMediaCommandTest extends TestCase
         $this->assertStringContainsString('stray skipped (source): 4', $output);
     }
 
-    public function test_re_running_is_idempotent(): void
-    {
+    public function test_re_running_is_idempotent(): void {
         Artisan::call('media:seed', ['--source' => $this->source]);
 
         $exit = Artisan::call('media:seed', ['--source' => $this->source]);
@@ -108,8 +100,7 @@ final class SeedMediaCommandTest extends TestCase
         $this->assertStringContainsString('RESULT: OK', $output);
     }
 
-    public function test_report_shows_per_size_match_and_clean_verification(): void
-    {
+    public function test_report_shows_per_size_match_and_clean_verification(): void {
         $exit = Artisan::call('media:seed', ['--source' => $this->source]);
         $output = Artisan::output();
 
@@ -121,8 +112,7 @@ final class SeedMediaCommandTest extends TestCase
         $this->assertMatchesRegularExpression('/original\s+3\s+3\s+OK/', $output);
     }
 
-    public function test_missing_source_errors_and_exits_nonzero(): void
-    {
+    public function test_missing_source_errors_and_exits_nonzero(): void {
         $missing = $this->source . DIRECTORY_SEPARATOR . 'does-not-exist';
 
         $exit = Artisan::call('media:seed', ['--source' => $missing]);

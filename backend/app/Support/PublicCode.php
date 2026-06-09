@@ -6,19 +6,17 @@ namespace App\Support;
 
 /**
  * The immutable public identifier for a meme (Constitution Principle V): exactly
- * 11 characters drawn from [A-Z0-9-]. Used in shareable URLs and single-meme
- * lookups instead of the database id.
+ * 10 characters drawn from [A-Za-z0-9-_] (YouTube-style, case-sensitive). Used in
+ * shareable URLs and single-meme lookups instead of the database id.
  */
-final class PublicCode
-{
-    private const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-';
+final class PublicCode {
+    private const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
-    private const LENGTH = 11;
+    private const LENGTH = 10;
 
-    private const PATTERN = '/^[A-Z0-9-]{11}$/';
+    private const PATTERN = '/^[A-Za-z0-9_-]{10}$/';
 
-    public static function generate(): string
-    {
+    public static function generate(): string {
         $lastIndex = strlen(self::ALPHABET) - 1;
         $code = '';
         for ($i = 0; $i < self::LENGTH; $i++) {
@@ -28,8 +26,7 @@ final class PublicCode
         return $code;
     }
 
-    public static function isValid(string $value): bool
-    {
+    public static function isValid(string $value): bool {
         return preg_match(self::PATTERN, $value) === 1;
     }
 }

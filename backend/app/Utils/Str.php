@@ -1,42 +1,39 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Utils;
 
 class Str {
-
     /**
-     * There is a very very slight chance that calculated hash is not unique
-     * if generated random number(out of 112) is same in same microsecond
+     * Build a pseudo-unique, time-seeded base64 hash of the given length.
      *
-     * @param int $length
-     *
-     * @return string
+     * Uniqueness is probabilistic: two calls in the same microsecond that draw
+     * the same random salt could collide, so callers needing a guaranteed-unique
+     * value must enforce it at the storage layer (e.g. a unique column).
      */
-    public static function createUniqueHash($length = 10) {
-
-        $num = self::getTimeBasedUniqueNumber();
-
-        $hash = Base64::convertDecToBase64($num);
+    public static function createUniqueHash(int $length = 10): string {
+        $hash = Base64::convertDecToBase64(self::getTimeBasedUniqueNumber());
 
         if (strlen($hash) > $length) {
             $hash = substr($hash, 0, $length);
         }
         while (strlen($hash) < $length) {
-            $hash .= Base64::convertDecToBase64(rand(0, 63));
+            $hash .= Base64::convertDecToBase64(random_int(0, 63));
         }
 
         return $hash;
     }
 
     /**
-     * @return string
+     * A time-based number large enough (between 64^9 and 64^10) to seed a
+     * 10-character base64 hash, salted with a small random prefix. Returned as a
+     * string because it can exceed PHP_INT_MAX.
      */
-    private static function getTimeBasedUniqueNumber() {
-        $time = explode(' ', microtime());
+    private static function getTimeBasedUniqueNumber(): string {
+        [$fraction, $seconds] = explode(' ', microtime());
+        $micros = (int) floor((float) $fraction * 1000000);
 
-        $num = $time[1] . floor($time[0] * 1000000);
-        $num = rand(2, 114) . $num; //num should be between  64^9 and 64^10
-
-        return $num;
+        return random_int(2, 114) . $seconds . $micros;
     }
 }

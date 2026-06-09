@@ -1,18 +1,22 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 1.1.0
-Bump rationale (latest): MINOR — added Principle VII (Test Coverage & Organization:
-90%+ coverage, tests under tests/ mirroring source structure) and a Test Gate to the
-Development Workflow. New principle = MINOR bump.
+Version change: 1.1.0 → 1.1.1
+Bump rationale (latest): PATCH — clarified Principle V's public-code format (exactly 10
+chars, charset `[A-Za-z0-9-_]` to match the stated YouTube-style intent) and aligned the
+stale "11-char `[A-Z0-9-]`" reference in Technology & Architecture Constraints to it. No
+principle added or redefined = PATCH bump.
 
 History:
   - 1.0.0 (2026-06-08): Initial ratification — first concrete constitution replacing
     the unfilled template. Core Principles I–VI + supporting sections.
   - 1.1.0 (2026-06-08): Added Principle VII; added Test Gate; reworded manual-verification
     note (no longer claims "little automated test coverage").
+  - 1.1.1 (2026-06-09): Clarified Principle V code format (10 chars, `[A-Za-z0-9-_]`) and
+    fixed the contradicting length/charset reference in Technology & Architecture
+    Constraints. Wording/consistency fix only.
 
-Modified principles: N/A (no existing principle redefined)
+Modified principles: N/A (no existing principle redefined; Principle V clarified only)
 Added sections:
   - Core Principles I–VI (1.0.0)
   - Core Principle VII — Test Coverage & Organization (1.1.0)
@@ -106,8 +110,8 @@ baseline of professional web work.
 
 Each meme is addressed by a stable, opaque public code.
 
-- The public identifier MUST be exactly 11 characters drawn from `[A-Z0-9-]`
-  (YouTube-style).
+- The public identifier MUST be exactly 10 characters drawn from `[A-Za-z0-9-_]`
+  (YouTube-style; case-sensitive).
 - This code, not a database auto-increment id, is what appears in URLs and is used to fetch a
   single meme's page.
 - Codes are immutable once assigned and MUST be unique.
@@ -161,7 +165,7 @@ mirroring the source tree keeps tests discoverable as the codebase grows.
 - **API contract**: The React app talks to Laravel over a JSON API. Pagination is page-based
   and reflected in the URL; the page size for feed loads is 10, and the infinite-scroll batch
   cap before a "Load more" page break is 200.
-- **Identifiers**: 11-char `[A-Z0-9-]` codes per Principle V are the canonical public handle
+- **Identifiers**: 10-char `[A-Za-z0-9-_]` codes per Principle V are the canonical public handle
   for memes.
 - **Theming**: Driven by `prefers-color-scheme` with optional persisted override (Principle
   IV).

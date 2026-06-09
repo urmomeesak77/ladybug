@@ -10,8 +10,7 @@ namespace App\Support;
  * image/trash/{size}/{shard}/{code}.{ext}; videos at video/trash/{shard}/{code}.{ext}.
  * No I/O here so the seed command and the future upload feature can share and unit-test it.
  */
-final class MediaPath
-{
+final class MediaPath {
     private const IMAGE_ROOT = 'image/trash';
 
     private const VIDEO_ROOT = 'video/trash';
@@ -28,13 +27,11 @@ final class MediaPath
     /**
      * @return list<string>
      */
-    public static function imageSizes(): array
-    {
+    public static function imageSizes(): array {
         return self::IMAGE_SIZES;
     }
 
-    public static function shardFor(string $filename): string
-    {
+    public static function shardFor(string $filename): string {
         $lead = strtolower(substr($filename, 0, 1));
 
         // Keep any single directory from holding the whole library; non-[a-z0-9] leads
@@ -42,22 +39,19 @@ final class MediaPath
         return preg_match('/^[a-z0-9]$/', $lead) === 1 ? $lead : self::OTHER_SHARD;
     }
 
-    public static function isMediaFile(string $filename): bool
-    {
+    public static function isMediaFile(string $filename): bool {
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
         return in_array($ext, self::IMAGE_EXTENSIONS, true);
     }
 
-    public static function imageRelativePath(string $size, string $code, string $ext): string
-    {
+    public static function imageRelativePath(string $size, string $code, string $ext): string {
         $shard = self::shardFor("{$code}.{$ext}");
 
         return self::IMAGE_ROOT . "/{$size}/{$shard}/{$code}.{$ext}";
     }
 
-    public static function videoRelativePath(string $code, string $ext): string
-    {
+    public static function videoRelativePath(string $code, string $ext): string {
         $shard = self::shardFor("{$code}.{$ext}");
 
         // Videos are not resized, so there is no {size} segment — sibling of the image root.

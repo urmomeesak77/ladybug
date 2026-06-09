@@ -9,17 +9,14 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-final class TrashpostTest extends TestCase
-{
+final class TrashpostTest extends TestCase {
     use RefreshDatabase;
 
-    public function test_uses_the_trashposts_table(): void
-    {
+    public function test_uses_the_trashposts_table(): void {
         $this->assertSame('trashposts', (new Trashpost())->getTable());
     }
 
-    public function test_mass_assignable_attributes(): void
-    {
+    public function test_mass_assignable_attributes(): void {
         $fillable = (new Trashpost())->getFillable();
 
         $this->assertSame(
@@ -28,8 +25,7 @@ final class TrashpostTest extends TestCase
         );
     }
 
-    public function test_casts_timestamps_to_datetime(): void
-    {
+    public function test_casts_timestamps_to_datetime(): void {
         $casts = (new Trashpost())->getCasts();
 
         foreach (['created_at', 'updated_at', 'activated_at', 'deleted_at'] as $column) {
@@ -37,8 +33,7 @@ final class TrashpostTest extends TestCase
         }
     }
 
-    public function test_soft_delete_hides_the_row_and_sets_deleted_at(): void
-    {
+    public function test_soft_delete_hides_the_row_and_sets_deleted_at(): void {
         $post = Trashpost::create(['hash' => 'softdelet1']);
 
         $post->delete();
@@ -48,8 +43,7 @@ final class TrashpostTest extends TestCase
         $this->assertNotNull(Trashpost::withTrashed()->find($post->id));
     }
 
-    public function test_belongs_to_an_owning_user(): void
-    {
+    public function test_belongs_to_an_owning_user(): void {
         $user = User::factory()->create();
         $post = Trashpost::create(['hash' => 'owned00001', 'user_id' => $user->id]);
 

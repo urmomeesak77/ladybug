@@ -17,8 +17,7 @@ use Symfony\Component\Finder\SplFileInfo;
  * skips non-media strays, runs idempotently, and prints a verification report whose
  * exit code is 0 only when every per-size count matches and nothing is corrupt or stray.
  */
-final class SeedMediaCommand extends Command
-{
+final class SeedMediaCommand extends Command {
     protected $signature = 'media:seed
         {--source= : Absolute path to the prototype image/trash root to copy from}
         {--dry-run : Scan and report what would be copied without writing files}';
@@ -28,8 +27,7 @@ final class SeedMediaCommand extends Command
     /** Used only when neither --source nor MEDIA_SEED_SOURCE is provided. */
     private const DEFAULT_SOURCE = 'C:\projects\trash\storage\app\public\image\trash';
 
-    public function handle(): int
-    {
+    public function handle(): int {
         $source = $this->resolveSource();
         if ($source === null) {
             return self::FAILURE;
@@ -46,8 +44,7 @@ final class SeedMediaCommand extends Command
     }
 
     /** Resolve --source → MEDIA_SEED_SOURCE → default; null (with error) if it is not a dir. */
-    private function resolveSource(): ?string
-    {
+    private function resolveSource(): ?string {
         $source = $this->option('source') ?: env('MEDIA_SEED_SOURCE') ?: self::DEFAULT_SOURCE;
 
         if (! File::isDirectory($source)) {
@@ -64,8 +61,7 @@ final class SeedMediaCommand extends Command
      *
      * @return array{sizeSource: array<string,int>, entries: list<array{dest: string, src: string}>, copied: int, skipped: int, straySkipped: int}
      */
-    private function copyMedia(string $source, FilesystemAdapter $disk, bool $dryRun): array
-    {
+    private function copyMedia(string $source, FilesystemAdapter $disk, bool $dryRun): array {
         $sizeSource = array_fill_keys(MediaPath::imageSizes(), 0);
         $entries = [];
         $copied = $skipped = $straySkipped = 0;
@@ -91,8 +87,7 @@ final class SeedMediaCommand extends Command
     }
 
     /** Copy only when the destination is missing or a different size; returns true if (would be) copied. */
-    private function copyOne(FilesystemAdapter $disk, string $srcPath, string $dest, bool $dryRun): bool
-    {
+    private function copyOne(FilesystemAdapter $disk, string $srcPath, string $dest, bool $dryRun): bool {
         if ($disk->exists($dest) && $disk->size($dest) === filesize($srcPath)) {
             return false;
         }
@@ -105,16 +100,14 @@ final class SeedMediaCommand extends Command
     }
 
     /** The first path segment under the source root is the size bucket (e.g. original, 300). */
-    private function sizeSegment(SplFileInfo $file): string
-    {
+    private function sizeSegment(SplFileInfo $file): string {
         return explode('/', str_replace('\\', '/', $file->getRelativePathname()))[0];
     }
 
     /**
      * @param  array{sizeSource: array<string,int>, entries: list<array{dest: string, src: string}>, copied: int, skipped: int, straySkipped: int}  $plan
      */
-    private function verify(array $plan, FilesystemAdapter $disk, bool $dryRun): array
-    {
+    private function verify(array $plan, FilesystemAdapter $disk, bool $dryRun): array {
         $rows = [];
         $countsMatch = true;
         foreach (MediaPath::imageSizes() as $size) {
@@ -139,8 +132,7 @@ final class SeedMediaCommand extends Command
     /**
      * @param  list<array{dest: string, src: string}>  $entries
      */
-    private function checksumMismatches(array $entries, FilesystemAdapter $disk): int
-    {
+    private function checksumMismatches(array $entries, FilesystemAdapter $disk): int {
         $mismatches = 0;
         foreach ($entries as $entry) {
             if (! $disk->exists($entry['dest'])
@@ -152,8 +144,7 @@ final class SeedMediaCommand extends Command
         return $mismatches;
     }
 
-    private function strayInDest(FilesystemAdapter $disk): int
-    {
+    private function strayInDest(FilesystemAdapter $disk): int {
         $stray = 0;
         foreach ($disk->allFiles('image/trash') as $path) {
             if (! MediaPath::isMediaFile($path)) {
@@ -167,8 +158,7 @@ final class SeedMediaCommand extends Command
     /**
      * @param  array<string, mixed>  $report
      */
-    private function printReport(string $source, array $report): void
-    {
+    private function printReport(string $source, array $report): void {
         $this->line("Media seed report (source: {$source})");
         $this->line(sprintf('%-10s %7s %7s   %s', 'size', 'source', 'dest', 'match'));
         foreach ($report['rows'] as $row) {

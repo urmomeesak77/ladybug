@@ -210,9 +210,14 @@ function cache<T>(fn: () => T): () => T {
 - **Private/protected**: optional underscore prefix (legacy convention, not PSR-12 requirement): `private $_internalState` or `private $internalState`
 
 ### Structure & Style
-- Follow PSR-12 (PHP Standards Recommendation)
+- Follow PSR-12 (PHP Standards Recommendation), **except** for brace placement (see below)
 - Indent with 4 spaces (not 2)
-- Opening braces on same line: `if ($condition) {`
+- **Opening braces always go on the same line** as the construct they open — control
+  structures, functions/methods, *and* classes: `if ($condition) {`, `function getName(): string {`,
+  `class User {`. This deviates from PSR-12, which puts class and method braces on their own line;
+  the project standardizes on same-line (1TBS) braces for every construct, in all languages.
+- Closing brace and a following keyword are cuddled on the same line: `} else {`, `} elseif {`,
+  `} catch (Exception $e) {`
 - Use type declarations: `public function getName(): string`
 - Use strict types: `declare(strict_types=1);` at file start
 
@@ -316,6 +321,13 @@ try {
 - **TypeScript**: `types.ts`, `game.service.ts` (kebab-case for modules); `GameBoard.ts`, `UserCard.ts` (PascalCase for class files)
 - **PHP**: `UserController.php`, `Database.php`, `Config.php` (PascalCase, one class per file)
 - **Components**: `Header.vue`, `GameBoard.tsx`, `UserCard.jsx` (PascalCase)
+
+### Brace Style (All Languages)
+- **Opening braces always go on the same line** as the construct (1TBS / K&R style): `if (x) {`,
+  `function foo() {`, `class Bar {`, `for (...) {`. Never on their own line (no Allman style).
+- This applies to **every construct in every language** — including PHP classes and methods, which
+  PSR-12 would otherwise place on the next line. Same-line braces win here.
+- Cuddle a trailing keyword with the preceding closing brace: `} else {`, `} catch (e) {`.
 
 ### Line Length & Formatting
 - **Maximum line length**: 100–120 characters (aim for 100, hard limit 120)
@@ -426,5 +438,5 @@ try {
 
 ---
 
-**Last Updated**: 2026-04-16  
-**Version**: 1.0
+**Last Updated**: 2026-06-09  
+**Version**: 1.1
