@@ -5,6 +5,11 @@ import { defineConfig } from 'vite';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Windows host + Docker bind mount: inotify events don't cross into the Linux
+  // container, so the watcher must poll for HMR to detect edits (dev-only cost).
+  server: {
+    watch: { usePolling: true },
+  },
   test: {
     include: ['tests/**/*.test.ts'],
     coverage: {

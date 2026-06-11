@@ -1,0 +1,252 @@
+/* Base global styles: design tokens + a minimal reset. Dark-mode overrides for these
+   custom properties arrive in US3 via a `prefers-color-scheme` media query (T033). */
+
+:root {
+  /* Color tokens (light mode defaults). */
+  --color-bg: #f7f7f8;
+  --color-surface: #ffffff;
+  --color-border: #d8d8de;
+  --color-text: #1b1b1f;
+  --color-text-muted: #5c5c66;
+  --color-accent: #c8102e;
+  --color-accent-text: #ffffff;
+  --color-focus: #1a73e8;
+
+  /* Spacing scale. */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+
+  /* Layout tokens. */
+  --layout-max-width: 48rem;
+  --radius-md: 0.5rem;
+}
+
+/* Reset: predictable box model and no surprise default margins. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body,
+h1,
+h2,
+h3,
+p,
+figure,
+ul,
+ol {
+  margin: 0;
+}
+
+html {
+  /* Stop iOS text auto-inflation while honoring user font-size choices. */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+/* Honor a fully visible focus ring for keyboard users (Principle IV). */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Dark mode: override the color tokens only; layout tokens are scheme-agnostic. Honors the
+   OS preference and updates live (Principle IV / research D8, T033). */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #131316;
+    --color-surface: #1d1d22;
+    --color-border: #34343c;
+    --color-text: #ececf1;
+    --color-text-muted: #a6a6b3;
+    --color-accent: #ff6b81;
+    --color-accent-text: #1b1b1f;
+    --color-focus: #7cb0ff;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Responsive layout (mobile-first; fluid + media queries) — T034.    *
+ * No horizontal scroll from ~320px to wide desktop (Principle VIII). *
+ * ------------------------------------------------------------------ */
+
+/* Site header: centered logo + nav. Sticky so the logo and nav stay reachable while
+   scrolling the feed (Principle IV). The logo is absolutely centered (matching the
+   prototype's top-menu), nav sits at the right edge. */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  min-height: 70px;
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+
+/* Logo links home; the <picture> inside swaps art per color scheme. Sized and centered to
+   match the prototype's logo exactly (250x50 box, 10px from the top, centered). The image
+   covers that box so the wordmark renders at the same scale as trash.dv. */
+.site-logo {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 250px;
+  height: 50px;
+  text-decoration: none;
+}
+
+.site-logo picture,
+.site-logo img {
+  display: block;
+  width: 250px;
+  height: 50px;
+}
+
+.site-logo img {
+  object-fit: cover;
+}
+
+nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  list-style: none;
+  padding: 0;
+}
+
+nav a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+/* Current page: signalled by weight + underline as well as color, never color alone
+   (Principle IV / FR-011). aria-current is set by NavLink for assistive tech. */
+nav a[aria-current='page'] {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+}
+
+main {
+  max-width: var(--layout-max-width);
+  margin-inline: auto;
+  padding: var(--space-md);
+}
+
+/* Feed list: one column of cards with consistent spacing. */
+.feed__list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.feed-item {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.feed-item__title {
+  font-size: 1.125rem;
+  padding: var(--space-md);
+  margin: 0;
+}
+
+.feed-item__title a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.feed-item__title a:hover {
+  text-decoration: underline;
+}
+
+/* Images scale within the card; the reset already caps width and sets display:block. */
+.meme-media__image {
+  width: 100%;
+  height: auto;
+}
+
+/* YouTube embeds keep a 16:9 box and the iframe fills it, scaling with the column. */
+.meme-media--video {
+  position: relative;
+  aspect-ratio: 16 / 9;
+}
+
+.meme-media__iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* Feed status / state messages. */
+.feed__status {
+  margin-top: var(--space-lg);
+}
+
+.feed-state {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: var(--space-md);
+}
+
+.feed-state--error {
+  color: var(--color-text);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+}
+
+/* "Load more" page-break control, styled as an accent button (it is a router link). */
+.feed__load-more {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-lg);
+  padding: var(--space-md);
+  text-align: center;
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  border: 0;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.feed-state--error button {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Off-screen sentinel that triggers auto-load; no visual footprint. */
+.feed__sentinel {
+  height: 1px;
+}

@@ -16,6 +16,12 @@ RUN docker-php-ext-install pdo_mysql zip bcmath \
     && pecl install pcov \
     && docker-php-ext-enable pcov
 
+# opcache is bundled with the base image but ships disabled. Enabling it (incl.
+# CLI mode, since `artisan serve` runs under the CLI SAPI) caches compiled PHP in
+# memory so each request stops re-reading the framework off the slow bind mount.
+RUN docker-php-ext-enable opcache
+COPY opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
+
 # Reuse Composer from its official image rather than installing it by hand.
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
