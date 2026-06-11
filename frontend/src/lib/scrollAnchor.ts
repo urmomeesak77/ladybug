@@ -24,3 +24,20 @@ export function pickAnchor(items: ItemRect[], scrollY: number): Anchor | null {
   }
   return { anchorHash: anchor.hash, anchorOffset: scrollY - anchor.top };
 }
+
+export type RestoreTarget =
+  | { kind: 'anchor'; hash: string; offset: number }
+  | { kind: 'top' };
+
+// Decide where a mounting feed page positions the viewport: pin the saved anchor when
+// one exists, otherwise the top. The explicit "top" matters for pages reached via the
+// Load-more page break — with history.scrollRestoration set to manual, a fresh page
+// would otherwise inherit whatever clamped scroll position the previous page left.
+export function pickRestoreTarget(
+  snapshot: { anchorHash: string | null; anchorOffset: number } | null,
+): RestoreTarget {
+  if (snapshot && snapshot.anchorHash) {
+    return { kind: 'anchor', hash: snapshot.anchorHash, offset: snapshot.anchorOffset };
+  }
+  return { kind: 'top' };
+}

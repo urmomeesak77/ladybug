@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect } from 'react';
 
 import { readSnapshot, updateSnapshot } from '../lib/feedCache';
-import { pickAnchor } from '../lib/scrollAnchor';
+import { pickAnchor, pickRestoreTarget } from '../lib/scrollAnchor';
 import type { ItemRect } from '../lib/scrollAnchor';
 
 const THROTTLE_MS = 150;
@@ -46,19 +46,19 @@ function scrollToAnchor(hash: string, offset: number): HTMLElement | null {
 export function useScrollRestoration(cacheKey: string): void {
   // Restore before paint so the user never sees a flash at the top.
   useLayoutEffect(() => {
-    const snapshot = readSnapshot(sessionStorage, cacheKey);
-    if (!snapshot?.anchorHash) {
+    const target = pickRestoreTarget(readSnapshot(sessionStorage, cacheKey));
+    if (target.kind === 'top') {
+      // A fresh page (e.g. reached via "Load more") starts at the top; with manual
+      // scrollRestoration it would otherwise keep the previous page's clamped position.
+      window.scrollTo(0, 0);
       return;
     }
-    if ('scrollRestoration' in history) {
-      history.scrollRestoration = 'manual';
-    }
-    const { anchorHash, anchorOffset } = snapshot;
-    const el = scrollToAnchor(anchorHash, anchorOffset);
+    const { hash, offset } = target;
+    const el = scrollToAnchor(hash, offset);
     // The anchor's lazy image may still grow the element; re-pin once it loads.
     const img = el?.querySelector('img');
     if (img && !img.complete) {
-      const reapply = () => scrollToAnchor(anchorHash, anchorOffset);
+      const reapply = () => scrollToAnchor(hash, offset);
       img.addEventListener('load', reapply, { once: true });
       return () => img.removeEventListener('load', reapply);
     }

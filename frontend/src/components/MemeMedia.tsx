@@ -32,6 +32,8 @@ function MemeMedia({ media }: { media: FeedMedia }) {
         srcSet={media.srcset || undefined}
         sizes={media.srcset ? media.sizes : undefined}
         alt={media.alt}
+        width={media.width}
+        height={media.height}
         loading="lazy"
         onError={() => setIsBroken(true)}
       />

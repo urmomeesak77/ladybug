@@ -54,19 +54,24 @@ test.describe('Home feed', () => {
     const items = page.locator('.feed__list > li');
     await expect(items).toHaveCount(10);
 
-    // Load a second batch, then scroll partway into it so the position is non-trivial.
+    // Load a second batch so there is a non-trivial scroll position to restore.
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await expect(items).toHaveCount(20);
-    await page.evaluate(() => window.scrollTo(0, Math.round(document.body.scrollHeight / 2)));
-    // Let the throttled scroll capture (150ms) persist the anchor.
+
+    // Bring a post well down the list into view, then record the resulting scroll
+    // position. Capturing AFTER scrollIntoView matters: clicking auto-scrolls an
+    // off-screen target into view, so reading scrollY beforehand would measure a
+    // position the page never navigated away from.
+    const link = items.nth(12).locator('h2 a');
+    const href = await link.getAttribute('href');
+    await link.scrollIntoViewIfNeeded();
+    // Let the throttled scroll capture (150ms) persist the anchor at this position.
     await page.waitForTimeout(300);
 
     const before = await page.evaluate(() => window.scrollY);
     expect(before).toBeGreaterThan(0);
 
-    // Open a post and navigate back.
-    const link = items.nth(12).locator('h2 a');
-    const href = await link.getAttribute('href');
+    // Open the (now in-view) post and navigate back.
     await link.click();
     await expect(page).toHaveURL(new RegExp(`${href}$`));
     await page.goBack();

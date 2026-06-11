@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapPost, pickImageSource } from '../../src/lib/feedModel';
+import { mapPost, parseDimensions, pickImageSource } from '../../src/lib/feedModel';
 import type { RawPost } from '../../src/lib/feedModel';
 
 // A fully-populated raw post; individual tests null out fields to exercise precedence.
@@ -15,6 +15,7 @@ function makeRaw(overrides: Partial<RawPost> = {}): RawPost {
       { url: 'https://cdn.example/x/large.jpg', width: 1280 },
     ],
     original: 'https://cdn.example/x/original.jpg',
+    metadata: '{"width":1280,"height":720}',
     url: '/posts/abc1234567',
     ...overrides,
   };
@@ -81,6 +82,28 @@ describe('mapPost', () => {
 
     expect(post.media.kind).toBe('none');
   });
+
+  it('reserves image dimensions parsed from metadata', () => {
+    const post = mapPost(makeRaw({ metadata: '{"width":640,"height":480}' }));
+
+    if (post.media.kind === 'image') {
+      expect(post.media.width).toBe(640);
+      expect(post.media.height).toBe(480);
+    } else {
+      throw new Error('expected image media');
+    }
+  });
+
+  it('leaves image dimensions undefined when metadata is missing', () => {
+    const post = mapPost(makeRaw({ metadata: null }));
+
+    if (post.media.kind === 'image') {
+      expect(post.media.width).toBeUndefined();
+      expect(post.media.height).toBeUndefined();
+    } else {
+      throw new Error('expected image media');
+    }
+  });
 });
 
 describe('pickImageSource', () => {
@@ -91,5 +114,18 @@ describe('pickImageSource', () => {
       'https://cdn.example/x/original.jpg',
     );
     expect(pickImageSource(makeRaw({ default: null, sizes: [], original: null }))).toBeNull();
+  });
+});
+
+describe('parseDimensions', () => {
+  it('extracts positive width and height from metadata JSON', () => {
+    expect(parseDimensions('{"width":800,"height":600}')).toEqual({ width: 800, height: 600 });
+  });
+
+  it('returns null for missing, malformed, or non-positive dimensions', () => {
+    expect(parseDimensions(null)).toBeNull();
+    expect(parseDimensions('not json')).toBeNull();
+    expect(parseDimensions('{"width":0,"height":600}')).toBeNull();
+    expect(parseDimensions('{"format":"landscape"}')).toBeNull();
   });
 });

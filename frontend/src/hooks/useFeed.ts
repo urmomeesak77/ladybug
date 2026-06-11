@@ -23,9 +23,9 @@ function hydrate(cacheKey: string): FeedState {
 export function useFeed(after: string | undefined, cacheKey: string) {
   const [state, dispatch] = useReducer(feedReducer, cacheKey, hydrate);
   const isLoadingRef = useRef(false);
-  const cursorRef = useRef<string | undefined>(
-    readSnapshot(sessionStorage, cacheKey)?.cursor ?? after,
-  );
+  // Seeded in the mount effect below — an inline useRef(readSnapshot(...)) argument
+  // would re-parse sessionStorage on every render (initializer args are not lazy).
+  const cursorRef = useRef<string | undefined>(undefined);
 
   const load = useCallback(async () => {
     if (isLoadingRef.current) {
@@ -44,8 +44,10 @@ export function useFeed(after: string | undefined, cacheKey: string) {
     isLoadingRef.current = false;
   }, []);
 
-  // Auto-load the first batch only when nothing was hydrated from the snapshot.
+  // Seed the cursor (snapshot cursor, else the URL cursor) and auto-load the first
+  // batch only when nothing was hydrated from the snapshot.
   useEffect(() => {
+    cursorRef.current = readSnapshot(sessionStorage, cacheKey)?.cursor ?? after;
     if (state.posts.length === 0) {
       void load();
     }

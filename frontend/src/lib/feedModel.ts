@@ -9,15 +9,38 @@ export type RawPost = {
   default: string | null;
   sizes: ImageSize[] | null;
   original: string | null;
+  metadata: string | null;
   url: string;
 };
 
 export type ImageSize = { url: string; width: number };
 
+export type ImageDimensions = { width: number; height: number };
+
+// Parse intrinsic image dimensions from the post's metadata JSON so the <img> can reserve
+// its box before loading. Reserving height keeps the feed layout (and thus a restored
+// scroll position) stable as lazy images load. Returns null when absent/malformed.
+export function parseDimensions(metadata: string | null): ImageDimensions | null {
+  if (!metadata) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(metadata) as { width?: unknown; height?: unknown };
+    const width = Number(parsed.width);
+    const height = Number(parsed.height);
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export type FeedMediaKind = 'image' | 'youtube' | 'none';
 
 export type FeedMedia =
-  | { kind: 'image'; src: string; srcset: string; sizes: string; alt: string }
+  | { kind: 'image'; src: string; srcset: string; sizes: string; alt: string; width?: number; height?: number }
   | { kind: 'youtube'; embedUrl: string; title: string }
   | { kind: 'none' };
 
@@ -73,12 +96,15 @@ function deriveMedia(raw: RawPost): FeedMedia {
   }
   const src = pickImageSource(raw);
   if (src) {
+    const dimensions = parseDimensions(raw.metadata);
     return {
       kind: 'image',
       src,
       srcset: buildSrcset(raw.sizes),
       sizes: IMAGE_SIZES,
       alt: raw.title ?? GENERIC_ALT,
+      width: dimensions?.width,
+      height: dimensions?.height,
     };
   }
   return { kind: 'none' };
