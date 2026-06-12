@@ -96,8 +96,8 @@ text (quickstart US2).
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Complete the state branches in frontend/src/pages/PostPage.tsx: `idle`/`loading` → existing `LoadingState`; `notFound` → existing `NotFoundPage` content (heading, explanation, "Back to the feed" link) inside the layout; `error` → existing `ErrorState` with `onRetry={retry}` (in-place refetch, no full reload); wrap the swappable region in a polite live region mirroring the feed's pattern (FR-006, FR-007, Principle IV)
-- [ ] T013 [US2] Manual validation per quickstart US2: unknown code shows the not-found view with a working home link (no blank page/raw error); with the backend stopped, a valid hash shows the error+Retry state distinct from not-found; after `docker compose start backend`, Retry loads the meme in place with no stale error text; with DevTools throttling, the loading indication shows and not-found never flashes first
+- [x] T012 [US2] Complete the state branches in frontend/src/pages/PostPage.tsx: `idle`/`loading` → existing `LoadingState`; `notFound` → existing `NotFoundPage` content (heading, explanation, "Back to the feed" link) inside the layout; `error` → existing `ErrorState` with `onRetry={retry}` (in-place refetch, no full reload); wrap the swappable region in a polite live region mirroring the feed's pattern (FR-006, FR-007, Principle IV)
+- [x] T013 [US2] Manual validation per quickstart US2: unknown code shows the not-found view with a working home link (no blank page/raw error); with the backend stopped, a valid hash shows the error+Retry state distinct from not-found; after `docker compose start backend`, Retry loads the meme in place with no stale error text; with DevTools throttling, the loading indication shows and not-found never flashes first
 
 **Checkpoint**: All three non-loaded states are reachable, distinct, and graceful.
 
