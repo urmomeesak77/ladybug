@@ -127,6 +127,21 @@ header {
   object-fit: cover;
 }
 
+/* Below ~560px the absolutely-centered 250px logo and the right-aligned nav links can no
+   longer coexist on one row without overlapping (T017); stack them instead. */
+@media (max-width: 35rem) {
+  header {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .site-logo {
+    position: static;
+    transform: none;
+  }
+}
+
 nav ul {
   display: flex;
   flex-wrap: wrap;

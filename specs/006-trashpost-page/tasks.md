@@ -115,9 +115,9 @@ refresh (same meme re-renders); tab title reads `{title} - online-trash` (quicks
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Add to frontend/src/pages/PostPage.tsx a `useLayoutEffect` keyed by `hash` that calls `window.scrollTo(0, 0)` before paint — required because 005 set `history.scrollRestoration = 'manual'` globally, so the post page would otherwise inherit the feed's scroll offset (FR-008, research D6); applies on every post-page open including Forward and meme→meme
-- [ ] T015 [US3] Add document-title handling to frontend/src/pages/PostPage.tsx: when a meme loads, set `document.title` via `formatDocumentTitle(post.title)`; on loading/not-found/error leave the plain site name (`HomePage` already resets the title on Back — research D5, FR-009)
-- [ ] T016 [US3] Manual validation per quickstart US3: scroll the feed several batches → open a meme (starts at top) → Back (feed at prior scroll position) → Forward (meme page returns) → Refresh (same meme from the URL alone); tab title is `{meme title} - online-trash` (untitled → `online-trash`); "Home" in the menu navigates to the feed; Back/Forward between two memes never shows the previous meme's content for the new hash
+- [x] T014 [US3] Add to frontend/src/pages/PostPage.tsx a `useLayoutEffect` keyed by `hash` that calls `window.scrollTo(0, 0)` before paint — required because 005 set `history.scrollRestoration = 'manual'` globally, so the post page would otherwise inherit the feed's scroll offset (FR-008, research D6); applies on every post-page open including Forward and meme→meme
+- [x] T015 [US3] Add document-title handling to frontend/src/pages/PostPage.tsx: when a meme loads, set `document.title` via `formatDocumentTitle(post.title)`; on loading/not-found/error leave the plain site name (`HomePage` already resets the title on Back — research D5, FR-009)
+- [x] T016 [US3] Manual validation per quickstart US3: scroll the feed several batches → open a meme (starts at top) → Back (feed at prior scroll position) → Forward (meme page returns) → Refresh (same meme from the URL alone); tab title is `{meme title} - online-trash` (untitled → `online-trash`); "Home" in the menu navigates to the feed; Back/Forward between two memes never shows the previous meme's content for the new hash
 
 **Checkpoint**: Navigation is fully browser-native; the 005 feed contract is untouched.
 
@@ -135,8 +135,8 @@ follows; verify alt text and keyboard reachability of all controls (quickstart U
 
 ### Implementation for User Story 4
 
-- [ ] T017 [US4] Review and adjust frontend/src/styles/theme.css for the post page at ~320px, ~768px, and wide desktop: no horizontal scrolling, clipping, or overlap; image and YouTube embed scale within the column preserving aspect ratio; both light and dark `prefers-color-scheme` palettes render correctly, including toggling the OS (or DevTools emulated) preference while the page is open — the theme updates live without reload (FR-010, FR-011, SC-006)
-- [ ] T018 [US4] Manual a11y validation per quickstart US4: the meme image has non-empty `alt` (title, or "Meme image" when untitled); keyboard traversal reaches the nav links, the Retry button, and the not-found home link, all labeled; at ~320px (device-emulation/touch) the same controls have adequate target size and spacing and are operable by tap; loading/error/not-found states are conveyed by text, never color alone (FR-012, SC-007, Principle VIII)
+- [x] T017 [US4] Review and adjust frontend/src/styles/theme.css for the post page at ~320px, ~768px, and wide desktop: no horizontal scrolling, clipping, or overlap; image and YouTube embed scale within the column preserving aspect ratio; both light and dark `prefers-color-scheme` palettes render correctly, including toggling the OS (or DevTools emulated) preference while the page is open — the theme updates live without reload (FR-010, FR-011, SC-006)
+- [x] T018 [US4] Manual a11y validation per quickstart US4: the meme image has non-empty `alt` (title, or "Meme image" when untitled); keyboard traversal reaches the nav links, the Retry button, and the not-found home link, all labeled; at ~320px (device-emulation/touch) the same controls have adequate target size and spacing and are operable by tap; loading/error/not-found states are conveyed by text, never color alone (FR-012, SC-007, Principle VIII)
 
 **Checkpoint**: All four user stories are functional, validated, and constitutional.
 
