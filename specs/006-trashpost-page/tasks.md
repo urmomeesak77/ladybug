@@ -147,9 +147,9 @@ follows; verify alt text and keyboard reachability of all controls (quickstart U
 **Purpose**: Final gates — full automated suite, conventions, and the end-to-end
 quickstart pass.
 
-- [ ] T019 Run the full automated gate: `docker compose exec frontend npm test -- --coverage` (all suites incl. extended api.test.ts and new postModel.test.ts pass; `src/lib/**` ≥90%) and `docker compose exec frontend npm run lint` (clean)
-- [ ] T020 Run the lint-reviewer conventions check over the changed frontend files against docs/CODING_CONVENTIONS.md (2-space, semicolons, `is/has/should` booleans, functions <50 lines, comments explain *why*) and fix any findings
-- [ ] T021 Full quickstart pass: execute every scenario in specs/006-trashpost-page/quickstart.md end-to-end and spot-check the success criteria (SC-001 ≤2s render, SC-002/004 dead codes and feed-entry targeting, SC-003 navigation sequences, SC-008 distinct states with clean retry)
+- [x] T019 Run the full automated gate: `docker compose exec frontend npm test -- --coverage` (all suites incl. extended api.test.ts and new postModel.test.ts pass; `src/lib/**` ≥90%) and `docker compose exec frontend npm run lint` (clean)
+- [x] T020 Run the lint-reviewer conventions check over the changed frontend files against docs/CODING_CONVENTIONS.md (2-space, semicolons, `is/has/should` booleans, functions <50 lines, comments explain *why*) and fix any findings
+- [x] T021 Full quickstart pass: execute every scenario in specs/006-trashpost-page/quickstart.md end-to-end and spot-check the success criteria (SC-001 ≤2s render, SC-002/004 dead codes and feed-entry targeting, SC-003 navigation sequences, SC-008 distinct states with clean retry)
 
 ---
 
