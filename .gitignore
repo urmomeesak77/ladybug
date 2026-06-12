@@ -3,3 +3,6 @@
 
 # Scratch/screenshot dir (local only)
 temp/
+
+# Playwright run artifacts
+test-results/

@@ -163,5 +163,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/005-frontend-mainpage/plan.md` (feature: Frontend Mainpage (Home Feed)).
+`specs/006-trashpost-page/plan.md` (feature: Trashpost Page (Single Meme View)).
 <!-- SPECKIT END -->
