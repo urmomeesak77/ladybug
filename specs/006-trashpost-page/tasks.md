@@ -38,7 +38,7 @@ Run tests/lint through Docker (no local Node toolchain assumed):
 **Purpose**: Confirm a green baseline before changing anything — the existing 005
 suites and lint must pass so new failures are attributable to this feature.
 
-- [ ] T001 Start the stack (`docker compose up -d`) and confirm the baseline is green: `docker compose exec frontend npm test -- --coverage` passes with `src/lib/**` coverage ≥90%, and `docker compose exec frontend npm run lint` is clean (no file changes; see specs/006-trashpost-page/quickstart.md)
+- [x] T001 Start the stack (`docker compose up -d`) and confirm the baseline is green: `docker compose exec frontend npm test -- --coverage` passes with `src/lib/**` coverage ≥90%, and `docker compose exec frontend npm run lint` is clean (no file changes; see specs/006-trashpost-page/quickstart.md)
 
 ---
 
@@ -50,11 +50,11 @@ machine (`postPageReducer` + `formatDocumentTitle`). Written test-first.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 [P] Extend frontend/tests/lib/api.test.ts with failing tests for `buildPostUrl(hash)` (base URL from `apiBase()`, path-encoding of the raw hash) and `fetchPost(hash)`: 200 `{ data: <Post> }` maps through `mapPost` to `{ ok: true, post }`; 404 → `{ ok: false, error: { kind: 'notFound', status: 404 } }`; other non-2xx → `{ kind: 'http', status }`; fetch rejection → `{ kind: 'network' }`; malformed/unparseable body handled (per specs/006-trashpost-page/contracts/post-api-consumption.md)
-- [ ] T003 [P] Create frontend/tests/lib/postModel.test.ts with failing tests covering every state×action transition in the data-model table (idle/loading/loaded/notFound/error × loadStart/loadSuccess/loadNotFound/loadError), the invariants (notFound reachable only from a completed response; loadStart from error clears stale error; loadStart from loaded drops the previous post), and `formatDocumentTitle` (non-blank title → `"{title} - online-trash"`; null/empty/blank-only → `"online-trash"`) per specs/006-trashpost-page/data-model.md
-- [ ] T004 [P] Extend frontend/src/lib/api.ts with `buildPostUrl(hash: string): string`, `PostError`/`PostResult` types, and `fetchPost(hash: string): Promise<PostResult>` per specs/006-trashpost-page/contracts/components.md — reuse the existing `apiBase()` and `Accept: application/json` convention; map success bodies through the existing `feedModel.mapPost`; leave all existing feed exports untouched
-- [ ] T005 [P] Create frontend/src/lib/postModel.ts with `PostPageState`, `PostPageAction`, `initialPostPageState` (`{ status: 'idle' }`), the pure `postPageReducer(state, action)` implementing the data-model transition table, and `formatDocumentTitle(title: string | null): string`
-- [ ] T006 Run `docker compose exec frontend npm test -- --coverage` — the T002/T003 suites now pass and `src/lib/**` coverage stays ≥90%
+- [x] T002 [P] Extend frontend/tests/lib/api.test.ts with failing tests for `buildPostUrl(hash)` (base URL from `apiBase()`, path-encoding of the raw hash) and `fetchPost(hash)`: 200 `{ data: <Post> }` maps through `mapPost` to `{ ok: true, post }`; 404 → `{ ok: false, error: { kind: 'notFound', status: 404 } }`; other non-2xx → `{ kind: 'http', status }`; fetch rejection → `{ kind: 'network' }`; malformed/unparseable body handled (per specs/006-trashpost-page/contracts/post-api-consumption.md)
+- [x] T003 [P] Create frontend/tests/lib/postModel.test.ts with failing tests covering every state×action transition in the data-model table (idle/loading/loaded/notFound/error × loadStart/loadSuccess/loadNotFound/loadError), the invariants (notFound reachable only from a completed response; loadStart from error clears stale error; loadStart from loaded drops the previous post), and `formatDocumentTitle` (non-blank title → `"{title} - online-trash"`; null/empty/blank-only → `"online-trash"`) per specs/006-trashpost-page/data-model.md
+- [x] T004 [P] Extend frontend/src/lib/api.ts with `buildPostUrl(hash: string): string`, `PostError`/`PostResult` types, and `fetchPost(hash: string): Promise<PostResult>` per specs/006-trashpost-page/contracts/components.md — reuse the existing `apiBase()` and `Accept: application/json` convention; map success bodies through the existing `feedModel.mapPost`; leave all existing feed exports untouched
+- [x] T005 [P] Create frontend/src/lib/postModel.ts with `PostPageState`, `PostPageAction`, `initialPostPageState` (`{ status: 'idle' }`), the pure `postPageReducer(state, action)` implementing the data-model transition table, and `formatDocumentTitle(title: string | null): string`
+- [x] T006 Run `docker compose exec frontend npm test -- --coverage` — the T002/T003 suites now pass and `src/lib/**` coverage stays ≥90%
 
 **Checkpoint**: Pure logic complete and fully tested — user story wiring can begin.
 

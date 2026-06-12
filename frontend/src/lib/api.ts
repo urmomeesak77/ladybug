@@ -52,3 +52,41 @@ export async function fetchFeed(params: FeedParams): Promise<FeedResult> {
     return { ok: false, error: { kind: 'network' } };
   }
 }
+
+export type PostError = { kind: 'notFound' | 'http' | 'network'; status?: number };
+
+export type PostResult =
+  | { ok: true; post: FeedPost }
+  | { ok: false; error: PostError };
+
+// Pure: build the single-post request URL. The hash is opaque client-side, so it is
+// path-encoded verbatim — the API is the authority on its format (Principle V).
+export function buildPostUrl(hash: string): string {
+  return `${apiBase()}/api/posts/${encodeURIComponent(hash)}`;
+}
+
+// 404 is the only signal for missing/hidden/removed posts and maps to notFound; every
+// other failure (non-2xx, rejection, bad body) stays retryable (FR-006, FR-007).
+export async function fetchPost(hash: string): Promise<PostResult> {
+  try {
+    const response = await fetch(buildPostUrl(hash), {
+      headers: { Accept: 'application/json' },
+    });
+    if (response.status === 404) {
+      return { ok: false, error: { kind: 'notFound', status: 404 } };
+    }
+    if (!response.ok) {
+      return { ok: false, error: { kind: 'http', status: response.status } };
+    }
+    const body = (await response.json()) as { data?: RawPost };
+    if (!body.data) {
+      // A 2xx without a post body is a malformed server response, not a missing post.
+      return { ok: false, error: { kind: 'http', status: response.status } };
+    }
+    return { ok: true, post: mapPost(body.data) };
+  } catch {
+    // fetch rejects only on network-level failures (offline, DNS, CORS preflight);
+    // an unparseable body lands here too and is equally retryable.
+    return { ok: false, error: { kind: 'network' } };
+  }
+}
