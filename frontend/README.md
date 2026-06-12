@@ -59,9 +59,9 @@ npm run preview             # serve the built bundle locally
 ```
 src/
   lib/          pure logic (api, feedModel, youtube, pagination, theme) — coverage-scoped
-  hooks/        useFeed, useTheme
+  hooks/        useFeed, usePost, useTheme
   components/   PageLayout, NavMenu, Feed, FeedItem, MemeMedia, states/
-  pages/        HomePage, PostPlaceholderPage, NotFoundPage
+  pages/        HomePage, PostPage, NotFoundPage
   styles/       theme.css (light + prefers-color-scheme: dark tokens, responsive layout)
 tests/lib/      Vitest unit tests mirroring src/lib
 ```

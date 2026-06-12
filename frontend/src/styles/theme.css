@@ -250,3 +250,14 @@ main {
 .feed__sentinel {
   height: 1px;
 }
+
+/* ------------------------------------------------------------------ *
+ * Single-meme page (006) — reuses the feed card, media, and state    *
+ * classes inside the same fluid column; only the heading differs.    *
+ * ------------------------------------------------------------------ */
+
+/* The post title is the page's h1, so it reads larger than the feed's h2 entry
+   titles while keeping the shared card padding. */
+.post-item .feed-item__title {
+  font-size: 1.375rem;
+}

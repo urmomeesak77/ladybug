@@ -42,11 +42,11 @@ test.describe('Home feed', () => {
     const href = await firstLink.getAttribute('href');
     expect(href).toMatch(/^\/posts\/[A-Za-z0-9_-]+$/);
 
+    // The post page renders the same title as its feed entry, as the page's h1 (006).
+    const title = ((await firstLink.textContent()) ?? '').trim();
     await firstLink.click();
     await expect(page).toHaveURL(new RegExp(`${href}$`));
-    await expect(
-      page.getByRole('heading', { level: 1, name: 'Single-meme page coming soon' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
   });
 
   test('restores scroll position after returning from a post', async ({ page }) => {
