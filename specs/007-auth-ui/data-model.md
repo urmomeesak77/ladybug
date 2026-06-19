@@ -13,13 +13,16 @@ the code must honor.
 | `email` | string(255), unique | Login identifier. Unique, well-formed. |
 | `password` | string (hash) | Stored hashed (`password` cast = `hashed`). **Never** serialized (`$hidden`). |
 | `email_verified_at` | datetime, nullable | Present in schema; unused by this feature (verification out of scope). |
+| `hash` | string(10), unique, NOT NULL | Existing column (feature 002): an opaque 10-char public account identifier. Not exposed by this feature, but it is **non-null**, so `UserService` MUST mint one (via `App\Utils\Str::createUniqueHash`) on every insert. |
 | `created_at` / `updated_at` | datetime | Exposed in the public profile. |
 
 **Public representation** (`UserResource`): `{ id, name, email, created_at, updated_at }`.
-Excludes `password`, `remember_token`, and any other sensitive field (FR-007, SC-009).
+Excludes `password`, `remember_token`, `hash`, and any other non-public field (FR-007, SC-009).
 
-No schema migration is required. The prototype's extra `users.hash` column is **not**
-adopted — auth needs no public user code, and adding one would be unused scope.
+No schema migration is required — the `users` table already exists (feature 002).
+Because `users.hash` is non-null and unique, registration mints a unique hash for the
+new user (mirroring the prototype's `UserService`); the value is internal and never
+appears in a URL or the public profile.
 
 ## Validation rules
 
