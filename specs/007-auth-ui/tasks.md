@@ -65,9 +65,9 @@ until this phase is complete.**
 - [x] T007 [P] Create `frontend/src/lib/authApi.ts` (types `AuthUser`/`FieldErrors`/`AuthResult`, `mapUser`, `csrf`, `register`, `login`, `logout`, `fetchCurrentUser`) per contracts/frontend.md — reuse the existing `apiBase()` convention from `frontend/src/lib/api.ts`; all requests credentialed
 - [x] T008 [P] Create `frontend/src/lib/authModel.ts` (`AuthStatus`, `validateRegister`, `validateLogin`, `mergeServerErrors`, form-state helpers) per specs/007-auth-ui/data-model.md
 - [x] T009 Run `docker compose exec frontend npx vitest run --coverage` — the T005/T006 suites now pass and `src/lib/**` coverage stays ≥90%
-- [ ] T010 Create `frontend/src/hooks/useAuth.ts`: context provider holding `{status,user}`, calls `fetchCurrentUser` on mount (`unknown`→resolved), exposes `login`/`register`/`logout`; a 401 flips state to `anonymous` (thin glue; per contracts/frontend.md, research D7)
-- [ ] T011 [P] Create `frontend/src/components/RequireAuth.tsx` and `frontend/src/components/RequireAnon.tsx`: treat `unknown` as "resolving" (neutral placeholder, no redirect); `RequireAuth` anon→`<Navigate to="/login">`; `RequireAnon` authed→`<Navigate to="/">` (per contracts/routes.md)
-- [ ] T012 Edit `frontend/src/App.tsx`: wrap routes in the `useAuth` provider; add `/login` and `/register` under `RequireAnon` and `/account` under `RequireAuth`; leave `/`, `/posts/:hash`, `*` unchanged (per contracts/routes.md)
+- [x] T010 Create `frontend/src/hooks/useAuth.ts`: context provider holding `{status,user}`, calls `fetchCurrentUser` on mount (`unknown`→resolved), exposes `login`/`register`/`logout`; a 401 flips state to `anonymous` (thin glue; per contracts/frontend.md, research D7)
+- [x] T011 [P] Create `frontend/src/components/RequireAuth.tsx` and `frontend/src/components/RequireAnon.tsx`: treat `unknown` as "resolving" (neutral placeholder, no redirect); `RequireAuth` anon→`<Navigate to="/login">`; `RequireAnon` authed→`<Navigate to="/">` (per contracts/routes.md)
+- [x] T012 Edit `frontend/src/App.tsx`: wrap routes in the `useAuth` provider; add `/login` and `/register` under `RequireAnon` and `/account` under `RequireAuth`; leave `/`, `/posts/:hash`, `*` unchanged (per contracts/routes.md)
 
 > **Sequencing note (impl):** T010–T012 (useAuth context, RequireAuth/RequireAnon guards,
 > App provider + route wiring) are bundled into **US1** rather than committed here — they
@@ -95,7 +95,7 @@ errors (quickstart US1).
 - [x] T015 [US1] Create `backend/app/Services/UserService.php` `create(array $data): User` that hashes the password and persists the user (Eloquent; mirrors the prototype's UserService minus the unused `hash`/Registered-event scope) — make T014 pass
 - [x] T016 [US1] Create `backend/tests/Feature/Http/Controllers/AuthControllerTest.php` with failing register cases: valid input → 201 `{data:{id,name,email,...}}`, no password field in the response, user row created and authenticated; duplicate email → 422 with `errors.email`; weak password and mismatched confirmation → 422; (per contracts/auth-api.md, SC-001/SC-002/SC-009)
 - [x] T017 [US1] Create `backend/app/Http/Controllers/AuthController.php` with `register(RegisterRequest)`: create via `UserService`, log the user in (establish session), return `UserResource` with 201; register the `POST /api/register` route in `backend/routes/api.php`; `docker compose restart backend` — make T016 register cases pass
-- [ ] T018 [US1] Create `frontend/src/pages/RegisterPage.tsx`: labeled name/email/password/confirm inputs, client `validateRegister` then `register()`, inline field errors (merging server 422), disable submit while pending, never repopulate password (thin glue; contracts/frontend.md)
+- [x] T018 [US1] Create `frontend/src/pages/RegisterPage.tsx`: labeled name/email/password/confirm inputs, client `validateRegister` then `register()`, inline field errors (merging server 422), disable submit while pending, never repopulate password (thin glue; contracts/frontend.md)
 - [ ] T019 [US1] Manual validation per quickstart US1: register valid data → lands logged in, NavMenu shows Account+Logout; duplicate email / weak password / mismatched confirm each show an inline field error and create no account
 
 **Checkpoint**: Registration works end-to-end — MVP demonstrable.
