@@ -71,6 +71,37 @@ pass you did not observe.
 If the stack/containers are down, say so and report which gates you could not run;
 do not invent results.
 
+## Static code analysis (run on every changed stack)
+
+Beyond the lint/test gates, run real static analysis and a deep correctness review of
+the changed code — linters catch style, not logic.
+
+### Tooling
+- **Frontend** (if `frontend/` or `*.ts`/`*.tsx` changed): `docker compose exec -T frontend npx tsc --noEmit`
+  — the type-checker must be clean (Vitest does not type-check). Report any type error.
+- **Backend** (if `backend/` or `*.php` changed): if a static analyzer is installed
+  (`backend/vendor/bin/phpstan` or `larastan`), run
+  `docker compose exec -T backend vendor/bin/phpstan analyse --no-progress` and report.
+  If none is installed, say "no PHP static analyzer installed" and rely on the manual
+  review below — do NOT install one (Principle I).
+
+### Deep review of the diff (reason, don't just run tools)
+Read each changed hunk and look for real defects, not style:
+- **Correctness**: off-by-one, inverted conditions, wrong status codes, mishandled
+  null/empty/undefined, promise/async not awaited, unhandled rejection paths.
+- **Error handling**: every external call (fetch, DB, fs) has a failure path; failures
+  are classified (e.g. 404 vs transient) not swallowed; no empty `catch` that hides bugs.
+- **Edge cases vs the spec**: cross-check the changed behavior against the relevant FR/AC
+  in `specs/<feature>/spec.md` and the contracts; flag missing cases (e.g. duplicate
+  email, expired session, double submit) that have no code or test.
+- **Security depth**: authz on state-changing routes, enumeration/disclosure, injection,
+  unescaped output, secrets — beyond the checklist below, reason about the actual flow.
+- **Dead code / complexity / duplication**: unreachable branches, unused exports,
+  functions over the size limits, copy-paste that should be shared.
+
+Report findings with file:line and a concrete fix, at the right severity. A clean tool
+run is necessary but NOT sufficient — state explicitly what you reviewed by hand.
+
 ## Convention & constitution checks the linters miss (scan the diff)
 
 | Check | Where / pattern |
@@ -112,8 +143,13 @@ Gates:
   backend pint .......... PASS/FAIL/not-run
   backend tests ......... PASS/FAIL/not-run
   backend coverage ...... NN% (≥90 PASS/FAIL)/not-run
+  backend static ........ PASS/FAIL/not-installed/not-run
   frontend lint ......... PASS/FAIL/not-run
+  frontend types (tsc) .. PASS/FAIL/not-run
   frontend coverage ..... NN% (≥90 PASS/FAIL)/not-run
+
+Reviewed by hand: <one line on what diff logic/edge-cases/security you manually analyzed>
+
 
 Findings (severity: CRITICAL constitution/security | HIGH bug/convention | LOW style):
   CRITICAL  backend/app/Http/Controllers/AuthController.php:42
@@ -124,6 +160,7 @@ Findings (severity: CRITICAL constitution/security | HIGH bug/convention | LOW s
 Summary: X critical, Y high, Z low. <one-line gate bottom-line>.
 ```
 
-FAIL the verdict if any gate fails, any CRITICAL finding exists, coverage <90% on a
-changed stack, or an unapproved dependency was added. Otherwise PASS (LOW findings may
-remain, listed as advisories).
+FAIL the verdict if any gate fails, the type-check (`tsc`) or backend static analysis
+reports an error, any CRITICAL finding exists, coverage <90% on a changed stack, or an
+unapproved dependency was added. Otherwise PASS (LOW findings may remain, listed as
+advisories). A clean tool run alone is never a PASS — the hand review must also be done.
