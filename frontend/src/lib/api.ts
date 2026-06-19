@@ -15,7 +15,7 @@ const MAX_LIMIT = 50;
 
 // Decoupled SPA: the API origin is environment-configured (Principle VI, research D9).
 // Empty base yields same-origin relative URLs, which is also what the unit tests assert.
-function apiBase(): string {
+export function apiBase(): string {
   return import.meta.env.VITE_API_BASE_URL ?? '';
 }
 

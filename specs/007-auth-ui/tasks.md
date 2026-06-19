@@ -41,7 +41,7 @@ Run gates through Docker (no local PHP/Node):
 
 **Purpose**: Confirm a green baseline so new failures are attributable to this feature.
 
-- [ ] T001 Start the stack (`docker compose up -d`) and confirm baseline green: backend `vendor/bin/pint --test` clean and `php artisan test` passing; frontend `npm run lint` clean and `npx vitest run --coverage` passing with `src/lib/**` ≥90% (no file changes; see specs/007-auth-ui/quickstart.md)
+- [x] T001 Start the stack (`docker compose up -d`) and confirm baseline green: backend `vendor/bin/pint --test` clean and `php artisan test` passing; frontend `npm run lint` clean and `npx vitest run --coverage` passing with `src/lib/**` ≥90% (no file changes; see specs/007-auth-ui/quickstart.md)
 
 ---
 
@@ -54,23 +54,29 @@ until this phase is complete.**
 
 ### Backend infrastructure
 
-- [ ] T002 Add `laravel/sanctum` to `backend/composer.json` `require` and install it in the container (`docker compose exec backend composer require laravel/sanctum`); record the one-line rationale (constitutional baseline auth stack) — per specs/007-auth-ui/research.md D2
-- [ ] T003 Configure Sanctum SPA mode: publish `backend/config/sanctum.php` and `backend/config/cors.php`; set `cors.php` `supports_credentials => true` with paths covering `api/*` and `sanctum/csrf-cookie`; enable `$middleware->statefulApi()` in `backend/bootstrap/app.php`; add `SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`, and frontend origin keys to `backend/.env` and `backend/.env.example` (per specs/007-auth-ui/research.md D6, contracts/auth-api.md). Then `docker compose restart backend`
-- [ ] T004 [P] Create `backend/app/Http/Resources/UserResource.php` returning only `{ id, name, email, created_at, updated_at }` (no password/remember_token) per specs/007-auth-ui/data-model.md and contracts/auth-api.md
+- [x] T002 Add `laravel/sanctum` to `backend/composer.json` `require` and install it in the container (`docker compose exec backend composer require laravel/sanctum`); record the one-line rationale (constitutional baseline auth stack) — per specs/007-auth-ui/research.md D2
+- [x] T003 Configure Sanctum SPA mode: publish `backend/config/sanctum.php` and `backend/config/cors.php`; set `cors.php` `supports_credentials => true` with paths covering `api/*` and `sanctum/csrf-cookie`; enable `$middleware->statefulApi()` in `backend/bootstrap/app.php`; add `SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`, and frontend origin keys to `backend/.env` and `backend/.env.example` (per specs/007-auth-ui/research.md D6, contracts/auth-api.md). Then `docker compose restart backend`
+- [x] T004 [P] Create `backend/app/Http/Resources/UserResource.php` returning only `{ id, name, email, created_at, updated_at }` (no password/remember_token) per specs/007-auth-ui/data-model.md and contracts/auth-api.md
 
 ### Frontend pure lib (test-first) + shell
 
-- [ ] T005 [P] Create `frontend/tests/lib/authApi.test.ts` with failing tests: each function sends `credentials:'include'` + `Accept: application/json` and (for unsafe methods) `X-XSRF-TOKEN`; `register` 201→`{ok:true,user}`, 422→`{kind:'validation',errors}`, else→`{kind:'network'}`; `login` 200→ok, 401→`{kind:'auth'}`, 422→validation; `fetchCurrentUser` returns the user for `{data:{...}}`, `null` for `{data:null}` and for 401, `null` on network failure; `mapUser` snake→camel (per specs/007-auth-ui/contracts/frontend.md)
-- [ ] T006 [P] Create `frontend/tests/lib/authModel.test.ts` with failing tests: `validateRegister`/`validateLogin` field rules (required, email shape, password min-8/mixed-case/number, confirmation match) returning a field-error map; `mergeServerErrors` (server wins); auth status transitions (`unknown`→`anonymous`/`authenticated`, `authenticated`+401→`anonymous`) per specs/007-auth-ui/data-model.md
-- [ ] T007 [P] Create `frontend/src/lib/authApi.ts` (types `AuthUser`/`FieldErrors`/`AuthResult`, `mapUser`, `csrf`, `register`, `login`, `logout`, `fetchCurrentUser`) per contracts/frontend.md — reuse the existing `apiBase()` convention from `frontend/src/lib/api.ts`; all requests credentialed
-- [ ] T008 [P] Create `frontend/src/lib/authModel.ts` (`AuthStatus`, `validateRegister`, `validateLogin`, `mergeServerErrors`, form-state helpers) per specs/007-auth-ui/data-model.md
-- [ ] T009 Run `docker compose exec frontend npx vitest run --coverage` — the T005/T006 suites now pass and `src/lib/**` coverage stays ≥90%
+- [x] T005 [P] Create `frontend/tests/lib/authApi.test.ts` with failing tests: each function sends `credentials:'include'` + `Accept: application/json` and (for unsafe methods) `X-XSRF-TOKEN`; `register` 201→`{ok:true,user}`, 422→`{kind:'validation',errors}`, else→`{kind:'network'}`; `login` 200→ok, 401→`{kind:'auth'}`, 422→validation; `fetchCurrentUser` returns the user for `{data:{...}}`, `null` for `{data:null}` and for 401, `null` on network failure; `mapUser` snake→camel (per specs/007-auth-ui/contracts/frontend.md)
+- [x] T006 [P] Create `frontend/tests/lib/authModel.test.ts` with failing tests: `validateRegister`/`validateLogin` field rules (required, email shape, password min-8/mixed-case/number, confirmation match) returning a field-error map; `mergeServerErrors` (server wins); auth status transitions (`unknown`→`anonymous`/`authenticated`, `authenticated`+401→`anonymous`) per specs/007-auth-ui/data-model.md
+- [x] T007 [P] Create `frontend/src/lib/authApi.ts` (types `AuthUser`/`FieldErrors`/`AuthResult`, `mapUser`, `csrf`, `register`, `login`, `logout`, `fetchCurrentUser`) per contracts/frontend.md — reuse the existing `apiBase()` convention from `frontend/src/lib/api.ts`; all requests credentialed
+- [x] T008 [P] Create `frontend/src/lib/authModel.ts` (`AuthStatus`, `validateRegister`, `validateLogin`, `mergeServerErrors`, form-state helpers) per specs/007-auth-ui/data-model.md
+- [x] T009 Run `docker compose exec frontend npx vitest run --coverage` — the T005/T006 suites now pass and `src/lib/**` coverage stays ≥90%
 - [ ] T010 Create `frontend/src/hooks/useAuth.ts`: context provider holding `{status,user}`, calls `fetchCurrentUser` on mount (`unknown`→resolved), exposes `login`/`register`/`logout`; a 401 flips state to `anonymous` (thin glue; per contracts/frontend.md, research D7)
 - [ ] T011 [P] Create `frontend/src/components/RequireAuth.tsx` and `frontend/src/components/RequireAnon.tsx`: treat `unknown` as "resolving" (neutral placeholder, no redirect); `RequireAuth` anon→`<Navigate to="/login">`; `RequireAnon` authed→`<Navigate to="/">` (per contracts/routes.md)
 - [ ] T012 Edit `frontend/src/App.tsx`: wrap routes in the `useAuth` provider; add `/login` and `/register` under `RequireAnon` and `/account` under `RequireAuth`; leave `/`, `/posts/:hash`, `*` unchanged (per contracts/routes.md)
 
-**Checkpoint**: Backend boots with Sanctum SPA + CSRF; the auth lib is fully tested; the
-auth context, guards, and routes exist. Story wiring can begin.
+> **Sequencing note (impl):** T010–T012 (useAuth context, RequireAuth/RequireAnon guards,
+> App provider + route wiring) are bundled into **US1** rather than committed here — they
+> have no consumer until the first page exists, and wiring `/login`·`/register`·`/account`
+> routes before those pages would not build. The pure lib (T005–T009) and backend infra
+> (T002–T004) are the committed Foundational checkpoints.
+
+**Checkpoint**: Backend boots with Sanctum SPA + CSRF; the auth lib is fully tested.
+The auth context, guards, and route wiring land with their first consumer in US1.
 
 ---
 
