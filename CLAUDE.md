@@ -163,5 +163,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/006-trashpost-page/plan.md` (feature: Trashpost Page (Single Meme View)).
+`specs/007-auth-ui/plan.md` (feature: Authentication (Full-Stack — Auth API + Login/Register/Account UI)).
 <!-- SPECKIT END -->
