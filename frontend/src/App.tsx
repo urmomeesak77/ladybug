@@ -5,6 +5,7 @@ import PageLayout from './components/PageLayout';
 import RequireAnon from './components/RequireAnon';
 import { useTheme } from './hooks/useTheme';
 import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 import PostPage from './pages/PostPage';
 import RegisterPage from './pages/RegisterPage';
@@ -19,6 +20,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/posts/:hash" element={<PostPage />} />
+            <Route path="/login" element={<RequireAnon><LoginPage /></RequireAnon>} />
             <Route path="/register" element={<RequireAnon><RegisterPage /></RequireAnon>} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
