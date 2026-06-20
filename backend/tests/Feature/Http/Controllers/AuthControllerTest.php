@@ -73,4 +73,61 @@ class AuthControllerTest extends TestCase {
         $response->assertStatus(422);
         $response->assertJsonValidationErrors('password');
     }
+
+    public function test_login_with_correct_credentials_returns_the_user_and_authenticates(): void {
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password']);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.email', 'ada@example.com');
+        $this->assertArrayNotHasKey('password', $response->json('data'));
+        $this->assertAuthenticated();
+    }
+
+    public function test_login_with_a_wrong_password_is_rejected_without_disclosure(): void {
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'wrong-password']);
+
+        $response->assertStatus(401);
+        $response->assertExactJson(['message' => 'These credentials do not match our records.']);
+        $this->assertGuest();
+    }
+
+    public function test_login_with_an_unknown_email_gives_the_same_generic_error(): void {
+        $response = $this->postJson('/api/login', ['email' => 'nobody@example.com', 'password' => 'password']);
+
+        $response->assertStatus(401);
+        // Identical message to the wrong-password case — no account enumeration (D5).
+        $response->assertExactJson(['message' => 'These credentials do not match our records.']);
+    }
+
+    public function test_login_rejects_a_malformed_request(): void {
+        $response = $this->postJson('/api/login', ['email' => 'not-an-email', 'password' => '']);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['email', 'password']);
+    }
+
+    public function test_logout_succeeds_for_an_authenticated_user(): void {
+        // The actual session revocation (Auth::logout + session invalidate) is a
+        // framework behavior best proven against real database sessions in the live SPA
+        // smoke; the array-driver test guard caches the user across requests, so
+        // cross-request revocation is not observable here. We assert the contract that
+        // logout authorizes + responds for an authenticated user, and (below) that it is
+        // refused when anonymous.
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/logout');
+
+        $response->assertOk();
+        $response->assertExactJson(['message' => 'Logged out.']);
+    }
+
+    public function test_logout_is_rejected_for_an_anonymous_request(): void {
+        $response = $this->postJson('/api/logout');
+
+        $response->assertStatus(401);
+    }
 }

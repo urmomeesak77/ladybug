@@ -18,3 +18,5 @@ Route::get('/posts/{hash}', [TrashpostsApiController::class, 'show'])->name('api
 // Auth (Sanctum SPA cookie-session). Register/login establish the session; the
 // stateful middleware (bootstrap/app.php) starts it for requests from the SPA.
 Route::post('/register', [AuthController::class, 'register'])->name('api.auth.register');
+Route::post('/login', [AuthController::class, 'login'])->name('api.auth.login');
+Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('api.auth.logout');
