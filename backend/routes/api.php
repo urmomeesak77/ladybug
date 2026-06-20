@@ -20,3 +20,5 @@ Route::get('/posts/{hash}', [TrashpostsApiController::class, 'show'])->name('api
 Route::post('/register', [AuthController::class, 'register'])->name('api.auth.register');
 Route::post('/login', [AuthController::class, 'login'])->name('api.auth.login');
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('api.auth.logout');
+// Public on purpose: returns the user when authenticated, else {data:null} (FR-005).
+Route::get('/user', [AuthController::class, 'user'])->name('api.auth.user');

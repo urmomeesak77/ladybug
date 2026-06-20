@@ -56,4 +56,19 @@ class AuthController extends Controller {
 
         return response()->json(['message' => 'Logged out.']);
     }
+
+    /**
+     * The current user's safe profile, or {data: null} when anonymous. Deliberately not
+     * behind auth:sanctum: the SPA probes this on load to derive auth state, and "logged
+     * out" must read as data:null (200), not an error (FR-005).
+     */
+    public function user(Request $request): JsonResponse {
+        $user = $request->user();
+
+        if ($user === null) {
+            return response()->json(['data' => null]);
+        }
+
+        return (new UserResource($user))->response();
+    }
 }

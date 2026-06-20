@@ -27,7 +27,7 @@ function NavMenu() {
         {isAuthenticated ? (
           <>
             <li>
-              <span className="nav-user">Hi, {user.name}</span>
+              <NavLink to="/account">Account</NavLink>
             </li>
             <li>
               <button type="button" className="nav-logout" onClick={() => void handleLogout()}>

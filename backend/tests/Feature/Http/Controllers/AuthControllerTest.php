@@ -130,4 +130,23 @@ class AuthControllerTest extends TestCase {
 
         $response->assertStatus(401);
     }
+
+    public function test_user_returns_the_authenticated_users_safe_profile(): void {
+        $user = User::factory()->create(['email' => 'ada@example.com']);
+
+        $response = $this->actingAs($user)->getJson('/api/user');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.email', 'ada@example.com');
+        $this->assertArrayNotHasKey('password', $response->json('data'));
+    }
+
+    public function test_user_returns_null_for_an_anonymous_request(): void {
+        $response = $this->getJson('/api/user');
+
+        // Anonymous is reported as data:null (200), never a 401, so the SPA can probe
+        // auth state on load without treating "logged out" as an error (FR-005).
+        $response->assertOk();
+        $response->assertExactJson(['data' => null]);
+    }
 }

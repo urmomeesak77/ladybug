@@ -130,10 +130,10 @@ URL-addressable and survives refresh while the session is valid.
 **Independent Test**: authenticated `GET /api/user` → the user; anonymous → null/401.
 In the UI, `/account` shows name+email + Logout; refresh keeps you logged in (quickstart US3).
 
-- [ ] T026 [US3] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php` with failing `user` cases: authenticated → 200 `{data:{id,name,email,...}}` (no secrets); anonymous → the agreed anonymous shape (`200 {data:null}`) per contracts/auth-api.md FR-005
-- [ ] T027 [US3] Add `user(Request)` to `backend/app/Http/Controllers/AuthController.php` returning `UserResource` when `$request->user()` is present and `{data:null}` otherwise; register `GET /api/user` in `backend/routes/api.php` (not behind `auth:sanctum`, so anonymous returns null not 401); `docker compose restart backend` — make T026 pass
-- [ ] T028 [US3] Create `frontend/src/pages/AccountPage.tsx`: render `useAuth().user` name + email and a Logout button (→ `logout` then redirect home), inside the shared layout (thin glue; contracts/frontend.md)
-- [ ] T029 [US3] Manual validation per quickstart US3: `/account` while logged in shows your name + email and Logout; refresh keeps you logged in (FR-013); after logout, `/account` redirects to `/login`
+- [x] T026 [US3] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php` with failing `user` cases: authenticated → 200 `{data:{id,name,email,...}}` (no secrets); anonymous → the agreed anonymous shape (`200 {data:null}`) per contracts/auth-api.md FR-005
+- [x] T027 [US3] Add `user(Request)` to `backend/app/Http/Controllers/AuthController.php` returning `UserResource` when `$request->user()` is present and `{data:null}` otherwise; register `GET /api/user` in `backend/routes/api.php` (not behind `auth:sanctum`, so anonymous returns null not 401); `docker compose restart backend` — make T026 pass
+- [x] T028 [US3] Create `frontend/src/pages/AccountPage.tsx`: render `useAuth().user` name + email and a Logout button (→ `logout` then redirect home), inside the shared layout (thin glue; contracts/frontend.md)
+- [x] T029 [US3] Manual validation per quickstart US3: `/account` while logged in shows your name + email and Logout; refresh keeps you logged in (FR-013); after logout, `/account` redirects to `/login`
 
 **Checkpoint**: The account view is complete and refresh-safe.
 
