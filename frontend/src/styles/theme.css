@@ -276,3 +276,110 @@ main {
 .post-item .feed-item__title {
   font-size: 1.375rem;
 }
+
+/* ------------------------------------------------------------------ *
+ * Auth pages (007): login / register / account. Mobile-first and     *
+ * fluid (Principle VIII), themed via the shared tokens (so dark mode  *
+ * follows automatically), with labeled fields, adequate touch         *
+ * targets, and error cues conveyed by text + border, never color      *
+ * alone (Principle IV / FR-015/FR-016/FR-017).                        *
+ * ------------------------------------------------------------------ */
+
+.auth h1 {
+  margin-bottom: var(--space-lg);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 24rem;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.auth-field label {
+  font-weight: 600;
+}
+
+.auth-field input {
+  width: 100%;
+  min-height: 2.75rem; /* ~44px: comfortable touch target on small screens. */
+  padding: var(--space-sm) var(--space-md);
+  font: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+/* Invalid fields are flagged by a heavier accent border AND the text message below —
+   never by color alone (Principle IV / FR-015). */
+.auth-field input[aria-invalid='true'] {
+  border-color: var(--color-accent);
+  border-width: 2px;
+}
+
+.auth-field__error {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* Form-level banner (failed login, network error). Text + bordered box, not color alone. */
+.auth-form__error {
+  padding: var(--space-sm) var(--space-md);
+  color: var(--color-text);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+}
+
+.auth-form button[type='submit'],
+.account__logout {
+  min-height: 2.75rem;
+  padding: var(--space-sm) var(--space-lg);
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-accent-text);
+  background-color: var(--color-accent);
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.auth-form button[type='submit']:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+/* Account profile: a simple label/value grid. */
+.account__details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-xs) var(--space-md);
+  margin: var(--space-lg) 0;
+}
+
+.account__details dt {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.account__details dd {
+  margin: 0;
+}
+
+/* Nav logout is a text-style button so it sits inline with the nav links. */
+.nav-logout {
+  font: inherit;
+  color: var(--color-text);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+  cursor: pointer;
+}

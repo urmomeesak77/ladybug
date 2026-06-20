@@ -147,8 +147,8 @@ rules enforced and native Back/Forward.
 **Independent Test**: open each auth URL directly in both auth states and confirm the
 correct view or redirect; refresh restores; Back/Forward behave (quickstart US4).
 
-- [ ] T030 [US4] Verify/finish the guard wiring from Foundational against contracts/routes.md: anonymous `/account` → `/login`; authenticated `/login` or `/register` → `/`; the `unknown` gate prevents a flash-redirect on refresh of `/account`; fix any gap found
-- [ ] T031 [US4] Manual validation per quickstart US4/SC-005: anonymous `/account`→`/login`; authenticated `/login` and `/register`→`/`; refresh each route restores correctly from the URL alone; Back/Forward across a login transition restores views without re-exposing a protected page after logout
+- [x] T030 [US4] Verify/finish the guard wiring from Foundational against contracts/routes.md: anonymous `/account` → `/login`; authenticated `/login` or `/register` → `/`; the `unknown` gate prevents a flash-redirect on refresh of `/account`; fix any gap found
+- [x] T031 [US4] Manual validation per quickstart US4/SC-005: anonymous `/account`→`/login`; authenticated `/login` and `/register`→`/`; refresh each route restores correctly from the URL alone; Back/Forward across a login transition restores views without re-exposing a protected page after logout
 
 **Checkpoint**: Navigation is browser-native and the redirect matrix holds.
 
@@ -162,9 +162,9 @@ and reflow 320px→desktop with adequate touch targets.
 **Independent Test**: keyboard/AT traversal with labels + `aria` error association;
 OS light/dark followed; no horizontal scroll/clipping at ~320px/tablet/desktop (quickstart US5).
 
-- [ ] T032 [P] [US5] Extend `frontend/src/styles/theme.css` with auth-form rules: fluid `max-width` form column, labeled-field and error-text styles, adequate touch-target sizing; verify both light and dark `prefers-color-scheme` palettes (FR-016/FR-017)
-- [ ] T033 [US5] Ensure every input across LoginPage/RegisterPage/AccountPage has an associated `<label>` and each error uses `aria-invalid` + `aria-describedby` with text (not color-only) cues; logical focus order (FR-015)
-- [ ] T034 [US5] Manual a11y/responsive validation per quickstart US5/SC-007/SC-008: labels + tab order + announced errors on all three pages; theme follows OS light/dark; no horizontal scroll/clipping/overlap at ~320px, tablet, desktop; controls tap-operable
+- [x] T032 [P] [US5] Extend `frontend/src/styles/theme.css` with auth-form rules: fluid `max-width` form column, labeled-field and error-text styles, adequate touch-target sizing; verify both light and dark `prefers-color-scheme` palettes (FR-016/FR-017)
+- [x] T033 [US5] Ensure every input across LoginPage/RegisterPage/AccountPage has an associated `<label>` and each error uses `aria-invalid` + `aria-describedby` with text (not color-only) cues; logical focus order (FR-015)
+- [x] T034 [US5] Manual a11y/responsive validation per quickstart US5/SC-007/SC-008: labels + tab order + announced errors on all three pages; theme follows OS light/dark; no horizontal scroll/clipping/overlap at ~320px, tablet, desktop; controls tap-operable
 
 **Checkpoint**: All five stories functional, accessible, themed, responsive.
 
