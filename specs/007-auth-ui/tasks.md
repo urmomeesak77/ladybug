@@ -175,11 +175,11 @@ OS light/dark followed; no horizontal scroll/clipping at ~320px/tablet/desktop (
 **Purpose**: Final gates — full automated suites, conventions, security spot-check, and
 the end-to-end quickstart pass.
 
-- [ ] T035 Backend gate: `docker compose exec backend vendor/bin/pint --test` clean; `php -d pcov.enabled=1 vendor/bin/phpunit --coverage-clover backend/coverage.clover` then `python .github/scripts/check_coverage.py backend/coverage.clover 90` — total `app/` coverage ≥90% (add tests for any uncovered branch in AuthController/UserService/Requests/Resource)
-- [ ] T036 Frontend gate: `docker compose exec frontend npm run lint` clean and `docker compose exec frontend npx vitest run --coverage` with `src/lib/**` ≥90%
-- [ ] T037 Run the lint-reviewer conventions check over all changed backend + frontend files against docs/CODING_CONVENTIONS.md (PHP: PSR-12, 4-space, `declare(strict_types=1)`, fns <30 lines; TS: 2-space, semicolons, `is/has/should`, fns <50 lines; comments explain *why*) and fix findings
-- [ ] T038 Security spot-check (SC-009): inspect every auth response — no `password`/hash/remember_token field appears; confirm login error is identical for wrong-email vs wrong-password; confirm secrets/origins are env-only (no committed `.env`)
-- [ ] T039 Full quickstart pass: execute every scenario in specs/007-auth-ui/quickstart.md end-to-end (register, login, logout, account, redirects, refresh, a11y, responsive, theme) and spot-check the success criteria
+- [x] T035 Backend gate: `docker compose exec backend vendor/bin/pint --test` clean; `php -d pcov.enabled=1 vendor/bin/phpunit --coverage-clover backend/coverage.clover` then `python .github/scripts/check_coverage.py backend/coverage.clover 90` — total `app/` coverage ≥90% (add tests for any uncovered branch in AuthController/UserService/Requests/Resource)
+- [x] T036 Frontend gate: `docker compose exec frontend npm run lint` clean and `docker compose exec frontend npx vitest run --coverage` with `src/lib/**` ≥90%
+- [x] T037 Run the lint-reviewer conventions check over all changed backend + frontend files against docs/CODING_CONVENTIONS.md (PHP: PSR-12, 4-space, `declare(strict_types=1)`, fns <30 lines; TS: 2-space, semicolons, `is/has/should`, fns <50 lines; comments explain *why*) and fix findings
+- [x] T038 Security spot-check (SC-009): inspect every auth response — no `password`/hash/remember_token field appears; confirm login error is identical for wrong-email vs wrong-password; confirm secrets/origins are env-only (no committed `.env`)
+- [x] T039 Full quickstart pass: execute every scenario in specs/007-auth-ui/quickstart.md end-to-end (register, login, logout, account, redirects, refresh, a11y, responsive, theme) and spot-check the success criteria
 
 ---
 
