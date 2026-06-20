@@ -14,7 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Sanctum SPA auth: requests from the configured stateful frontend domains
+        // are authenticated via the session cookie (CSRF-protected) instead of a token.
+        $middleware->statefulApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
