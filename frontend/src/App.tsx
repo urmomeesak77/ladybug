@@ -11,6 +11,7 @@ import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 import PostPage from './pages/PostPage';
 import RegisterPage from './pages/RegisterPage';
+import UploadPage from './pages/UploadPage';
 
 function App() {
   useTheme();
@@ -25,6 +26,7 @@ function App() {
             <Route path="/login" element={<RequireAnon><LoginPage /></RequireAnon>} />
             <Route path="/register" element={<RequireAnon><RegisterPage /></RequireAnon>} />
             <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
+            <Route path="/upload" element={<RequireAuth><UploadPage /></RequireAuth>} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </PageLayout>

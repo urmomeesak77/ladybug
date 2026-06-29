@@ -27,6 +27,9 @@ function NavMenu() {
         {isAuthenticated ? (
           <>
             <li>
+              <NavLink to="/upload">Upload</NavLink>
+            </li>
+            <li>
               <NavLink to="/account">Account</NavLink>
             </li>
             <li>
