@@ -38,8 +38,8 @@ only the missing **write path**.
 |---|---|---|
 | Image library | **In-house GD** helper (`ext-gd`), no Composer package | Constitution Principle I ("prefer small in-house helpers over pulling packages"); avoids the dependency-approval gate. User approved 2026-06-29. |
 | Processing model | **Synchronous**, in-request | No queue/worker infrastructure (no new deps); volume at this stage does not warrant async. |
-| Animated GIFs | Stored as **original only**, no resized variants | GD flattens GIF animation on resize; the feed already falls back to `original` via `TrashpostImageService`. |
-| EXIF orientation (JPEG) | Auto-rotate originals before storing, when EXIF orientation present | Avoids sideways phone photos; cheap with `exif_read_data` + `imagerotate`. |
+| GIFs | Stored as **original only**, no resized variants (any GIF) | GD flattens GIF animation on resize; resizing by extension (not animation-detection) keeps the rule simple. The feed already falls back to `original` via `TrashpostImageService`. |
+| EXIF orientation (JPEG) | **Deferred** to a follow-up | GD cannot write EXIF-tagged test fixtures, so the rotation branches would be untestable and threaten the ≥90% gate; screenshots/downloaded memes (the common case) carry no orientation tag. |
 | Auth | `auth:sanctum` (SPA cookie session from 007) | Constitution security; uploads must be attributable. |
 | Filename | `{hash}.{ext}` | Hash is the immutable public id; reuses `MediaPath`. |
 | `type` column | `'image'` \| `'youtube'` | Drives the feed's media branch. |
@@ -74,20 +74,17 @@ in both files).
 Thin wrapper over `ext-gd`, no framework deps, unit-testable against fixture files:
 - `dimensions(path): {width, height}` via `getimagesize`.
 - `mime(path): string`.
-- `isAnimatedGif(path): bool` (scan for multiple frame headers).
 - `scaledDownCopy(srcPath, destPath, targetWidth): bool` — `imagescale` (proportional),
   only when source width > target; returns false when no downscale needed.
-- `autoOrient(path): void` — JPEG EXIF orientation → `imagerotate`.
 
 ### `TrashpostImageProcessor` (new service)
 Orchestrates storage using existing `MediaPath`:
-1. Auto-orient (JPEG) the uploaded original.
-2. Store original at `image/trash/original/{shard}/{hash}.{ext}`.
-3. For each `MediaPath` numeric size (`800/500/300/100`): generate a variant **only if
-   the original is wider** (no upscaling). **Skip entirely for animated GIFs.**
-4. Build `metadata` JSON (`{width, height, ratio, mime}`) — the exact shape the feed's
+1. Store original at `image/trash/original/{shard}/{hash}.{ext}`.
+2. For each `MediaPath` numeric size (`800/500/300/100`): generate a variant **only if
+   the original is wider** (no upscaling). **Skip entirely for GIFs.**
+3. Build `metadata` JSON (`{width, height, ratio, mime}`) — the exact shape the feed's
    `parseDimensions` already consumes.
-5. Return the data needed to persist the `Trashpost` (`file`, `type`, `metadata`).
+4. Return the data needed to persist the `Trashpost` (`file`, `type`, `metadata`).
 
 ### Controller
 A `store` method (on `TrashpostsApiController`, or a focused `PostUploadController`):
@@ -151,6 +148,8 @@ the resource.
   (`docker-php-ext-install gd`). This is an extension, not a Composer package.
 
 ## Open follow-ups (not this feature)
+- EXIF orientation auto-rotate for JPEG uploads (needs a real EXIF fixture strategy).
+- Partial-file cleanup when image processing fails mid-way (orphan original).
 - Uploaded video files + `<video>` renderer.
 - Rate limiting / abuse controls on the upload endpoint.
 - Edit / delete of one's own posts.
