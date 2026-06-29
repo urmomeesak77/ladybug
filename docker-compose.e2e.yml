@@ -1,0 +1,68 @@
+# E2E-ONLY stack: an isolated, DISPOSABLE backend + MySQL + Vite so the Playwright
+# auth specs register users against a throwaway `ladybug_e2e` database instead of the
+# live dev `trashdb`. Tests must NEVER touch a real database (see backend/tests/TestCase
+# for the PHPUnit-side guard). Nothing here persists: MySQL lives in tmpfs and is rebuilt
+# (migrate:fresh) on every `up`, and the whole stack is meant to be torn down with
+# `down -v` after the run.
+#
+# Ports are shifted off the dev stack so both can run side by side:
+#   dev:  frontend 5173 -> backend 8000 -> mysql(trashdb)
+#   e2e:  frontend 5174 -> backend 8001 -> mysql-e2e(ladybug_e2e, tmpfs)
+#
+# Run via scripts/e2e.ps1 (which uses a separate `-p ladybug-e2e` project so its
+# containers/volumes never collide with the dev stack).
+services:
+  mysql-e2e:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: ladybug_e2e
+      MYSQL_ROOT_PASSWORD: root
+    # Disposable by construction: the data dir is RAM-backed, so there is nothing to
+    # accidentally keep and no host volume to wipe. A fresh, empty DB every `up`.
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  backend-e2e:
+    image: ladybug-php
+    build:
+      context: ./docker/php
+    working_dir: /app
+    # migrate:fresh builds the throwaway ladybug_e2e schema from empty on every boot.
+    # The e2e DB/origin config comes from backend/.env.e2e (mounted over /app/.env
+    # below), NOT container env vars: `php artisan serve` strips non-whitelisted env
+    # (DB_*, SANCTUM_*) from its request workers, so those must live in the .env file
+    # the workers read. This also keeps the dev backend/.env (mysql/trashdb) untouched.
+    command: >
+      sh -c "php artisan migrate:fresh --force;
+             php artisan serve --host=0.0.0.0 --port=8000"
+    volumes:
+      - ./backend:/app
+      # Shadow the dev .env with the e2e one so requests resolve the disposable DB.
+      - ./backend/.env.e2e:/app/.env:ro
+      # No C:/ladybug-storage mount: e2e doesn't need the media library, only a working
+      # storage skeleton (sessions/cache/logs) which the repo already ships.
+    ports:
+      - "8001:8000"
+    depends_on:
+      mysql-e2e:
+        condition: service_healthy
+
+  frontend-e2e:
+    image: node:20
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      # Point the SPA at the isolated e2e API instead of the dev backend on 8000.
+      VITE_API_BASE_URL: http://localhost:8001
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5174:5173"
+    depends_on:
+      - backend-e2e

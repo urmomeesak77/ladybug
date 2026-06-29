@@ -25,9 +25,10 @@
         <env name="CACHE_STORE" value="array"/>
         <!-- Tests MUST run on SQLite :memory:, never the dev MySQL, or
              RefreshDatabase migrate:fresh would wipe live data. force="true" is
-             defense-in-depth only: a real DB_* env var in the process still wins
-             over this, so DB config is kept OUT of docker-compose (see its
-             backend service) and lives in .env instead. -->
+             only the first layer: a real DB_* env var in the process still wins
+             over it, so DB config is kept OUT of docker-compose/CI and lives in
+             .env instead. The hard guarantee is Tests\TestCase, which aborts
+             every test if the resolved connection is not sqlite :memory:. -->
         <env name="DB_CONNECTION" value="sqlite" force="true"/>
         <env name="DB_DATABASE" value=":memory:" force="true"/>
         <env name="DB_URL" value="" force="true"/>

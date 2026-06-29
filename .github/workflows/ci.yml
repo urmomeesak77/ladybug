@@ -19,26 +19,9 @@ jobs:
     defaults:
       run:
         working-directory: backend
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_DATABASE: ladybug_test
-          MYSQL_ROOT_PASSWORD: root
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-    env:
-      DB_CONNECTION: mysql
-      DB_HOST: 127.0.0.1
-      DB_PORT: 3306
-      DB_DATABASE: ladybug_test
-      DB_USERNAME: root
-      DB_PASSWORD: root
+    # No DB service or DB_* env: tests run on SQLite :memory: (forced by
+    # phpunit.xml and enforced by Tests\TestCase). Injecting real DB_* env vars
+    # here would override that force and run the suite against a real database.
     steps:
       - uses: actions/checkout@v6
 

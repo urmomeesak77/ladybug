@@ -1,9 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Browser e2e for the Home feed. Runs against the already-running dev stack (Vite on
-// 5173, the feature 004 API on 8000 via Docker), so there is no managed webServer here —
-// start the stack first (see README / quickstart). Vitest unit specs live under tests/
-// and are excluded by scoping Playwright to e2e/.
+// Browser e2e. These specs register real users, so they must run against the ISOLATED,
+// disposable e2e stack (frontend 5174 -> backend 8001 -> throwaway ladybug_e2e DB), NEVER
+// the live dev stack on 5173/8000 whose backend writes to trashdb. Launch it with
+// `scripts\e2e.ps1`, which brings up docker-compose.e2e.yml and sets E2E_BASE_URL below.
+// There is no managed webServer here (the script owns the stack lifecycle). Vitest unit
+// specs live under tests/ and are excluded by scoping Playwright to e2e/.
 export default defineConfig({
   testDir: './e2e',
   // One shared dev server + API: run serially so parallel cold-transform loads do not

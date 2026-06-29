@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-// End-to-end coverage of the auth feature (007) against the live stack: register logs the
-// user in, the nav reflects auth state, guards enforce the redirect matrix, login + logout
-// work, a non-disclosing error is shown for bad credentials, and the session survives a
-// reload (refresh-persistence). Each test uses a unique email since the dev DB is shared.
+// End-to-end coverage of the auth feature (007) against the ISOLATED e2e stack (run via
+// scripts\e2e.ps1): register logs the user in, the nav reflects auth state, guards enforce
+// the redirect matrix, login + logout work, a non-disclosing error is shown for bad
+// credentials, and the session survives a reload (refresh-persistence). Users are written
+// to the throwaway ladybug_e2e DB, never the live dev trashdb; unique emails keep specs
+// independent within a run.
 
 function uniqueEmail(): string {
   return `e2e+${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;
