@@ -23,9 +23,13 @@ class ImageFileTest extends TestCase {
     }
 
     private function makeJpeg(string $name, int $w, int $h): string {
+        return $this->makeImage($name, $w, $h, 'imagejpeg');
+    }
+
+    private function makeImage(string $name, int $w, int $h, callable $writer): string {
         $path = "{$this->dir}/{$name}";
         $img = imagecreatetruecolor($w, $h);
-        imagejpeg($img, $path);
+        $writer($img, $path);
         imagedestroy($img);
 
         return $path;
@@ -60,5 +64,34 @@ class ImageFileTest extends TestCase {
 
         $this->assertFalse($result);
         $this->assertFileDoesNotExist($dest);
+    }
+
+    public function test_scaled_down_copy_handles_png(): void {
+        $src = $this->makeImage('src.png', 1000, 500, 'imagepng');
+        $dest = "{$this->dir}/dest.png";
+
+        $this->assertTrue((new ImageFile())->scaledDownCopy($src, $dest, 200));
+        $this->assertSame([200, 100], (new ImageFile())->dimensions($dest));
+    }
+
+    public function test_scaled_down_copy_handles_gif(): void {
+        $src = $this->makeImage('src.gif', 800, 400, 'imagegif');
+        $dest = "{$this->dir}/dest.gif";
+
+        $this->assertTrue((new ImageFile())->scaledDownCopy($src, $dest, 200));
+        $this->assertSame([200, 100], (new ImageFile())->dimensions($dest));
+    }
+
+    public function test_mime_falls_back_for_a_non_image_file(): void {
+        $path = "{$this->dir}/notes.txt";
+        file_put_contents($path, 'not an image');
+        $this->assertSame('application/octet-stream', (new ImageFile())->mime($path));
+    }
+
+    public function test_dimensions_throws_for_an_unreadable_file(): void {
+        $path = "{$this->dir}/notes.txt";
+        file_put_contents($path, 'not an image');
+        $this->expectException(\RuntimeException::class);
+        (new ImageFile())->dimensions($path);
     }
 }

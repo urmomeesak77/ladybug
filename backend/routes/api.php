@@ -15,6 +15,11 @@ Route::get('/health', static fn () => response()->json(['status' => 'ok']));
 Route::get('/posts', [TrashpostsApiController::class, 'index'])->name('api.posts.index');
 Route::get('/posts/{hash}', [TrashpostsApiController::class, 'show'])->name('api.posts.show');
 
+// Create a post (image upload or YouTube link). Authenticated only (Sanctum SPA session).
+Route::post('/posts', [TrashpostsApiController::class, 'store'])
+    ->middleware('auth:sanctum')
+    ->name('api.posts.store');
+
 // Auth (Sanctum SPA cookie-session). Register/login establish the session; the
 // stateful middleware (bootstrap/app.php) starts it for requests from the SPA.
 Route::post('/register', [AuthController::class, 'register'])->name('api.auth.register');
