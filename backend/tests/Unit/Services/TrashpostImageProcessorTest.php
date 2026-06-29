@@ -1,0 +1,68 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Unit\Services;
+
+use App\Services\TrashpostImageProcessor;
+use App\Support\MediaPath;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Tests\TestCase;
+
+class TrashpostImageProcessorTest extends TestCase {
+    protected function setUp(): void {
+        parent::setUp();
+        Storage::fake('public');
+    }
+
+    private function image(string $name, int $w, int $h): UploadedFile {
+        // UploadedFile::fake()->image() draws a real GD image of the given size.
+        return UploadedFile::fake()->image($name, $w, $h);
+    }
+
+    public function test_stores_original_and_returns_row_fields(): void {
+        $result = (new TrashpostImageProcessor())->process($this->image('m.jpg', 1200, 600), 'abc1234567');
+
+        $this->assertSame('abc1234567.jpg', $result['file']);
+        $this->assertSame('image', $result['type']);
+        Storage::disk('public')->assertExists(MediaPath::imageRelativePath('original', 'abc1234567', 'jpg'));
+    }
+
+    public function test_generates_variants_narrower_than_the_original(): void {
+        (new TrashpostImageProcessor())->process($this->image('m.jpg', 1200, 600), 'abc1234567');
+
+        $disk = Storage::disk('public');
+        // 800/500/300/100 are all < 1200, so all exist.
+        $disk->assertExists(MediaPath::imageRelativePath('800', 'abc1234567', 'jpg'));
+        $disk->assertExists(MediaPath::imageRelativePath('100', 'abc1234567', 'jpg'));
+    }
+
+    public function test_does_not_upscale_beyond_original_width(): void {
+        (new TrashpostImageProcessor())->process($this->image('m.jpg', 400, 200), 'abc1234567');
+
+        $disk = Storage::disk('public');
+        // Original is 400 wide: 800 and 500 are skipped; 300 and 100 are made.
+        $disk->assertMissing(MediaPath::imageRelativePath('800', 'abc1234567', 'jpg'));
+        $disk->assertExists(MediaPath::imageRelativePath('300', 'abc1234567', 'jpg'));
+    }
+
+    public function test_does_not_resize_gifs(): void {
+        (new TrashpostImageProcessor())->process($this->image('m.gif', 1200, 600), 'abc1234567');
+
+        $disk = Storage::disk('public');
+        $disk->assertExists(MediaPath::imageRelativePath('original', 'abc1234567', 'gif'));
+        $disk->assertMissing(MediaPath::imageRelativePath('800', 'abc1234567', 'gif'));
+    }
+
+    public function test_metadata_carries_dimensions_ratio_and_mime(): void {
+        $result = (new TrashpostImageProcessor())->process($this->image('m.jpg', 1200, 600), 'abc1234567');
+
+        $meta = json_decode($result['metadata'], true);
+        $this->assertSame(1200, $meta['width']);
+        $this->assertSame(600, $meta['height']);
+        // json_decode renders a whole-number ratio as int; compare numerically.
+        $this->assertEqualsWithDelta(2.0, $meta['ratio'], 0.0001);
+        $this->assertSame('image/jpeg', $meta['mime']);
+    }
+}
