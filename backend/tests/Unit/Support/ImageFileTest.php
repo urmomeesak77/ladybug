@@ -82,6 +82,13 @@ class ImageFileTest extends TestCase {
         $this->assertSame([200, 100], (new ImageFile())->dimensions($dest));
     }
 
+    public function test_scaled_down_copy_throws_when_the_destination_is_unwritable(): void {
+        $src = $this->makeJpeg('src.jpg', 1000, 500);
+        // Parent directory does not exist, so the GD write fails — must surface, not swallow.
+        $this->expectException(\RuntimeException::class);
+        (new ImageFile())->scaledDownCopy($src, "{$this->dir}/missing/dest.jpg", 300);
+    }
+
     public function test_mime_falls_back_for_a_non_image_file(): void {
         $path = "{$this->dir}/notes.txt";
         file_put_contents($path, 'not an image');

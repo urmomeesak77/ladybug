@@ -25,7 +25,7 @@ class CreatePostRequest extends FormRequest {
         return [
             'title' => ['nullable', 'string', 'max:255'],
             'image' => ['required_without:youtube', 'image', 'mimes:jpg,jpeg,png,gif', 'max:10240'],
-            'youtube' => ['required_without:image', 'string'],
+            'youtube' => ['required_without:image', 'string', 'max:500'],
         ];
     }
 

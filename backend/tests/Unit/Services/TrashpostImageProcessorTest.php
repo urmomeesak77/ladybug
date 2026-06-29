@@ -55,6 +55,22 @@ class TrashpostImageProcessorTest extends TestCase {
         $disk->assertMissing(MediaPath::imageRelativePath('800', 'abc1234567', 'gif'));
     }
 
+    public function test_extension_is_derived_from_content_not_the_client_filename(): void {
+        // Principle VI: a real PNG uploaded under a deceptive .php name must be stored with a
+        // safe, content-derived extension — never the attacker-controlled client extension.
+        $tmp = tempnam(sys_get_temp_dir(), 'up');
+        $img = imagecreatetruecolor(50, 50);
+        imagepng($img, $tmp);
+        imagedestroy($img);
+        $file = new UploadedFile($tmp, 'evil.php', 'image/png', null, true);
+
+        $result = (new TrashpostImageProcessor())->process($file, 'abc1234567');
+
+        $this->assertSame('abc1234567.png', $result['file']);
+        Storage::disk('public')->assertExists(MediaPath::imageRelativePath('original', 'abc1234567', 'png'));
+        Storage::disk('public')->assertMissing(MediaPath::imageRelativePath('original', 'abc1234567', 'php'));
+    }
+
     public function test_metadata_carries_dimensions_ratio_and_mime(): void {
         $result = (new TrashpostImageProcessor())->process($this->image('m.jpg', 1200, 600), 'abc1234567');
 

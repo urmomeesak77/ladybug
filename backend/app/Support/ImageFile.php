@@ -68,11 +68,22 @@ class ImageFile {
     }
 
     private function write(\GdImage $img, string $path): void {
+        // Fail fast on an unwritable destination so a failed variant can never be silently
+        // committed while the feed points at a missing file. Checking up front also avoids
+        // the GD writers' own E_WARNING on a bad path.
+        $dir = dirname($path);
+        if (!is_dir($dir) || !is_writable($dir)) {
+            throw new \RuntimeException("Cannot write image to {$path}");
+        }
+
         $ext = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
-        match ($ext) {
+        $ok = match ($ext) {
             'png' => imagepng($img, $path),
             'gif' => imagegif($img, $path),
             default => imagejpeg($img, $path, 85),
         };
+        if ($ok === false) {
+            throw new \RuntimeException("Failed to write image: {$path}");
+        }
     }
 }

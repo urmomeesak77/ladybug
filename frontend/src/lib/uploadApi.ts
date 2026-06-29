@@ -15,11 +15,11 @@ function xsrfToken(): string {
   return match ? decodeURIComponent(match[1]) : '';
 }
 
-async function send(body: FormData | string, jsonContentType: boolean): Promise<UploadResult> {
+async function send(body: FormData | string, isJson: boolean): Promise<UploadResult> {
   try {
     // For FormData we must NOT set Content-Type — the browser adds the multipart boundary.
     const headers: Record<string, string> = { Accept: 'application/json', 'X-XSRF-TOKEN': xsrfToken() };
-    if (jsonContentType) {
+    if (isJson) {
       headers['Content-Type'] = 'application/json';
     }
     const response = await fetch(`${apiBase()}/api/posts`, {

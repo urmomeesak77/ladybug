@@ -23,7 +23,7 @@ class TrashpostImageProcessor {
      * @return array{file: string, type: string, metadata: string}
      */
     public function process(UploadedFile $file, string $hash): array {
-        $ext = strtolower($file->getClientOriginalExtension());
+        $ext = $this->extensionFor($file);
         $disk = Storage::disk('public');
 
         $originalRel = MediaPath::imageRelativePath('original', $hash, $ext);
@@ -42,6 +42,19 @@ class TrashpostImageProcessor {
             'type' => 'image',
             'metadata' => $this->metadata($width, $height, $originalPath),
         ];
+    }
+
+    /**
+     * Derive the stored extension from the validated content type, never the client-supplied
+     * filename (Principle VI): a polyglot uploaded as evil.php must still be stored as a safe
+     * image extension. Only the three MIME types CreatePostRequest admits are mapped.
+     */
+    private function extensionFor(UploadedFile $file): string {
+        return match ($file->getMimeType()) {
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            default => 'jpg',
+        };
     }
 
     private function generateVariants(string $hash, string $ext, string $originalPath, int $width): void {
