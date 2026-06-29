@@ -9,6 +9,7 @@
         "php": "^8.2",
         "ext-bcmath": "*",
         "ext-mbstring": "*",
+        "ext-gd": "*",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.3"
     },
