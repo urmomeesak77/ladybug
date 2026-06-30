@@ -98,11 +98,16 @@ A standard reference for code style, naming, and structure across projects. Appl
 - **Booleans**: prefix with `is`, `has`, `should`: `isActive`, `hasWon`, `shouldReset`
 
 ### Structure
-- One responsibility per function (single responsibility principle)
-- Keep functions under 50 lines; extract helpers if longer
+- **Prefer classes over standalone functions or closures** to organize related logic
+  and state: group behavior and the data it operates on into a `class` rather than a set
+  of loose functions sharing module-level variables, and reach for a small class instead
+  of a closure when you need to capture and carry state. Pure, stateless helpers may
+  remain standalone functions.
+- One responsibility per function/method (single responsibility principle)
+- Keep functions/methods under 50 lines; extract helpers if longer
 - Keep classes under 300 lines; split into focused collaborators if longer
 - Use early returns to reduce nesting
-- Group related functions together
+- Group related behavior into a class; keep any standalone helpers together
 
 ### Logic & Patterns
 - Use `const` by default, `let` for loop counters, avoid `var`
@@ -161,6 +166,9 @@ function minimax(board, depth, isMax) {
 - Generic type parameters: `T`, `K`, `V` (single letter) or descriptive: `TUser`, `TResponse`
 
 ### Structure
+- **Prefer classes over standalone functions or closures** for stateful or related logic
+  (see the JavaScript Structure guidance); favor a typed `class` over a closure that
+  captures state. Reserve standalone functions for pure, stateless helpers.
 ```typescript
 // enums for fixed sets
 export enum PlayerMark {
@@ -185,10 +193,15 @@ function move(index: number | null): GameState | null {
   return index !== null ? applyMove(index) : null;
 }
 
-// generics for reusable logic
-function cache<T>(fn: () => T): () => T {
-  let cached: T;
-  return () => (cached ??= fn());
+// generics for reusable logic — prefer a class over a state-capturing closure
+class Lazy<T> {
+  private cached?: T;
+
+  constructor(private readonly factory: () => T) {}
+
+  get value(): T {
+    return (this.cached ??= this.factory());
+  }
 }
 ```
 
@@ -283,6 +296,8 @@ try {
 - **KISS** (Keep It Simple, Stupid): Solve the problem at hand, avoid over-engineering
 - **YAGNI** (You Aren't Gonna Need It): Don't add features you don't need yet
 - **Single Responsibility**: One function/class = one job
+- **Prefer classes**: Organize related logic and state into classes rather than loose
+  functions or closures; keep standalone functions for pure, stateless helpers
 
 
 ### Dependencies
@@ -438,5 +453,5 @@ try {
 
 ---
 
-**Last Updated**: 2026-06-09  
-**Version**: 1.1
+**Last Updated**: 2026-06-30  
+**Version**: 1.2

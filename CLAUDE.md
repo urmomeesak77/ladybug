@@ -9,10 +9,10 @@ and YouTube links and browse an endless feed of entries. The stack is a **React 
 + Vite (TypeScript)** frontend talking to a **Laravel 12 (PHP 8.2+) + Sanctum**
 backend over a JSON API, backed by **MySQL** via Eloquent.
 
-## Current State (as of 2026-06-09)
+## Current State (as of 2026-06-20)
 
 The project is **past planning**: both `backend/` (Laravel 12) and `frontend/`
-(React 18 + Vite + TypeScript) are scaffolded and four features are implemented.
+(React 18 + Vite + TypeScript) are scaffolded and seven features are implemented.
 Features follow the Spec Kit flow (specify → plan → tasks → implement) under `specs/`:
 
 - **001-infra-scaffold** — `backend/` + `frontend/` skeletons, lint/test tooling,
@@ -23,11 +23,19 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
   disk (real media + the ~1.3 GB tree live at `C:\ladybug-storage`, bind-mounted).
 - **004-read-feed-api** — read-side JSON API: `GET /api/posts` (newest-first keyset
   feed, 10/page) and `GET /api/posts/{hash}`, including per-image-size URLs.
-- **005-frontend-mainpage** — *current feature, in planning/implementation*: the
-  React Home feed that consumes the 004 API (see the plan link at the bottom).
+- **005-frontend-mainpage** — React Home feed (`HomePage`) that consumes the 004 API:
+  infinite-scroll feed, image + YouTube rendering, `prefers-color-scheme` theming,
+  permalinks (`/posts/{hash}`) on every entry.
+- **006-trashpost-page** — single-meme view (`PostPage` at `/posts/{hash}`): title +
+  media (image or embedded YouTube) inside the shared site layout, fed by
+  `GET /api/posts/{hash}`; `NotFoundPage` for unknown hashes.
+- **007-auth-ui** — full-stack auth slice. Backend `AuthController` over **Sanctum
+  SPA cookie-session** (`POST /api/register`, `POST /api/login`,
+  `POST /api/logout`, `GET /api/user`); frontend `LoginPage`, `RegisterPage`,
+  `AccountPage` at `/login`, `/register`, `/account` with inline server-side
+  validation, redirect rules, and accessible/themed/responsive forms.
 
-Not built yet: auth UI (login/register/account), the single-meme page, uploading,
-and comments.
+Not built yet: uploading, comments, password reset, and email verification.
 
 Supporting files:
 
@@ -98,45 +106,50 @@ not authoritative. Where it conflicts with the constitution or
 - **Tests:** ≥90% line coverage (enforced in CI). Tests live under a top-level
   `tests/` dir mirroring source paths; cover happy path and edge cases.
 
-## Suggested File Structure
+## File Structure
 
-The CI workflow already assumes a decoupled, two-app layout: a `backend/` Laravel
-API and a separate `frontend/` React + Vite SPA (each with its own dependency
-lockfile and its own CI job). This differs from the prototype, which served React
-from inside Laravel's `resources/js/`. The suggested target layout:
+A decoupled, two-app layout: a `backend/` Laravel API and a separate `frontend/`
+React + Vite SPA (each with its own dependency lockfile and its own CI job). This
+differs from the prototype, which served React from inside Laravel's `resources/js/`.
+The current layout (real names — `Trashpost`/`hash`, not the constitution's
+"Meme"/"public code" placeholders):
 
 ```
 ladybug/
-├── backend/                      # Laravel API (PHP 8.1+, Sanctum, MySQL)
+├── backend/                      # Laravel 12 API (PHP 8.2+, Sanctum, MySQL)
 │   ├── app/
+│   │   ├── Console/Commands/     # SeedMediaCommand
 │   │   ├── Http/
-│   │   │   ├── Controllers/      # MemeController, AuthController
-│   │   │   ├── Requests/         # FormRequest validation (uploads, auth)
-│   │   │   └── Resources/        # JSON API resources (MemeResource, ...)
-│   │   ├── Models/               # Meme, User
-│   │   ├── Services/             # MemeService, ImageService, FileService, ...
-│   │   └── Support/              # small in-house helpers (e.g. PublicCode)
-│   ├── database/migrations/      # schema (memes table w/ 11-char public code)
-│   ├── routes/api.php            # GET /api/memes, GET /api/memes/{code}, auth
+│   │   │   ├── Controllers/      # TrashpostsApiController, AuthController
+│   │   │   ├── Requests/         # LoginRequest, RegisterRequest
+│   │   │   └── Resources/        # TrashpostResource, UserResource
+│   │   ├── Models/               # Trashpost, User
+│   │   ├── Services/             # TrashpostService, TrashpostImageService, UserService
+│   │   ├── Support/              # MediaPath
+│   │   └── Utils/                # Base64, Json, Str (Str::createUniqueHash)
+│   ├── database/migrations/      # trashposts + users schema (10-char `hash`)
+│   ├── routes/api.php            # /posts, /posts/{hash}, register/login/logout/user, /health
 │   ├── tests/                    # PHPUnit — mirrors app/ (Principle VII)
-│   │   ├── Feature/              # e.g. Http/Controllers/MemeControllerTest.php
-│   │   └── Unit/                 # e.g. Services/MemeServiceTest.php
+│   │   ├── Feature/              # e.g. Http/Controllers/AuthControllerTest.php
+│   │   └── Unit/                 # e.g. Services/TrashpostServiceTest.php
 │   ├── .env.example
 │   ├── composer.json
 │   └── pint.json                 # lint config (vendor/bin/pint --test in CI)
 │
-├── frontend/                     # React 18 + Vite SPA
+├── frontend/                     # React 18 + Vite + TypeScript SPA
 │   ├── src/
-│   │   ├── pages/                # HomePage, MemePage, Login/Register, Account
-│   │   ├── components/           # Layout, TopMenu, MemeList, MemeItem, ...
-│   │   ├── services/             # http client, MemeService, UserService
-│   │   ├── hooks/                # e.g. useTheme (prefers-color-scheme)
-│   │   ├── types/                # shared TS types (if TS)
-│   │   └── main.{jsx,tsx}        # router + app entry
-│   ├── tests/                    # Vitest — mirrors src/ (Principle VII)
+│   │   ├── pages/                # HomePage, PostPage, LoginPage, RegisterPage, AccountPage, NotFoundPage
+│   │   ├── components/           # PageLayout, NavMenu, Feed, FeedItem, MemeMedia,
+│   │   │                         #   AuthProvider, AuthField, RequireAuth, RequireAnon, states/
+│   │   ├── hooks/                # useFeed, usePost, useAuth, useTheme, useScrollRestoration
+│   │   ├── lib/                  # api, authApi, feedModel/postModel/authModel, feedCache,
+│   │   │                         #   pagination, scrollAnchor, theme, youtube, publicCode
+│   │   ├── App.tsx               # router
+│   │   └── main.tsx              # app entry
+│   ├── tests/                    # Vitest + Playwright e2e — mirrors src/ (Principle VII)
 │   ├── index.html
-│   ├── vite.config.{js,ts}
-│   ├── .eslintrc / eslint config # `npm run lint` must resolve (CI)
+│   ├── vite.config.ts
+│   ├── eslint config             # `npm run lint` must resolve (CI)
 │   └── package.json              # incl. lint + test (vitest) scripts
 │
 ├── docs/                         # conventions, design specs, plans, screenshots
@@ -146,13 +159,14 @@ ladybug/
 
 Notes:
 - **Tests mirror source** under each stack's `tests/` dir, per Constitution
-  Principle VII (e.g. `app/Services/MemeService.php` →
-  `tests/Unit/Services/MemeServiceTest.php`).
-- **Names are suggestions** — "Meme"/"public code" track the constitution's
-  vocabulary; the prototype's equivalents are "Trashpost"/`{hash}`.
-- Each stack scaffolds with the lint/test tooling CI invokes: backend Pint +
-  PHPUnit (+ `pcov` on the runner); frontend ESLint + Vitest. Adding anything
-  beyond those baselines is a Principle I dependency decision.
+  Principle VII (e.g. `app/Services/TrashpostService.php` →
+  `tests/Unit/Services/TrashpostServiceTest.php`).
+- Frontend has no `services/` or `types/` dir: HTTP/data access lives in `lib/`
+  (`api.ts`, `authApi.ts`), and shared types are colocated in the `*Model.ts`
+  modules they belong to.
+- Each stack uses the lint/test tooling CI invokes: backend Pint + PHPUnit
+  (+ `pcov` on the runner); frontend ESLint + Vitest (+ Playwright e2e). Adding
+  anything beyond those baselines is a Principle I dependency decision.
 
 ## Workflow
 
