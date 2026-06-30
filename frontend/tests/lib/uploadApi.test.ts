@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { uploadImage, uploadYoutube } from '../../src/lib/uploadApi';
+import { UploadApi } from '../../src/lib/uploadApi';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -20,7 +20,7 @@ describe('uploadApi', () => {
     );
 
     const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
-    const result = await uploadImage({ title: 'hi', file });
+    const result = await UploadApi.uploadImage({ title: 'hi', file });
 
     expect(result).toEqual({ ok: true, hash: 'abc1234567' });
     const [, init] = fetchMock.mock.calls[0];
@@ -33,7 +33,7 @@ describe('uploadApi', () => {
       jsonResponse(201, { data: { hash: 'zzz1234567' } }),
     );
 
-    const result = await uploadYoutube({ title: '', youtube: 'dQw4w9WgXcQ' });
+    const result = await UploadApi.uploadYoutube({ title: '', youtube: 'dQw4w9WgXcQ' });
 
     expect(result).toEqual({ ok: true, hash: 'zzz1234567' });
     const [, init] = fetchMock.mock.calls[0];
@@ -42,7 +42,7 @@ describe('uploadApi', () => {
 
   it('maps 401 to an auth failure', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(401, {}));
-    const result = await uploadYoutube({ title: '', youtube: 'dQw4w9WgXcQ' });
+    const result = await UploadApi.uploadYoutube({ title: '', youtube: 'dQw4w9WgXcQ' });
     expect(result).toEqual({ ok: false, kind: 'auth' });
   });
 
@@ -50,14 +50,14 @@ describe('uploadApi', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse(422, { errors: { youtube: ['Enter a valid YouTube link.'] } }),
     );
-    const result = await uploadYoutube({ title: '', youtube: 'bad' });
+    const result = await UploadApi.uploadYoutube({ title: '', youtube: 'bad' });
     expect(result).toEqual({ ok: false, kind: 'validation', errors: { youtube: ['Enter a valid YouTube link.'] } });
   });
 
   it('maps a network rejection to a network failure', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
     const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
-    const result = await uploadImage({ title: '', file });
+    const result = await UploadApi.uploadImage({ title: '', file });
     expect(result).toEqual({ ok: false, kind: 'network' });
   });
 });

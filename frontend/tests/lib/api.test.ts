@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { buildFeedUrl, buildPostUrl, fetchFeed, fetchPost } from '../../src/lib/api';
+import { Api } from '../../src/lib/api';
 
 function stubFetch(impl: () => Promise<unknown>): void {
   vi.stubGlobal('fetch', vi.fn(impl));
@@ -8,21 +8,21 @@ function stubFetch(impl: () => Promise<unknown>): void {
 
 describe('buildFeedUrl', () => {
   it('defaults limit to 10 and omits start when absent', () => {
-    const url = buildFeedUrl({});
+    const url = Api.buildFeedUrl({});
 
     expect(url).toMatch(/\/api\/posts\?limit=10$/);
     expect(url).not.toContain('start=');
   });
 
   it('clamps limit into [1, 50]', () => {
-    expect(buildFeedUrl({ limit: 999 })).toContain('limit=50');
-    expect(buildFeedUrl({ limit: 0 })).toContain('limit=1');
-    expect(buildFeedUrl({ limit: -7 })).toContain('limit=1');
-    expect(buildFeedUrl({ limit: 25 })).toContain('limit=25');
+    expect(Api.buildFeedUrl({ limit: 999 })).toContain('limit=50');
+    expect(Api.buildFeedUrl({ limit: 0 })).toContain('limit=1');
+    expect(Api.buildFeedUrl({ limit: -7 })).toContain('limit=1');
+    expect(Api.buildFeedUrl({ limit: 25 })).toContain('limit=25');
   });
 
   it('URL-encodes the start cursor', () => {
-    const url = buildFeedUrl({ start: 'a/b c' });
+    const url = Api.buildFeedUrl({ start: 'a/b c' });
 
     // Reserved characters are percent-encoded rather than passed raw (a space may encode
     // as "+" or "%20" — both decode to a space; what matters is it is never literal).
@@ -43,12 +43,20 @@ describe('fetchFeed', () => {
       status: 200,
       json: async () => ({
         data: [
-          { hash: 'abc1234567', title: 'Hi', youtube: null, default: null, sizes: [], original: null, url: '/posts/abc1234567' },
+          {
+            hash: 'abc1234567',
+            title: 'Hi',
+            youtube: null,
+            default: null,
+            sizes: [],
+            original: null,
+            url: '/posts/abc1234567',
+          },
         ],
       }),
     }));
 
-    const result = await fetchFeed({});
+    const result = await Api.fetchFeed({});
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -60,7 +68,7 @@ describe('fetchFeed', () => {
   it('classifies a non-2xx response as an http error carrying the status', async () => {
     stubFetch(async () => ({ ok: false, status: 503, json: async () => ({}) }));
 
-    const result = await fetchFeed({});
+    const result = await Api.fetchFeed({});
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -74,7 +82,7 @@ describe('fetchFeed', () => {
       throw new TypeError('Failed to fetch');
     });
 
-    const result = await fetchFeed({});
+    const result = await Api.fetchFeed({});
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -85,12 +93,12 @@ describe('fetchFeed', () => {
 
 describe('buildPostUrl', () => {
   it('builds the single-post path from the hash', () => {
-    expect(buildPostUrl('abc1234567')).toMatch(/\/api\/posts\/abc1234567$/);
+    expect(Api.buildPostUrl('abc1234567')).toMatch(/\/api\/posts\/abc1234567$/);
   });
 
   it('path-encodes the raw hash rather than passing it verbatim', () => {
     // The hash is opaque client-side; a malformed value must not break the URL path.
-    const url = buildPostUrl('a/b?c#d');
+    const url = Api.buildPostUrl('a/b?c#d');
 
     expect(url).toMatch(/\/api\/posts\/a%2Fb%3Fc%23d$/);
   });
@@ -115,7 +123,7 @@ describe('fetchPost', () => {
   it('maps a 200 body through mapPost into a loaded post', async () => {
     stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: rawPost }) }));
 
-    const result = await fetchPost('abc1234567');
+    const result = await Api.fetchPost('abc1234567');
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -130,7 +138,7 @@ describe('fetchPost', () => {
     const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ data: rawPost }) }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await fetchPost('abc1234567');
+    await Api.fetchPost('abc1234567');
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringMatching(/\/api\/posts\/abc1234567$/),
@@ -141,7 +149,7 @@ describe('fetchPost', () => {
   it('classifies a 404 as notFound carrying the status', async () => {
     stubFetch(async () => ({ ok: false, status: 404, json: async () => ({}) }));
 
-    const result = await fetchPost('AAAAAAAAAA');
+    const result = await Api.fetchPost('AAAAAAAAAA');
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -153,7 +161,7 @@ describe('fetchPost', () => {
   it('classifies any other non-2xx as an http error carrying the status', async () => {
     stubFetch(async () => ({ ok: false, status: 503, json: async () => ({}) }));
 
-    const result = await fetchPost('abc1234567');
+    const result = await Api.fetchPost('abc1234567');
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -167,7 +175,7 @@ describe('fetchPost', () => {
       throw new TypeError('Failed to fetch');
     });
 
-    const result = await fetchPost('abc1234567');
+    const result = await Api.fetchPost('abc1234567');
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -184,7 +192,7 @@ describe('fetchPost', () => {
       },
     }));
 
-    const result = await fetchPost('abc1234567');
+    const result = await Api.fetchPost('abc1234567');
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -195,7 +203,7 @@ describe('fetchPost', () => {
   it('treats a 200 body without a data object as a retryable http error', async () => {
     stubFetch(async () => ({ ok: true, status: 200, json: async () => ({}) }));
 
-    const result = await fetchPost('abc1234567');
+    const result = await Api.fetchPost('abc1234567');
 
     expect(result.ok).toBe(false);
     if (!result.ok) {

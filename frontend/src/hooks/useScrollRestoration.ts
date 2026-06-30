@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect } from 'react';
 
-import { readSnapshot, updateSnapshot } from '../lib/feedCache';
-import { pickAnchor, pickRestoreTarget } from '../lib/scrollAnchor';
+import { FeedCache } from '../lib/feedCache';
+import { ScrollAnchor } from '../lib/scrollAnchor';
 import type { ItemRect } from '../lib/scrollAnchor';
 
 const THROTTLE_MS = 150;
@@ -24,9 +24,9 @@ function collectItemRects(): ItemRect[] {
 // Persist the post currently at the viewport top as the restore anchor. No-op until the
 // feed hook has written the snapshot (updateSnapshot) or when the list is gone.
 function captureAnchor(cacheKey: string): void {
-  const anchor = pickAnchor(collectItemRects(), window.scrollY);
+  const anchor = ScrollAnchor.pickAnchor(collectItemRects(), window.scrollY);
   if (anchor) {
-    updateSnapshot(sessionStorage, cacheKey, anchor);
+    FeedCache.updateSnapshot(sessionStorage, cacheKey, anchor);
   }
 }
 
@@ -46,7 +46,7 @@ function scrollToAnchor(hash: string, offset: number): HTMLElement | null {
 export function useScrollRestoration(cacheKey: string): void {
   // Restore before paint so the user never sees a flash at the top.
   useLayoutEffect(() => {
-    const target = pickRestoreTarget(readSnapshot(sessionStorage, cacheKey));
+    const target = ScrollAnchor.pickRestoreTarget(FeedCache.readSnapshot(sessionStorage, cacheKey));
     if (target.kind === 'top') {
       // A fresh page (e.g. reached via "Load more") starts at the top; with manual
       // scrollRestoration it would otherwise keep the previous page's clamped position.

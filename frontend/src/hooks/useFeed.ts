@@ -1,27 +1,27 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 
-import { fetchFeed } from '../lib/api';
-import { readSnapshot, writeSnapshot } from '../lib/feedCache';
+import { Api } from '../lib/api';
+import { FeedCache } from '../lib/feedCache';
 import type { FeedState } from '../lib/pagination';
-import { feedReducer, initialFeedState, isPageBreak, nextStart } from '../lib/pagination';
+import { Pagination } from '../lib/pagination';
 
 const BATCH_SIZE = 10;
 
 // Build the reducer's initial state from a saved snapshot so Back/Forward and refresh
 // re-render the posts the user already loaded instead of refetching the newest page.
 function hydrate(cacheKey: string): FeedState {
-  const snapshot = readSnapshot(sessionStorage, cacheKey);
+  const snapshot = FeedCache.readSnapshot(sessionStorage, cacheKey);
   if (snapshot && snapshot.posts.length > 0) {
     return { status: snapshot.status, posts: snapshot.posts };
   }
-  return initialFeedState;
+  return Pagination.initialState;
 }
 
 // Feed state machine for one page: initial load, append-on-scroll, end/empty/error +
 // retry. Math lives in lib/pagination, IO in lib/api; this hook is the React glue.
 // `cacheKey` identifies the feed URL so its posts/cursor/anchor persist to sessionStorage.
 export function useFeed(after: string | undefined, cacheKey: string) {
-  const [state, dispatch] = useReducer(feedReducer, cacheKey, hydrate);
+  const [state, dispatch] = useReducer(Pagination.reducer, cacheKey, hydrate);
   const isLoadingRef = useRef(false);
   // Seeded in the mount effect below — an inline useRef(readSnapshot(...)) argument
   // would re-parse sessionStorage on every render (initializer args are not lazy).
@@ -34,9 +34,9 @@ export function useFeed(after: string | undefined, cacheKey: string) {
     isLoadingRef.current = true;
     dispatch({ type: 'loadStart' });
 
-    const result = await fetchFeed({ limit: BATCH_SIZE, start: cursorRef.current });
+    const result = await Api.fetchFeed({ limit: BATCH_SIZE, start: cursorRef.current });
     if (result.ok) {
-      cursorRef.current = nextStart(result.posts) ?? cursorRef.current;
+      cursorRef.current = Pagination.nextStart(result.posts) ?? cursorRef.current;
       dispatch({ type: 'loadSuccess', posts: result.posts, limit: BATCH_SIZE });
     } else {
       dispatch({ type: 'loadError' });
@@ -47,7 +47,7 @@ export function useFeed(after: string | undefined, cacheKey: string) {
   // Seed the cursor (snapshot cursor, else the URL cursor) and auto-load the first
   // batch only when nothing was hydrated from the snapshot.
   useEffect(() => {
-    cursorRef.current = readSnapshot(sessionStorage, cacheKey)?.cursor ?? after;
+    cursorRef.current = FeedCache.readSnapshot(sessionStorage, cacheKey)?.cursor ?? after;
     if (state.posts.length === 0) {
       void load();
     }
@@ -61,8 +61,8 @@ export function useFeed(after: string | undefined, cacheKey: string) {
     if (state.status === 'idle' || state.status === 'loading' || state.status === 'error') {
       return;
     }
-    const previous = readSnapshot(sessionStorage, cacheKey);
-    writeSnapshot(sessionStorage, cacheKey, {
+    const previous = FeedCache.readSnapshot(sessionStorage, cacheKey);
+    FeedCache.writeSnapshot(sessionStorage, cacheKey, {
       posts: state.posts,
       cursor: cursorRef.current,
       status: state.status,
@@ -71,7 +71,7 @@ export function useFeed(after: string | undefined, cacheKey: string) {
     });
   }, [state.posts, state.status, cacheKey]);
 
-  const atPageBreak = isPageBreak(state.posts.length);
+  const atPageBreak = Pagination.isPageBreak(state.posts.length);
   // Auto-load only while the API has more and we have not hit the explicit page break.
   const canAutoLoad = state.status === 'loaded' && !atPageBreak;
 

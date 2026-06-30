@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { prefersDark, watchScheme } from '../../src/lib/theme';
+import { Theme } from '../../src/lib/theme';
 
 // Minimal controllable stand-in for a MediaQueryList so the theme helpers can be exercised
 // in the node test environment (no jsdom). `fire` simulates the OS scheme changing.
@@ -38,13 +38,13 @@ describe('prefersDark', () => {
   it('is true when the dark scheme query matches', () => {
     stubMatchMedia(new MockMediaQueryList(true));
 
-    expect(prefersDark()).toBe(true);
+    expect(Theme.prefersDark()).toBe(true);
   });
 
   it('is false when the dark scheme query does not match', () => {
     stubMatchMedia(new MockMediaQueryList(false));
 
-    expect(prefersDark()).toBe(false);
+    expect(Theme.prefersDark()).toBe(false);
   });
 });
 
@@ -54,7 +54,7 @@ describe('watchScheme', () => {
     stubMatchMedia(mql);
     const seen: boolean[] = [];
 
-    watchScheme((isDark) => seen.push(isDark));
+    Theme.watchScheme((isDark) => seen.push(isDark));
     mql.fire(true);
     mql.fire(false);
 
@@ -66,7 +66,7 @@ describe('watchScheme', () => {
     stubMatchMedia(mql);
     const seen: boolean[] = [];
 
-    const stop = watchScheme((isDark) => seen.push(isDark));
+    const stop = Theme.watchScheme((isDark) => seen.push(isDark));
     mql.fire(true);
     stop();
     mql.fire(false);

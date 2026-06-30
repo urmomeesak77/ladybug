@@ -5,7 +5,7 @@ import MemeMedia from '../components/MemeMedia';
 import ErrorState from '../components/states/ErrorState';
 import LoadingState from '../components/states/LoadingState';
 import { usePost } from '../hooks/usePost';
-import { formatDocumentTitle } from '../lib/postModel';
+import { PostModel } from '../lib/postModel';
 import NotFoundPage from './NotFoundPage';
 
 // The single-meme page at /posts/:hash — the permalink target for every feed entry.
@@ -29,8 +29,8 @@ function PostPage() {
   // name so a meme→meme navigation never keeps the previous meme's title (FR-009).
   useEffect(() => {
     document.title = state.status === 'loaded'
-      ? formatDocumentTitle(state.post.title)
-      : formatDocumentTitle(null);
+      ? PostModel.formatDocumentTitle(state.post.title)
+      : PostModel.formatDocumentTitle(null);
   }, [state]);
 
   return (

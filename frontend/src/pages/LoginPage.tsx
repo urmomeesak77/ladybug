@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import AuthField from '../components/AuthField';
 import { useAuth } from '../hooks/useAuth';
 import type { FieldErrors } from '../lib/authApi';
-import { mergeServerErrors, validateLogin } from '../lib/authModel';
+import { AuthModel } from '../lib/authModel';
 
 // Login form. Client validation gates obvious mistakes; the server is authoritative.
 // A failed authentication (401) shows a single non-disclosing message — never revealing
@@ -24,7 +24,7 @@ function LoginPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const values = { email, password };
-    const clientErrors = validateLogin(values);
+    const clientErrors = AuthModel.validateLogin(values);
     if (Object.keys(clientErrors).length > 0) {
       setErrors(clientErrors);
       return;
@@ -39,7 +39,7 @@ function LoginPage() {
       return;
     }
     if (result.kind === 'validation') {
-      setErrors(mergeServerErrors({}, result.errors));
+      setErrors(AuthModel.mergeServerErrors({}, result.errors));
       return;
     }
     if (result.kind === 'auth') {
@@ -54,8 +54,24 @@ function LoginPage() {
       <h1>Log in</h1>
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         {formError ? <p className="auth-form__error" role="alert">{formError}</p> : null}
-        <AuthField id="email" label="Email" type="email" value={email} autoComplete="email" error={errors.email?.[0]} onChange={setEmail} />
-        <AuthField id="password" label="Password" type="password" value={password} autoComplete="current-password" error={errors.password?.[0]} onChange={setPassword} />
+        <AuthField
+          id="email"
+          label="Email"
+          type="email"
+          value={email}
+          autoComplete="email"
+          error={errors.email?.[0]}
+          onChange={setEmail}
+        />
+        <AuthField
+          id="password"
+          label="Password"
+          type="password"
+          value={password}
+          autoComplete="current-password"
+          error={errors.password?.[0]}
+          onChange={setPassword}
+        />
         <button type="submit" disabled={submitting}>
           {submitting ? 'Logging in…' : 'Log in'}
         </button>

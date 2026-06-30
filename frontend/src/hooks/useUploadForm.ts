@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import type { FieldErrors } from '../lib/authApi';
 import type { UploadMode } from '../lib/uploadModel';
-import { submitUpload, validateUpload } from '../lib/uploadModel';
+import { UploadModel } from '../lib/uploadModel';
 
 // State + submit flow for the upload form. Keeps UploadPage to presentation only. The pure
 // decisions (validation, endpoint dispatch) live in lib/uploadModel; this is the React glue.
@@ -18,7 +18,7 @@ export function useUploadForm() {
   const [submitting, setSubmitting] = useState(false);
 
   async function submit(): Promise<void> {
-    const clientErrors = validateUpload(mode, { title, file, youtube });
+    const clientErrors = UploadModel.validate(mode, { title, file, youtube });
     if (Object.keys(clientErrors).length > 0) {
       setErrors(clientErrors);
       return;
@@ -26,7 +26,7 @@ export function useUploadForm() {
     setErrors({});
     setFormError('');
     setSubmitting(true);
-    const result = await submitUpload(mode, { title, file, youtube });
+    const result = await UploadModel.submit(mode, { title, file, youtube });
     setSubmitting(false);
 
     if (result.ok) {

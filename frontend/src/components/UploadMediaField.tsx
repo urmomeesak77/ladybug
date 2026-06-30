@@ -37,7 +37,11 @@ function UploadMediaField({ mode, youtube, errors, onFile, onYoutube }: {
         aria-describedby={errors.image ? 'image-error' : undefined}
         onChange={(event) => onFile(event.target.files?.[0] ?? null)}
       />
-      {errors.image ? <span id="image-error" className="auth-field__error" role="alert">{errors.image[0]}</span> : null}
+      {errors.image ? (
+        <span id="image-error" className="auth-field__error" role="alert">
+          {errors.image[0]}
+        </span>
+      ) : null}
     </div>
   );
 }

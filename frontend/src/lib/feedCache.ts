@@ -15,42 +15,45 @@ export type FeedSnapshot = {
 
 const NAMESPACE = 'ladybug.feed';
 
-// Keyed by feed URL so the newest page and each `?after=` page break persist apart.
-export function feedKey(pathname: string, search: string): string {
-  return `${NAMESPACE}:${pathname}${search}`;
-}
-
-export function readSnapshot(storage: Storage, key: string): FeedSnapshot | null {
-  const raw = storage.getItem(key);
-  if (!raw) {
-    return null;
+// Session-storage persistence for the feed's restorable state, converged onto one class.
+export class FeedCache {
+  // Keyed by feed URL so the newest page and each `?after=` page break persist apart.
+  static feedKey(pathname: string, search: string): string {
+    return `${NAMESPACE}:${pathname}${search}`;
   }
-  try {
-    return JSON.parse(raw) as FeedSnapshot;
-  } catch {
-    // A corrupt entry must degrade to a fresh feed, never throw on navigation.
-    return null;
-  }
-}
 
-export function writeSnapshot(storage: Storage, key: string, snapshot: FeedSnapshot): void {
-  try {
-    storage.setItem(key, JSON.stringify(snapshot));
-  } catch {
-    // Quota or private-mode failures must not break the feed; restoration is best-effort.
+  static readSnapshot(storage: Storage, key: string): FeedSnapshot | null {
+    const raw = storage.getItem(key);
+    if (!raw) {
+      return null;
+    }
+    try {
+      return JSON.parse(raw) as FeedSnapshot;
+    } catch {
+      // A corrupt entry must degrade to a fresh feed, never throw on navigation.
+      return null;
+    }
   }
-}
 
-export function clearSnapshot(storage: Storage, key: string): void {
-  storage.removeItem(key);
-}
-
-// Read-modify-write so the scroll hook can update only the anchor without clobbering
-// the posts the feed hook wrote (and vice versa). No-op until a snapshot exists.
-export function updateSnapshot(storage: Storage, key: string, partial: Partial<FeedSnapshot>): void {
-  const existing = readSnapshot(storage, key);
-  if (!existing) {
-    return;
+  static writeSnapshot(storage: Storage, key: string, snapshot: FeedSnapshot): void {
+    try {
+      storage.setItem(key, JSON.stringify(snapshot));
+    } catch {
+      // Quota or private-mode failures must not break the feed; restoration is best-effort.
+    }
   }
-  writeSnapshot(storage, key, { ...existing, ...partial });
+
+  static clearSnapshot(storage: Storage, key: string): void {
+    storage.removeItem(key);
+  }
+
+  // Read-modify-write so the scroll hook can update only the anchor without clobbering
+  // the posts the feed hook wrote (and vice versa). No-op until a snapshot exists.
+  static updateSnapshot(storage: Storage, key: string, partial: Partial<FeedSnapshot>): void {
+    const existing = FeedCache.readSnapshot(storage, key);
+    if (!existing) {
+      return;
+    }
+    FeedCache.writeSnapshot(storage, key, { ...existing, ...partial });
+  }
 }

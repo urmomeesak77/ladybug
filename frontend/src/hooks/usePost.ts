@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 
-import { fetchPost } from '../lib/api';
+import { Api } from '../lib/api';
 import type { PostPageState } from '../lib/postModel';
-import { initialPostPageState, postPageReducer } from '../lib/postModel';
+import { PostModel } from '../lib/postModel';
 
 // Thin React glue for the single-meme page: fetch on mount and on every hash change,
 // expose an in-place retry. State transitions live in lib/postModel and IO in lib/api
 // (both coverage-gated); this hook only sequences them.
 export function usePost(hash: string | undefined): { state: PostPageState; retry: () => void } {
-  const [state, dispatch] = useReducer(postPageReducer, initialPostPageState);
+  const [state, dispatch] = useReducer(PostModel.reducer, PostModel.initialState);
   // The hash whose response is still wanted. A slow response that resolves after the
   // user navigated to another meme must never paint over the new meme's state, so each
   // load re-checks this ref before dispatching its result (routes contract edge case).
@@ -17,7 +17,7 @@ export function usePost(hash: string | undefined): { state: PostPageState; retry
   const load = useCallback(async (hashToLoad: string) => {
     wantedHashRef.current = hashToLoad;
     dispatch({ type: 'loadStart' });
-    const result = await fetchPost(hashToLoad);
+    const result = await Api.fetchPost(hashToLoad);
     if (wantedHashRef.current !== hashToLoad) {
       return;
     }

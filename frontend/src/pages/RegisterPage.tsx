@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import AuthField from '../components/AuthField';
 import { useAuth } from '../hooks/useAuth';
 import type { FieldErrors } from '../lib/authApi';
-import { mergeServerErrors, validateRegister } from '../lib/authModel';
+import { AuthModel } from '../lib/authModel';
 
 // Registration form. Client validation gives instant feedback; the server stays
 // authoritative and its 422 field errors are merged in (server wins). On success the
@@ -25,7 +25,7 @@ function RegisterPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const values = { name, email, password, passwordConfirmation };
-    const clientErrors = validateRegister(values);
+    const clientErrors = AuthModel.validateRegister(values);
     if (Object.keys(clientErrors).length > 0) {
       setErrors(clientErrors);
       return;
@@ -40,7 +40,7 @@ function RegisterPage() {
       return;
     }
     if (result.kind === 'validation') {
-      setErrors(mergeServerErrors({}, result.errors));
+      setErrors(AuthModel.mergeServerErrors({}, result.errors));
       return;
     }
     setFormError('Something went wrong. Please try again.');
@@ -51,10 +51,42 @@ function RegisterPage() {
       <h1>Create an account</h1>
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         {formError ? <p className="auth-form__error" role="alert">{formError}</p> : null}
-        <AuthField id="name" label="Name" type="text" value={name} autoComplete="name" error={errors.name?.[0]} onChange={setName} />
-        <AuthField id="email" label="Email" type="email" value={email} autoComplete="email" error={errors.email?.[0]} onChange={setEmail} />
-        <AuthField id="password" label="Password" type="password" value={password} autoComplete="new-password" error={errors.password?.[0]} onChange={setPassword} />
-        <AuthField id="password-confirmation" label="Confirm password" type="password" value={passwordConfirmation} autoComplete="new-password" error={errors.passwordConfirmation?.[0]} onChange={setPasswordConfirmation} />
+        <AuthField
+          id="name"
+          label="Name"
+          type="text"
+          value={name}
+          autoComplete="name"
+          error={errors.name?.[0]}
+          onChange={setName}
+        />
+        <AuthField
+          id="email"
+          label="Email"
+          type="email"
+          value={email}
+          autoComplete="email"
+          error={errors.email?.[0]}
+          onChange={setEmail}
+        />
+        <AuthField
+          id="password"
+          label="Password"
+          type="password"
+          value={password}
+          autoComplete="new-password"
+          error={errors.password?.[0]}
+          onChange={setPassword}
+        />
+        <AuthField
+          id="password-confirmation"
+          label="Confirm password"
+          type="password"
+          value={passwordConfirmation}
+          autoComplete="new-password"
+          error={errors.passwordConfirmation?.[0]}
+          onChange={setPasswordConfirmation}
+        />
         <button type="submit" disabled={submitting}>
           {submitting ? 'Creating account…' : 'Register'}
         </button>

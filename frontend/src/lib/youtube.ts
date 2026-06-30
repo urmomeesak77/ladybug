@@ -11,23 +11,25 @@ const URL_PATTERNS = [
   /\/embed\/([A-Za-z0-9_-]{11})/, // /embed/ID
 ];
 
-function extractId(raw: string): string | null {
-  if (VIDEO_ID.test(raw)) {
-    return raw;
-  }
-  for (const pattern of URL_PATTERNS) {
-    const match = raw.match(pattern);
-    if (match) {
-      return match[1];
+export class Youtube {
+  static toEmbedUrl(raw: string | null | undefined): string | null {
+    if (!raw) {
+      return null;
     }
+    const id = Youtube.extractId(raw.trim());
+    return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
   }
-  return null;
-}
 
-export function toEmbedUrl(raw: string | null | undefined): string | null {
-  if (!raw) {
+  private static extractId(raw: string): string | null {
+    if (VIDEO_ID.test(raw)) {
+      return raw;
+    }
+    for (const pattern of URL_PATTERNS) {
+      const match = raw.match(pattern);
+      if (match) {
+        return match[1];
+      }
+    }
     return null;
   }
-  const id = extractId(raw.trim());
-  return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
 }

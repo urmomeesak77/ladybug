@@ -1,13 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { FeedSnapshot } from '../../src/lib/feedCache';
-import {
-  clearSnapshot,
-  feedKey,
-  readSnapshot,
-  updateSnapshot,
-  writeSnapshot,
-} from '../../src/lib/feedCache';
+import { FeedCache } from '../../src/lib/feedCache';
 
 // Vitest unit specs run in Node (no DOM), so inject an in-memory Storage stub.
 function memoryStorage(): Storage {
@@ -34,11 +28,11 @@ const sample: FeedSnapshot = {
 
 describe('feedKey', () => {
   it('uses the pathname for the newest page', () => {
-    expect(feedKey('/', '')).toBe('ladybug.feed:/');
+    expect(FeedCache.feedKey('/', '')).toBe('ladybug.feed:/');
   });
 
   it('includes the search so each page break keys separately', () => {
-    expect(feedKey('/', '?after=xyz')).toBe('ladybug.feed:/?after=xyz');
+    expect(FeedCache.feedKey('/', '?after=xyz')).toBe('ladybug.feed:/?after=xyz');
   });
 });
 
@@ -49,42 +43,42 @@ describe('read/write/clear snapshot', () => {
   });
 
   it('round-trips a snapshot', () => {
-    writeSnapshot(storage, 'k', sample);
-    expect(readSnapshot(storage, 'k')).toEqual(sample);
+    FeedCache.writeSnapshot(storage, 'k', sample);
+    expect(FeedCache.readSnapshot(storage, 'k')).toEqual(sample);
   });
 
   it('returns null for a missing key', () => {
-    expect(readSnapshot(storage, 'missing')).toBeNull();
+    expect(FeedCache.readSnapshot(storage, 'missing')).toBeNull();
   });
 
   it('returns null for corrupt JSON', () => {
     storage.setItem('k', '{ not json');
-    expect(readSnapshot(storage, 'k')).toBeNull();
+    expect(FeedCache.readSnapshot(storage, 'k')).toBeNull();
   });
 
   it('swallows a setItem failure (e.g. quota) instead of throwing', () => {
     const throwing = { ...memoryStorage(), setItem: vi.fn(() => { throw new Error('quota'); }) } as Storage;
-    expect(() => writeSnapshot(throwing, 'k', sample)).not.toThrow();
+    expect(() => FeedCache.writeSnapshot(throwing, 'k', sample)).not.toThrow();
   });
 
   it('removes a snapshot', () => {
-    writeSnapshot(storage, 'k', sample);
-    clearSnapshot(storage, 'k');
-    expect(readSnapshot(storage, 'k')).toBeNull();
+    FeedCache.writeSnapshot(storage, 'k', sample);
+    FeedCache.clearSnapshot(storage, 'k');
+    expect(FeedCache.readSnapshot(storage, 'k')).toBeNull();
   });
 });
 
 describe('updateSnapshot', () => {
   it('merges a partial into an existing snapshot', () => {
     const storage = memoryStorage();
-    writeSnapshot(storage, 'k', sample);
-    updateSnapshot(storage, 'k', { anchorHash: 'a', anchorOffset: 120 });
-    expect(readSnapshot(storage, 'k')).toEqual({ ...sample, anchorHash: 'a', anchorOffset: 120 });
+    FeedCache.writeSnapshot(storage, 'k', sample);
+    FeedCache.updateSnapshot(storage, 'k', { anchorHash: 'a', anchorOffset: 120 });
+    expect(FeedCache.readSnapshot(storage, 'k')).toEqual({ ...sample, anchorHash: 'a', anchorOffset: 120 });
   });
 
   it('is a no-op when no snapshot exists yet', () => {
     const storage = memoryStorage();
-    updateSnapshot(storage, 'k', { anchorHash: 'a', anchorOffset: 1 });
-    expect(readSnapshot(storage, 'k')).toBeNull();
+    FeedCache.updateSnapshot(storage, 'k', { anchorHash: 'a', anchorOffset: 1 });
+    expect(FeedCache.readSnapshot(storage, 'k')).toBeNull();
   });
 });

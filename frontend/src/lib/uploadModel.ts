@@ -1,4 +1,4 @@
-import { uploadImage, uploadYoutube } from './uploadApi';
+import { UploadApi } from './uploadApi';
 import type { UploadResult } from './uploadApi';
 import type { FieldErrors } from './authApi';
 
@@ -6,20 +6,23 @@ export type UploadMode = 'image' | 'youtube';
 
 export type UploadValues = { title: string; file: File | null; youtube: string };
 
-// Client-side pre-check: in image mode a file is required. The server stays authoritative
-// for everything else (type/size/well-formedness, YouTube parsing).
-export function validateUpload(mode: UploadMode, values: UploadValues): FieldErrors {
-  if (mode === 'image' && values.file === null) {
-    return { image: ['Choose an image to upload.'] };
+// Pure upload decisions, converged onto one class: the client-side pre-check and the
+// per-mode endpoint dispatch. The server stays authoritative for everything else
+// (type/size/well-formedness, YouTube parsing).
+export class UploadModel {
+  // In image mode a file is required; the server validates the rest.
+  static validate(mode: UploadMode, values: UploadValues): FieldErrors {
+    if (mode === 'image' && values.file === null) {
+      return { image: ['Choose an image to upload.'] };
+    }
+    return {};
   }
-  return {};
-}
 
-// Dispatch a submission to the right endpoint for the active mode. Pure glue over uploadApi
-// so the page/hook stays thin and this decision is unit-testable.
-export function submitUpload(mode: UploadMode, values: UploadValues): Promise<UploadResult> {
-  if (mode === 'image') {
-    return uploadImage({ title: values.title, file: values.file as File });
+  // Dispatch a submission to the right endpoint for the active mode.
+  static submit(mode: UploadMode, values: UploadValues): Promise<UploadResult> {
+    if (mode === 'image') {
+      return UploadApi.uploadImage({ title: values.title, file: values.file as File });
+    }
+    return UploadApi.uploadYoutube({ title: values.title, youtube: values.youtube });
   }
-  return uploadYoutube({ title: values.title, youtube: values.youtube });
 }

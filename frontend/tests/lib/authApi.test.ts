@@ -1,13 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  csrf,
-  fetchCurrentUser,
-  login,
-  logout,
-  mapUser,
-  register,
-} from '../../src/lib/authApi';
+import { AuthApi } from '../../src/lib/authApi';
 
 type FetchArgs = [string, RequestInit];
 
@@ -31,13 +24,20 @@ const rawUser = {
   updated_at: '2026-01-02T00:00:00Z',
 };
 
+const registerInput = {
+  name: 'Ada',
+  email: 'ada@example.com',
+  password: 'Password1',
+  passwordConfirmation: 'Password1',
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('mapUser', () => {
   it('maps the snake_case API payload to a camelCase AuthUser', () => {
-    expect(mapUser(rawUser)).toEqual({
+    expect(AuthApi.mapUser(rawUser)).toEqual({
       id: 7,
       name: 'Ada Lovelace',
       email: 'ada@example.com',
@@ -51,7 +51,7 @@ describe('csrf', () => {
   it('GETs the csrf-cookie endpoint with credentials included', async () => {
     const mock = stubFetch({ ok: true, status: 204 });
 
-    await csrf();
+    await AuthApi.csrf();
 
     const [url, init] = mock.mock.calls[0] as FetchArgs;
     expect(url).toMatch(/\/sanctum\/csrf-cookie$/);
@@ -64,7 +64,7 @@ describe('register', () => {
     withXsrfCookie();
     const mock = stubFetch({ ok: true, status: 201, json: async () => ({ data: rawUser }) });
 
-    await register({ name: 'Ada', email: 'ada@example.com', password: 'Password1', passwordConfirmation: 'Password1' });
+    await AuthApi.register(registerInput);
 
     const [url, init] = mock.mock.calls[0] as FetchArgs;
     expect(url).toMatch(/\/api\/register$/);
@@ -80,9 +80,9 @@ describe('register', () => {
     withXsrfCookie();
     stubFetch({ ok: true, status: 201, json: async () => ({ data: rawUser }) });
 
-    const result = await register({ name: 'Ada', email: 'ada@example.com', password: 'Password1', passwordConfirmation: 'Password1' });
+    const result = await AuthApi.register(registerInput);
 
-    expect(result).toEqual({ ok: true, user: mapUser(rawUser) });
+    expect(result).toEqual({ ok: true, user: AuthApi.mapUser(rawUser) });
   });
 
   it('maps a 422 to a validation result carrying the field errors', async () => {
@@ -93,16 +93,20 @@ describe('register', () => {
       json: async () => ({ message: 'invalid', errors: { email: ['The email has already been taken.'] } }),
     });
 
-    const result = await register({ name: 'Ada', email: 'taken@example.com', password: 'Password1', passwordConfirmation: 'Password1' });
+    const result = await AuthApi.register({ ...registerInput, email: 'taken@example.com' });
 
-    expect(result).toEqual({ ok: false, kind: 'validation', errors: { email: ['The email has already been taken.'] } });
+    expect(result).toEqual({
+      ok: false,
+      kind: 'validation',
+      errors: { email: ['The email has already been taken.'] },
+    });
   });
 
   it('maps any other failure to a network result', async () => {
     withXsrfCookie();
     stubFetch({ ok: false, status: 500, json: async () => ({}) });
 
-    const result = await register({ name: 'Ada', email: 'ada@example.com', password: 'Password1', passwordConfirmation: 'Password1' });
+    const result = await AuthApi.register(registerInput);
 
     expect(result).toEqual({ ok: false, kind: 'network' });
   });
@@ -113,7 +117,7 @@ describe('register', () => {
       throw new TypeError('Failed to fetch');
     }));
 
-    const result = await register({ name: 'Ada', email: 'ada@example.com', password: 'Password1', passwordConfirmation: 'Password1' });
+    const result = await AuthApi.register(registerInput);
 
     expect(result).toEqual({ ok: false, kind: 'network' });
   });
@@ -122,7 +126,7 @@ describe('register', () => {
     withXsrfCookie();
     stubFetch({ ok: true, status: 201, json: async () => ({}) });
 
-    const result = await register({ name: 'Ada', email: 'ada@example.com', password: 'Password1', passwordConfirmation: 'Password1' });
+    const result = await AuthApi.register(registerInput);
 
     expect(result).toEqual({ ok: false, kind: 'network' });
   });
@@ -133,16 +137,20 @@ describe('login', () => {
     withXsrfCookie();
     stubFetch({ ok: true, status: 200, json: async () => ({ data: rawUser }) });
 
-    const result = await login({ email: 'ada@example.com', password: 'Password1' });
+    const result = await AuthApi.login({ email: 'ada@example.com', password: 'Password1' });
 
-    expect(result).toEqual({ ok: true, user: mapUser(rawUser) });
+    expect(result).toEqual({ ok: true, user: AuthApi.mapUser(rawUser) });
   });
 
   it('maps a 401 to a (non-disclosing) auth result', async () => {
     withXsrfCookie();
-    stubFetch({ ok: false, status: 401, json: async () => ({ message: 'These credentials do not match our records.' }) });
+    stubFetch({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: 'These credentials do not match our records.' }),
+    });
 
-    const result = await login({ email: 'ada@example.com', password: 'wrong' });
+    const result = await AuthApi.login({ email: 'ada@example.com', password: 'wrong' });
 
     expect(result).toEqual({ ok: false, kind: 'auth' });
   });
@@ -151,7 +159,7 @@ describe('login', () => {
     withXsrfCookie();
     stubFetch({ ok: false, status: 422, json: async () => ({ errors: { email: ['The email field is required.'] } }) });
 
-    const result = await login({ email: '', password: 'x' });
+    const result = await AuthApi.login({ email: '', password: 'x' });
 
     expect(result).toEqual({ ok: false, kind: 'validation', errors: { email: ['The email field is required.'] } });
   });
@@ -162,7 +170,7 @@ describe('login', () => {
       throw new TypeError('Failed to fetch');
     }));
 
-    expect(await login({ email: 'ada@example.com', password: 'x' })).toEqual({ ok: false, kind: 'network' });
+    expect(await AuthApi.login({ email: 'ada@example.com', password: 'x' })).toEqual({ ok: false, kind: 'network' });
   });
 });
 
@@ -171,14 +179,14 @@ describe('logout', () => {
     withXsrfCookie();
     stubFetch({ ok: true, status: 200, json: async () => ({ message: 'Logged out.' }) });
 
-    expect(await logout()).toEqual({ ok: true });
+    expect(await AuthApi.logout()).toEqual({ ok: true });
   });
 
   it('reports not-ok on a failure', async () => {
     withXsrfCookie();
     stubFetch({ ok: false, status: 401, json: async () => ({}) });
 
-    expect(await logout()).toEqual({ ok: false });
+    expect(await AuthApi.logout()).toEqual({ ok: false });
   });
 
   it('reports not-ok when the request throws', async () => {
@@ -187,7 +195,7 @@ describe('logout', () => {
       throw new TypeError('Failed to fetch');
     }));
 
-    expect(await logout()).toEqual({ ok: false });
+    expect(await AuthApi.logout()).toEqual({ ok: false });
   });
 });
 
@@ -195,19 +203,19 @@ describe('fetchCurrentUser', () => {
   it('returns the user when the session is valid', async () => {
     stubFetch({ ok: true, status: 200, json: async () => ({ data: rawUser }) });
 
-    expect(await fetchCurrentUser()).toEqual(mapUser(rawUser));
+    expect(await AuthApi.fetchCurrentUser()).toEqual(AuthApi.mapUser(rawUser));
   });
 
   it('returns null when the body reports no authenticated user', async () => {
     stubFetch({ ok: true, status: 200, json: async () => ({ data: null }) });
 
-    expect(await fetchCurrentUser()).toBeNull();
+    expect(await AuthApi.fetchCurrentUser()).toBeNull();
   });
 
   it('returns null on a 401', async () => {
     stubFetch({ ok: false, status: 401, json: async () => ({}) });
 
-    expect(await fetchCurrentUser()).toBeNull();
+    expect(await AuthApi.fetchCurrentUser()).toBeNull();
   });
 
   it('returns null on a network failure', async () => {
@@ -215,6 +223,6 @@ describe('fetchCurrentUser', () => {
       throw new TypeError('Failed to fetch');
     }));
 
-    expect(await fetchCurrentUser()).toBeNull();
+    expect(await AuthApi.fetchCurrentUser()).toBeNull();
   });
 });

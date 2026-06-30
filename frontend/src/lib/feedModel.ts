@@ -1,4 +1,4 @@
-import { toEmbedUrl } from './youtube';
+import { Youtube } from './youtube';
 
 // The raw post shape from the 004 feed API. Only the fields the mainpage renders are
 // listed; everything else in the response is ignored.
@@ -16,26 +16,6 @@ export type RawPost = {
 export type ImageSize = { url: string; width: number };
 
 export type ImageDimensions = { width: number; height: number };
-
-// Parse intrinsic image dimensions from the post's metadata JSON so the <img> can reserve
-// its box before loading. Reserving height keeps the feed layout (and thus a restored
-// scroll position) stable as lazy images load. Returns null when absent/malformed.
-export function parseDimensions(metadata: string | null): ImageDimensions | null {
-  if (!metadata) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(metadata) as { width?: unknown; height?: unknown };
-    const width = Number(parsed.width);
-    const height = Number(parsed.height);
-    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-      return { width, height };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 export type FeedMediaKind = 'image' | 'youtube' | 'none';
 
@@ -58,63 +38,86 @@ const GENERIC_ALT = 'Meme image';
 // The <img sizes> hint: the feed column is capped at the layout max width, full-bleed below.
 const IMAGE_SIZES = '(min-width: 48rem) 48rem, 100vw';
 
-// Pick the image src by precedence: API `default`, else the widest declared size, else
-// `original`. Returns null when the post has no image at all. Never fabricates a URL —
-// only values present in the response are used (Principle VI).
-export function pickImageSource(raw: RawPost): string | null {
-  if (raw.default) {
-    return raw.default;
+// Maps a raw API post into the render-ready FeedPost the feed/post views consume.
+export class FeedModel {
+  // Parse intrinsic image dimensions from the post's metadata JSON so the <img> can reserve
+  // its box before loading. Reserving height keeps the feed layout (and thus a restored
+  // scroll position) stable as lazy images load. Returns null when absent/malformed.
+  static parseDimensions(metadata: string | null): ImageDimensions | null {
+    if (!metadata) {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(metadata) as { width?: unknown; height?: unknown };
+      const width = Number(parsed.width);
+      const height = Number(parsed.height);
+      if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+        return { width, height };
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
-  const widest = widestSize(raw.sizes);
-  if (widest) {
-    return widest.url;
-  }
-  return raw.original ?? null;
-}
 
-function widestSize(sizes: ImageSize[] | null): ImageSize | null {
-  if (!sizes || sizes.length === 0) {
-    return null;
+  // Pick the image src by precedence: API `default`, else the widest declared size, else
+  // `original`. Returns null when the post has no image at all. Never fabricates a URL —
+  // only values present in the response are used (Principle VI).
+  static pickImageSource(raw: RawPost): string | null {
+    if (raw.default) {
+      return raw.default;
+    }
+    const widest = FeedModel.widestSize(raw.sizes);
+    if (widest) {
+      return widest.url;
+    }
+    return raw.original ?? null;
   }
-  return [...sizes].sort((a, b) => b.width - a.width)[0];
-}
 
-function buildSrcset(sizes: ImageSize[] | null): string {
-  if (!sizes || sizes.length === 0) {
-    return '';
-  }
-  return [...sizes]
-    .sort((a, b) => b.width - a.width)
-    .map((size) => `${size.url} ${size.width}w`)
-    .join(', ');
-}
-
-function deriveMedia(raw: RawPost): FeedMedia {
-  const embedUrl = toEmbedUrl(raw.youtube);
-  if (embedUrl) {
-    return { kind: 'youtube', embedUrl, title: raw.title ?? GENERIC_ALT };
-  }
-  const src = pickImageSource(raw);
-  if (src) {
-    const dimensions = parseDimensions(raw.metadata);
+  static mapPost(raw: RawPost): FeedPost {
     return {
-      kind: 'image',
-      src,
-      srcset: buildSrcset(raw.sizes),
-      sizes: IMAGE_SIZES,
-      alt: raw.title ?? GENERIC_ALT,
-      width: dimensions?.width,
-      height: dimensions?.height,
+      hash: raw.hash,
+      title: raw.title,
+      permalink: `/posts/${raw.hash}`,
+      media: FeedModel.deriveMedia(raw),
     };
   }
-  return { kind: 'none' };
-}
 
-export function mapPost(raw: RawPost): FeedPost {
-  return {
-    hash: raw.hash,
-    title: raw.title,
-    permalink: `/posts/${raw.hash}`,
-    media: deriveMedia(raw),
-  };
+  private static widestSize(sizes: ImageSize[] | null): ImageSize | null {
+    if (!sizes || sizes.length === 0) {
+      return null;
+    }
+    return [...sizes].sort((a, b) => b.width - a.width)[0];
+  }
+
+  private static buildSrcset(sizes: ImageSize[] | null): string {
+    if (!sizes || sizes.length === 0) {
+      return '';
+    }
+    return [...sizes]
+      .sort((a, b) => b.width - a.width)
+      .map((size) => `${size.url} ${size.width}w`)
+      .join(', ');
+  }
+
+  private static deriveMedia(raw: RawPost): FeedMedia {
+    const embedUrl = Youtube.toEmbedUrl(raw.youtube);
+    if (embedUrl) {
+      return { kind: 'youtube', embedUrl, title: raw.title ?? GENERIC_ALT };
+    }
+    const src = FeedModel.pickImageSource(raw);
+    if (src) {
+      const dimensions = FeedModel.parseDimensions(raw.metadata);
+      return {
+        kind: 'image',
+        src,
+        srcset: FeedModel.buildSrcset(raw.sizes),
+        sizes: IMAGE_SIZES,
+        alt: raw.title ?? GENERIC_ALT,
+        width: dimensions?.width,
+        height: dimensions?.height,
+      };
+    }
+    return { kind: 'none' };
+  }
 }

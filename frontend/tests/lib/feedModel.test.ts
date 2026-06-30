@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapPost, parseDimensions, pickImageSource } from '../../src/lib/feedModel';
+import { FeedModel } from '../../src/lib/feedModel';
 import type { RawPost } from '../../src/lib/feedModel';
 
 // A fully-populated raw post; individual tests null out fields to exercise precedence.
@@ -23,11 +23,11 @@ function makeRaw(overrides: Partial<RawPost> = {}): RawPost {
 
 describe('mapPost', () => {
   it('builds the permalink from the opaque hash', () => {
-    expect(mapPost(makeRaw()).permalink).toBe('/posts/abc1234567');
+    expect(FeedModel.mapPost(makeRaw()).permalink).toBe('/posts/abc1234567');
   });
 
   it('prefers a parseable youtube ref over any image (media precedence)', () => {
-    const post = mapPost(makeRaw({ youtube: 'https://youtu.be/dQw4w9WgXcQ' }));
+    const post = FeedModel.mapPost(makeRaw({ youtube: 'https://youtu.be/dQw4w9WgXcQ' }));
 
     expect(post.media.kind).toBe('youtube');
     if (post.media.kind === 'youtube') {
@@ -37,13 +37,13 @@ describe('mapPost', () => {
   });
 
   it('falls back to an image when youtube is absent or unparseable', () => {
-    const post = mapPost(makeRaw({ youtube: 'not a video' }));
+    const post = FeedModel.mapPost(makeRaw({ youtube: 'not a video' }));
 
     expect(post.media.kind).toBe('image');
   });
 
   it('assembles srcset widest-first from sizes', () => {
-    const post = mapPost(makeRaw());
+    const post = FeedModel.mapPost(makeRaw());
 
     if (post.media.kind === 'image') {
       expect(post.media.src).toBe('https://cdn.example/x/default.jpg');
@@ -56,8 +56,8 @@ describe('mapPost', () => {
   });
 
   it('uses the title as alt text, with a non-empty fallback when title is null', () => {
-    const titled = mapPost(makeRaw({ title: 'Cat on a roomba' }));
-    const untitled = mapPost(makeRaw({ title: null }));
+    const titled = FeedModel.mapPost(makeRaw({ title: 'Cat on a roomba' }));
+    const untitled = FeedModel.mapPost(makeRaw({ title: null }));
 
     if (titled.media.kind === 'image') {
       expect(titled.media.alt).toBe('Cat on a roomba');
@@ -68,7 +68,7 @@ describe('mapPost', () => {
   });
 
   it('omits srcset when there are no sizes', () => {
-    const post = mapPost(makeRaw({ sizes: [] }));
+    const post = FeedModel.mapPost(makeRaw({ sizes: [] }));
 
     if (post.media.kind === 'image') {
       expect(post.media.srcset).toBe('');
@@ -76,7 +76,7 @@ describe('mapPost', () => {
   });
 
   it('yields kind "none" when there is no youtube and no image source', () => {
-    const post = mapPost(
+    const post = FeedModel.mapPost(
       makeRaw({ youtube: null, default: null, sizes: [], original: null }),
     );
 
@@ -84,7 +84,7 @@ describe('mapPost', () => {
   });
 
   it('reserves image dimensions parsed from metadata', () => {
-    const post = mapPost(makeRaw({ metadata: '{"width":640,"height":480}' }));
+    const post = FeedModel.mapPost(makeRaw({ metadata: '{"width":640,"height":480}' }));
 
     if (post.media.kind === 'image') {
       expect(post.media.width).toBe(640);
@@ -95,7 +95,7 @@ describe('mapPost', () => {
   });
 
   it('leaves image dimensions undefined when metadata is missing', () => {
-    const post = mapPost(makeRaw({ metadata: null }));
+    const post = FeedModel.mapPost(makeRaw({ metadata: null }));
 
     if (post.media.kind === 'image') {
       expect(post.media.width).toBeUndefined();
@@ -108,24 +108,24 @@ describe('mapPost', () => {
 
 describe('pickImageSource', () => {
   it('prefers default, then widest size, then original — never fabricating a URL', () => {
-    expect(pickImageSource(makeRaw())).toBe('https://cdn.example/x/default.jpg');
-    expect(pickImageSource(makeRaw({ default: null }))).toBe('https://cdn.example/x/large.jpg');
-    expect(pickImageSource(makeRaw({ default: null, sizes: [] }))).toBe(
+    expect(FeedModel.pickImageSource(makeRaw())).toBe('https://cdn.example/x/default.jpg');
+    expect(FeedModel.pickImageSource(makeRaw({ default: null }))).toBe('https://cdn.example/x/large.jpg');
+    expect(FeedModel.pickImageSource(makeRaw({ default: null, sizes: [] }))).toBe(
       'https://cdn.example/x/original.jpg',
     );
-    expect(pickImageSource(makeRaw({ default: null, sizes: [], original: null }))).toBeNull();
+    expect(FeedModel.pickImageSource(makeRaw({ default: null, sizes: [], original: null }))).toBeNull();
   });
 });
 
 describe('parseDimensions', () => {
   it('extracts positive width and height from metadata JSON', () => {
-    expect(parseDimensions('{"width":800,"height":600}')).toEqual({ width: 800, height: 600 });
+    expect(FeedModel.parseDimensions('{"width":800,"height":600}')).toEqual({ width: 800, height: 600 });
   });
 
   it('returns null for missing, malformed, or non-positive dimensions', () => {
-    expect(parseDimensions(null)).toBeNull();
-    expect(parseDimensions('not json')).toBeNull();
-    expect(parseDimensions('{"width":0,"height":600}')).toBeNull();
-    expect(parseDimensions('{"format":"landscape"}')).toBeNull();
+    expect(FeedModel.parseDimensions(null)).toBeNull();
+    expect(FeedModel.parseDimensions('not json')).toBeNull();
+    expect(FeedModel.parseDimensions('{"width":0,"height":600}')).toBeNull();
+    expect(FeedModel.parseDimensions('{"format":"landscape"}')).toBeNull();
   });
 });

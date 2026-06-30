@@ -2,12 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { AuthContext } from '../hooks/useAuth';
-import {
-  fetchCurrentUser,
-  login as loginRequest,
-  logout as logoutRequest,
-  register as registerRequest,
-} from '../lib/authApi';
+import { AuthApi } from '../lib/authApi';
 import type { AuthResult, AuthUser, LoginInput, RegisterInput } from '../lib/authApi';
 import type { AuthStatus } from '../lib/authModel';
 
@@ -19,7 +14,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
   // stale client can never present a logged-in UI without one (FR-013/FR-014).
   useEffect(() => {
     let active = true;
-    fetchCurrentUser().then((current) => {
+    AuthApi.fetchCurrentUser().then((current) => {
       if (active) {
         setUser(current);
         setStatus(current ? 'authenticated' : 'anonymous');
@@ -31,7 +26,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (input: RegisterInput): Promise<AuthResult> => {
-    const result = await registerRequest(input);
+    const result = await AuthApi.register(input);
     if (result.ok) {
       setUser(result.user);
       setStatus('authenticated');
@@ -40,7 +35,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (input: LoginInput): Promise<AuthResult> => {
-    const result = await loginRequest(input);
+    const result = await AuthApi.login(input);
     if (result.ok) {
       setUser(result.user);
       setStatus('authenticated');
@@ -49,7 +44,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
-    await logoutRequest();
+    await AuthApi.logout();
     setUser(null);
     setStatus('anonymous');
   }, []);

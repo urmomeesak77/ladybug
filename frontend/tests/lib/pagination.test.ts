@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { FeedPost } from '../../src/lib/feedModel';
-import {
-  feedReducer,
-  hasMore,
-  initialFeedState,
-  isPageBreak,
-  nextStart,
-  pageStart,
-} from '../../src/lib/pagination';
+import { Pagination } from '../../src/lib/pagination';
 
 // The reducer only inspects post counts and hashes, so a minimal stub suffices.
 function posts(n: number): FeedPost[] {
@@ -22,90 +15,90 @@ function posts(n: number): FeedPost[] {
 
 describe('nextStart', () => {
   it('returns the last item hash as the keyset cursor', () => {
-    expect(nextStart([{ hash: 'a' }, { hash: 'b' }])).toBe('b');
+    expect(Pagination.nextStart([{ hash: 'a' }, { hash: 'b' }])).toBe('b');
   });
 
   it('returns undefined for an empty list', () => {
-    expect(nextStart([])).toBeUndefined();
+    expect(Pagination.nextStart([])).toBeUndefined();
   });
 });
 
 describe('pageStart', () => {
   it('uses the URL page cursor as the first keyset start', () => {
-    expect(pageStart('hash-42')).toBe('hash-42');
+    expect(Pagination.pageStart('hash-42')).toBe('hash-42');
   });
 
   it('trims surrounding whitespace from the cursor', () => {
-    expect(pageStart('  hash-42  ')).toBe('hash-42');
+    expect(Pagination.pageStart('  hash-42  ')).toBe('hash-42');
   });
 
   it('treats null/undefined/empty/blank as the newest page', () => {
-    expect(pageStart(null)).toBeUndefined();
-    expect(pageStart(undefined)).toBeUndefined();
-    expect(pageStart('')).toBeUndefined();
-    expect(pageStart('   ')).toBeUndefined();
+    expect(Pagination.pageStart(null)).toBeUndefined();
+    expect(Pagination.pageStart(undefined)).toBeUndefined();
+    expect(Pagination.pageStart('')).toBeUndefined();
+    expect(Pagination.pageStart('   ')).toBeUndefined();
   });
 });
 
 describe('isPageBreak', () => {
   it('is false below 200 and true once 200 entries are loaded', () => {
-    expect(isPageBreak(0)).toBe(false);
-    expect(isPageBreak(199)).toBe(false);
-    expect(isPageBreak(200)).toBe(true);
-    expect(isPageBreak(210)).toBe(true);
+    expect(Pagination.isPageBreak(0)).toBe(false);
+    expect(Pagination.isPageBreak(199)).toBe(false);
+    expect(Pagination.isPageBreak(200)).toBe(true);
+    expect(Pagination.isPageBreak(210)).toBe(true);
   });
 });
 
 describe('hasMore', () => {
   it('is true only for a full batch', () => {
-    expect(hasMore(posts(10), 10)).toBe(true);
-    expect(hasMore(posts(9), 10)).toBe(false);
-    expect(hasMore([], 10)).toBe(false);
+    expect(Pagination.hasMore(posts(10), 10)).toBe(true);
+    expect(Pagination.hasMore(posts(9), 10)).toBe(false);
+    expect(Pagination.hasMore([], 10)).toBe(false);
   });
 });
 
 describe('feedReducer', () => {
   it('moves idle → loading on the first load', () => {
-    const state = feedReducer(initialFeedState, { type: 'loadStart' });
+    const state = Pagination.reducer(Pagination.initialState, { type: 'loadStart' });
 
     expect(state.status).toBe('loading');
   });
 
   it('appends a full batch and stays loadable', () => {
-    const loading = feedReducer(initialFeedState, { type: 'loadStart' });
-    const loaded = feedReducer(loading, { type: 'loadSuccess', posts: posts(10), limit: 10 });
+    const loading = Pagination.reducer(Pagination.initialState, { type: 'loadStart' });
+    const loaded = Pagination.reducer(loading, { type: 'loadSuccess', posts: posts(10), limit: 10 });
 
     expect(loaded.status).toBe('loaded');
     expect(loaded.posts).toHaveLength(10);
   });
 
   it('reaches end on a short batch', () => {
-    const loading = feedReducer(initialFeedState, { type: 'loadStart' });
-    const loaded = feedReducer(loading, { type: 'loadSuccess', posts: posts(4), limit: 10 });
+    const loading = Pagination.reducer(Pagination.initialState, { type: 'loadStart' });
+    const loaded = Pagination.reducer(loading, { type: 'loadSuccess', posts: posts(4), limit: 10 });
 
     expect(loaded.status).toBe('end');
   });
 
   it('reports empty when the very first batch is empty', () => {
-    const loading = feedReducer(initialFeedState, { type: 'loadStart' });
-    const loaded = feedReducer(loading, { type: 'loadSuccess', posts: [], limit: 10 });
+    const loading = Pagination.reducer(Pagination.initialState, { type: 'loadStart' });
+    const loaded = Pagination.reducer(loading, { type: 'loadSuccess', posts: [], limit: 10 });
 
     expect(loaded.status).toBe('empty');
   });
 
   it('keeps already-loaded posts on error', () => {
-    const loading = feedReducer(initialFeedState, { type: 'loadStart' });
-    const loaded = feedReducer(loading, { type: 'loadSuccess', posts: posts(10), limit: 10 });
-    const more = feedReducer(loaded, { type: 'loadStart' });
-    const errored = feedReducer(more, { type: 'loadError' });
+    const loading = Pagination.reducer(Pagination.initialState, { type: 'loadStart' });
+    const loaded = Pagination.reducer(loading, { type: 'loadSuccess', posts: posts(10), limit: 10 });
+    const more = Pagination.reducer(loaded, { type: 'loadStart' });
+    const errored = Pagination.reducer(more, { type: 'loadError' });
 
     expect(errored.status).toBe('error');
     expect(errored.posts).toHaveLength(10);
   });
 
   it('blocks a duplicate loadStart while a load is in flight', () => {
-    const loading = feedReducer(initialFeedState, { type: 'loadStart' });
-    const again = feedReducer(loading, { type: 'loadStart' });
+    const loading = Pagination.reducer(Pagination.initialState, { type: 'loadStart' });
+    const again = Pagination.reducer(loading, { type: 'loadStart' });
 
     expect(again).toBe(loading);
   });
