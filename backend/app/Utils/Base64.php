@@ -44,7 +44,8 @@ class Base64 {
             $quotient = bcdiv($quotient, (string) $base);
 
             $hash = $charMap[(int) $remainder] . $hash;
-        } while (bccomp($quotient, '0') > 0);
+        }
+        while (bccomp($quotient, '0') > 0);
 
         return $hash;
     }

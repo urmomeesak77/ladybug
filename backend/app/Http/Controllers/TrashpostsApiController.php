@@ -55,7 +55,8 @@ class TrashpostsApiController extends Controller {
 
         if ($request->hasFile('image')) {
             $attributes = array_merge($attributes, $processor->process($request->file('image'), $hash));
-        } else {
+        }
+        else {
             $attributes['type'] = 'youtube';
             $attributes['youtube'] = Youtube::extractId((string) $request->input('youtube'));
         }

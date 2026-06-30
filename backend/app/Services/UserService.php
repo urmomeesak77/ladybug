@@ -26,7 +26,8 @@ class UserService {
         for ($attempt = 1; ; $attempt++) {
             try {
                 return $this->persist($data);
-            } catch (UniqueConstraintViolationException $e) {
+            }
+            catch (UniqueConstraintViolationException $e) {
                 if ($attempt >= self::MAX_ATTEMPTS) {
                     throw $e;
                 }
