@@ -14,7 +14,15 @@ function UploadMediaField({ mode, youtube, errors, onFile, onYoutube }: {
 }) {
   if (mode === 'youtube') {
     return (
-      <AuthField id="youtube" label="YouTube link" type="text" value={youtube} autoComplete="off" error={errors.youtube?.[0]} onChange={onYoutube} />
+      <AuthField
+        id="youtube"
+        label="YouTube link"
+        type="text"
+        value={youtube}
+        autoComplete="off"
+        error={errors.youtube?.[0]}
+        onChange={onYoutube}
+      />
     );
   }
 

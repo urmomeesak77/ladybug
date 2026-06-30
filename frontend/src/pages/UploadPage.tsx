@@ -8,7 +8,10 @@ import { useUploadForm } from '../hooks/useUploadForm';
 // optional title. The mode toggle keeps exactly one input active so the "either/or" server
 // rule cannot be violated from the UI. State + submit live in useUploadForm.
 function UploadPage() {
-  const { mode, setMode, title, setTitle, youtube, setYoutube, setFile, errors, formError, submitting, submit } = useUploadForm();
+  const {
+    mode, setMode, title, setTitle, youtube, setYoutube,
+    setFile, errors, formError, submitting, submit,
+  } = useUploadForm();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -33,7 +36,15 @@ function UploadPage() {
           </label>
         </fieldset>
 
-        <AuthField id="title" label="Title (optional)" type="text" value={title} autoComplete="off" error={errors.title?.[0]} onChange={setTitle} />
+        <AuthField
+          id="title"
+          label="Title (optional)"
+          type="text"
+          value={title}
+          autoComplete="off"
+          error={errors.title?.[0]}
+          onChange={setTitle}
+        />
         <UploadMediaField mode={mode} youtube={youtube} errors={errors} onFile={setFile} onYoutube={setYoutube} />
 
         <button type="submit" disabled={submitting}>

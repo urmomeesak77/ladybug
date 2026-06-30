@@ -30,13 +30,19 @@ class CreatePostRequest extends FormRequest {
     }
 
     public function withValidator(Validator $validator): void {
-        $validator->after(function (Validator $validator): void {
-            if ($this->hasFile('image') && filled($this->input('youtube'))) {
-                $validator->errors()->add('image', 'Provide either an image or a YouTube link, not both.');
-            }
-            if (filled($this->input('youtube')) && Youtube::extractId((string) $this->input('youtube')) === null) {
-                $validator->errors()->add('youtube', 'Enter a valid YouTube link.');
-            }
-        });
+        $validator->after($this->validateExclusivity(...));
+    }
+
+    /**
+     * Cross-field rules the per-field rules() can't express: the image/YouTube inputs are
+     * mutually exclusive, and any supplied YouTube link must parse to a real id.
+     */
+    private function validateExclusivity(Validator $validator): void {
+        if ($this->hasFile('image') && filled($this->input('youtube'))) {
+            $validator->errors()->add('image', 'Provide either an image or a YouTube link, not both.');
+        }
+        if (filled($this->input('youtube')) && Youtube::extractId((string) $this->input('youtube')) === null) {
+            $validator->errors()->add('youtube', 'Enter a valid YouTube link.');
+        }
     }
 }
