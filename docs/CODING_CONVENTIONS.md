@@ -98,16 +98,19 @@ A standard reference for code style, naming, and structure across projects. Appl
 - **Booleans**: prefix with `is`, `has`, `should`: `isActive`, `hasWon`, `shouldReset`
 
 ### Structure
-- **Prefer classes over standalone functions or closures** to organize related logic
-  and state: group behavior and the data it operates on into a `class` rather than a set
-  of loose functions sharing module-level variables, and reach for a small class instead
-  of a closure when you need to capture and carry state. Pure, stateless helpers may
-  remain standalone functions.
+- **Always prefer classes over standalone functions or closures** — even when the logic is
+  pure and stateless. Group behavior (and any data it operates on) into a `class` rather than
+  a set of loose functions sharing module-level variables, and always reach for a class instead
+  of a closure when you would otherwise capture and carry state. There is no stateless-helper
+  exception: a single pure helper becomes a class with one (often `static`) method.
+- **Converge similar functions into a class.** When two or more functions operate on the same
+  data, share a prefix/suffix, or form a logical group (e.g. `validateEmail`, `validatePassword`),
+  gather them as methods on one cohesive class instead of leaving them as scattered functions.
 - One responsibility per function/method (single responsibility principle)
 - Keep functions/methods under 50 lines; extract helpers if longer
 - Keep classes under 300 lines; split into focused collaborators if longer
 - Use early returns to reduce nesting
-- Group related behavior into a class; keep any standalone helpers together
+- Group related behavior into a class; do not leave loose standalone helpers
 
 ### Logic & Patterns
 - Use `const` by default, `let` for loop counters, avoid `var`
@@ -124,28 +127,32 @@ A standard reference for code style, naming, and structure across projects. Appl
 
 ### Example
 ```javascript
-// Minimax algorithm: finds best move by evaluating all game states
-// Returns score: +10 (AI wins), -10 (player wins), 0 (draw)
-function minimax(board, depth, isMax) {
-  const result = checkWinner(board);
-  
-  // Base cases
-  if (result?.winner === 'X') return -10 + depth;
-  if (result?.winner === 'O') return 10 - depth;
-  if (result?.winner === 'draw') return 0;
-  
-  // Recursive case
-  let bestScore = isMax ? -Infinity : Infinity;
-  for (let i = 0; i < 9; i++) {
-    if (board[i] !== null) continue;
-    
-    board[i] = isMax ? 'O' : 'X';
-    const score = minimax(board, depth + 1, !isMax);
-    board[i] = null;
-    
-    bestScore = isMax ? Math.max(score, bestScore) : Math.min(score, bestScore);
+// Even a pure algorithm lives on a class — converge related solver logic together
+// rather than exposing loose functions.
+class MinimaxSolver {
+  // Minimax: finds best move by evaluating all game states.
+  // Returns score: +10 (AI wins), -10 (player wins), 0 (draw)
+  static score(board, depth, isMax) {
+    const result = checkWinner(board);
+
+    // Base cases
+    if (result?.winner === 'X') return -10 + depth;
+    if (result?.winner === 'O') return 10 - depth;
+    if (result?.winner === 'draw') return 0;
+
+    // Recursive case
+    let bestScore = isMax ? -Infinity : Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (board[i] !== null) continue;
+
+      board[i] = isMax ? 'O' : 'X';
+      const score = MinimaxSolver.score(board, depth + 1, !isMax);
+      board[i] = null;
+
+      bestScore = isMax ? Math.max(score, bestScore) : Math.min(score, bestScore);
+    }
+    return bestScore;
   }
-  return bestScore;
 }
 ```
 
@@ -166,9 +173,11 @@ function minimax(board, depth, isMax) {
 - Generic type parameters: `T`, `K`, `V` (single letter) or descriptive: `TUser`, `TResponse`
 
 ### Structure
-- **Prefer classes over standalone functions or closures** for stateful or related logic
-  (see the JavaScript Structure guidance); favor a typed `class` over a closure that
-  captures state. Reserve standalone functions for pure, stateless helpers.
+- **Always prefer classes over standalone functions or closures** — for stateful, stateless,
+  and one-off logic alike (see the JavaScript Structure guidance); favor a typed `class` over a
+  closure that captures state, and converge similar typed functions into methods on one class.
+  Do not reserve standalone functions for "pure helpers" — wrap those in a class too (a `static`
+  method is fine).
 ```typescript
 // enums for fixed sets
 export enum PlayerMark {
@@ -183,14 +192,23 @@ export interface GameState {
   score: { player: number; cpu: number; draws: number };
 }
 
-// typed functions
-function initGame(state: GameState): void {
-  // implementation
-}
+// converge related logic into a class instead of loose functions
+class Game {
+  constructor(private state: GameState) {}
 
-// optional/union types
-function move(index: number | null): GameState | null {
-  return index !== null ? applyMove(index) : null;
+  init(): void {
+    // implementation
+  }
+
+  // optional/union types
+  move(index: number | null): GameState | null {
+    return index !== null ? this.applyMove(index) : null;
+  }
+
+  private applyMove(index: number): GameState {
+    // implementation
+    return this.state;
+  }
 }
 
 // generics for reusable logic — prefer a class over a state-capturing closure
@@ -261,6 +279,9 @@ class User {
 ```
 
 ### Functions & Logic
+- **Always prefer classes over standalone functions or closures**, even for stateless logic:
+  put behavior on a class as a method (use `static` for pure helpers) rather than declaring
+  global functions, and converge related functions into one cohesive class
 - Use type hints and return types: `function add(int $a, int $b): int`
 - Use null coalescing `??` and spaceship `<=>` operators
 - Validate input at boundaries (user input, external APIs)
@@ -296,8 +317,9 @@ try {
 - **KISS** (Keep It Simple, Stupid): Solve the problem at hand, avoid over-engineering
 - **YAGNI** (You Aren't Gonna Need It): Don't add features you don't need yet
 - **Single Responsibility**: One function/class = one job
-- **Prefer classes**: Organize related logic and state into classes rather than loose
-  functions or closures; keep standalone functions for pure, stateless helpers
+- **Always prefer classes**: Organize all related logic and state into classes rather than
+  loose functions or closures — even pure, stateless helpers (use a `static` method). Converge
+  similar functions into methods on one cohesive class instead of leaving them scattered
 
 
 ### Dependencies
@@ -312,7 +334,8 @@ try {
 - Remove commented-out code; use version control history instead
 
 ### Testing Mindset
-- Write testable code: pure functions, dependency injection, separation of concerns
+- Write testable code: cohesive classes with injected dependencies (constructor injection),
+  pure methods, and clear separation of concerns
 - Test the "happy path" and edge cases
 - Use descriptive test names: `test_should_return_zero_when_list_is_empty()`
 
@@ -454,4 +477,4 @@ try {
 ---
 
 **Last Updated**: 2026-06-30  
-**Version**: 1.2
+**Version**: 1.3
