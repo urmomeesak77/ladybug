@@ -142,8 +142,9 @@ ladybug/
 │   │   ├── components/           # PageLayout, NavMenu, Feed, FeedItem, MemeMedia,
 │   │   │                         #   AuthProvider, AuthField, RequireAuth, RequireAnon, states/
 │   │   ├── hooks/                # useFeed, usePost, useAuth, useTheme, useScrollRestoration
-│   │   ├── lib/                  # api, authApi, feedModel/postModel/authModel, feedCache,
-│   │   │                         #   pagination, scrollAnchor, theme, youtube, publicCode
+│   │   ├── lib/                  # Api, AuthApi, FeedModel/PostModel/AuthModel, FeedCache,
+│   │   │                         #   Pagination, ScrollAnchor, Theme, Youtube, PublicCode,
+│   │   │                         #   Csrf, UploadApi, UploadModel (one class per module)
 │   │   ├── App.tsx               # router
 │   │   └── main.tsx              # app entry
 │   ├── tests/                    # Vitest + Playwright e2e — mirrors src/ (Principle VII)
@@ -164,6 +165,12 @@ Notes:
 - Frontend has no `services/` or `types/` dir: HTTP/data access lives in `lib/`
   (`api.ts`, `authApi.ts`), and shared types are colocated in the `*Model.ts`
   modules they belong to.
+- Every `lib/` module is a single class of `static` methods (e.g. `Api.fetchFeed`,
+  `Pagination.reducer`, `Csrf.token`), per the `docs/CODING_CONVENTIONS.md` v1.3
+  "always prefer classes over standalone functions/closures" rule — call through the
+  class, never re-introduce loose exported functions. React function components and
+  custom hooks stay as functions (class components can't use hooks); the rule applies
+  to logic/helpers only.
 - Each stack uses the lint/test tooling CI invokes: backend Pint + PHPUnit
   (+ `pcov` on the runner); frontend ESLint + Vitest (+ Playwright e2e). Adding
   anything beyond those baselines is a Principle I dependency decision.
