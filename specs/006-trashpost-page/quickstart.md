@@ -10,7 +10,7 @@ How to run the stack and validate this feature end-to-end. Contracts:
 
 - Docker Desktop running (there is no local PHP/Node toolchain requirement — both apps
   run in containers via the repo's `docker-compose.yml`).
-- Real media + storage tree bind-mounted from `C:\ladybug-storage` (already configured).
+- Real media + storage tree bind-mounted from `C:\docker_permanent\ladybug-storage` (already configured).
 - The database populated with visible posts (the imported prototype data), including at
   least one image post and one YouTube post.
 

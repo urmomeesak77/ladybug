@@ -11,7 +11,12 @@ services:
     ports:
       - "4444:3306" # host 4444 -> container 3306
     volumes:
-      - mysql-data:/var/lib/mysql
+      # DB datadir on a host bind-mount OUTSIDE the repo (real NTFS), so the
+      # database survives not just Docker teardown but also uninstalling Docker
+      # entirely -- unlike a Docker-managed named volume, which lives inside the
+      # WSL2 VM and is destroyed with it. See scripts/backup-db.ps1 for the
+      # logical (.sql) dumps that back this up.
+      - C:/docker_permanent/ladybug-mysql:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-proot"]
       interval: 10s
@@ -44,7 +49,7 @@ services:
       # app/public) in a physical folder OUTSIDE the repo, so it survives not
       # just Docker teardown but also `git clean` / deleting the project dir.
       # This nested mount shadows the repo's storage skeleton inside /app.
-      - C:/ladybug-storage:/app/storage
+      - C:/docker_permanent/ladybug-storage:/app/storage
     ports:
       - "8000:8000"
     depends_on:
@@ -64,6 +69,3 @@ services:
       - "5173:5173"
     depends_on:
       - backend
-
-volumes:
-  mysql-data:

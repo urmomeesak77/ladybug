@@ -15,8 +15,8 @@ param(
     [int]$Keep = 10,
 
     # Where dumps are written. Defaults to the LADYBUG_BACKUP_DIR env var, else
-    # C:\ladybug-backups -- OUTSIDE the repo, so dumps survive `git clean` or
-    # deleting the project folder, not just Docker teardown.
+    # C:\docker_permanent\ladybug-backups -- OUTSIDE the repo, so dumps survive
+    # `git clean` or deleting the project folder, not just Docker teardown.
     [string]$BackupDir
 )
 
@@ -25,7 +25,7 @@ $ErrorActionPreference = 'Stop'
 # scripts/ lives directly under the repo root; compose runs from the root.
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not $BackupDir) {
-    $BackupDir = if ($env:LADYBUG_BACKUP_DIR) { $env:LADYBUG_BACKUP_DIR } else { 'C:\ladybug-backups' }
+    $BackupDir = if ($env:LADYBUG_BACKUP_DIR) { $env:LADYBUG_BACKUP_DIR } else { 'C:\docker_permanent\ladybug-backups' }
 }
 $backupsDir = $BackupDir
 

@@ -5,7 +5,7 @@
 .DESCRIPTION
   Use this instead of `docker compose down`. All arguments are forwarded, so
   `scripts\down.ps1 -v` still wipes the volume -- but only AFTER a fresh dump is
-  written to C:\ladybug-backups (override via -BackupDir / LADYBUG_BACKUP_DIR),
+  written to C:\docker_permanent\ladybug-backups (override via -BackupDir / LADYBUG_BACKUP_DIR),
   which is exactly when a backup matters most.
 
 .EXAMPLE

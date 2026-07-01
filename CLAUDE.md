@@ -20,7 +20,7 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
 - **002-database-schema** — `trashposts` + `users` tables/migrations; posts carry a
   **10-char unique `hash`** public identifier.
 - **003-media-storage** — image storage tree with size variants on the `public`
-  disk (real media + the ~1.3 GB tree live at `C:\ladybug-storage`, bind-mounted).
+  disk (real media + the ~1.3 GB tree live at `C:\docker_permanent\ladybug-storage`, bind-mounted).
 - **004-read-feed-api** — read-side JSON API: `GET /api/posts` (newest-first keyset
   feed, 10/page) and `GET /api/posts/{hash}`, including per-image-size URLs.
 - **005-frontend-mainpage** — React Home feed (`HomePage`) that consumes the 004 API:

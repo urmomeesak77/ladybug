@@ -44,7 +44,7 @@ services:
       - ./backend:/app
       # Shadow the dev .env with the e2e one so requests resolve the disposable DB.
       - ./backend/.env.e2e:/app/.env:ro
-      # No C:/ladybug-storage mount: e2e doesn't need the media library, only a working
+      # No C:/docker_permanent/ladybug-storage mount: e2e doesn't need the media library, only a working
       # storage skeleton (sessions/cache/logs) which the repo already ships.
     ports:
       - "8001:8000"
