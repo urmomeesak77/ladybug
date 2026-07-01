@@ -14,9 +14,12 @@ param(
     # How many dumps to keep; older ones are deleted.
     [int]$Keep = 10,
 
-    # Where dumps are written. Defaults to the LADYBUG_BACKUP_DIR env var, else
-    # C:\docker_permanent\ladybug-backups -- OUTSIDE the repo, so dumps survive
-    # `git clean` or deleting the project folder, not just Docker teardown.
+    # Where dumps are written (OUTSIDE the repo, so they survive `git clean` or
+    # deleting the project folder, not just Docker teardown). Resolution order:
+    #   1. -BackupDir argument
+    #   2. $env:LADYBUG_BACKUP_DIR         (explicit override for dumps only)
+    #   3. $env:LADYBUG_DATA_ROOT\ladybug-backups  (shared root; see .env.example)
+    #   4. C:\docker_permanent\ladybug-backups     (baked-in default)
     [string]$BackupDir
 )
 
@@ -25,7 +28,12 @@ $ErrorActionPreference = 'Stop'
 # scripts/ lives directly under the repo root; compose runs from the root.
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not $BackupDir) {
-    $BackupDir = if ($env:LADYBUG_BACKUP_DIR) { $env:LADYBUG_BACKUP_DIR } else { 'C:\docker_permanent\ladybug-backups' }
+    # Plain string concat (not Join-Path): Join-Path validates the drive and
+    # throws DriveNotFound if LADYBUG_DATA_ROOT names an unmounted drive.
+    $BackupDir =
+        if ($env:LADYBUG_BACKUP_DIR) { $env:LADYBUG_BACKUP_DIR }
+        elseif ($env:LADYBUG_DATA_ROOT) { "$($env:LADYBUG_DATA_ROOT.TrimEnd('/','\'))\ladybug-backups" }
+        else { 'C:\docker_permanent\ladybug-backups' }
 }
 $backupsDir = $BackupDir
 

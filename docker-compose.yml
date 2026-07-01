@@ -2,6 +2,12 @@
 # MySQL 8.0 database, and the Vite dev server, all pinned to the versions CI uses
 # (PHP 8.3 / MySQL 8.0 / Node 20, FR-008). This is NOT a production setup and CI
 # does not depend on it.
+#
+# Durable dev data (MySQL datadir + media/storage tree) lives OUTSIDE the repo
+# under a single host directory, LADYBUG_DATA_ROOT. It defaults to
+# C:/docker_permanent (baked in below), so the stack runs with zero config; set
+# LADYBUG_DATA_ROOT in a root .env file (see .env.example) to relocate all of it
+# at once. Keep DB dumps in sync via the same var in scripts/backup-db.ps1.
 services:
   mysql:
     image: mysql:8.0
@@ -16,7 +22,7 @@ services:
       # entirely -- unlike a Docker-managed named volume, which lives inside the
       # WSL2 VM and is destroyed with it. See scripts/backup-db.ps1 for the
       # logical (.sql) dumps that back this up.
-      - C:/docker_permanent/ladybug-mysql:/var/lib/mysql
+      - ${LADYBUG_DATA_ROOT:-C:/docker_permanent}/ladybug-mysql:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-proot"]
       interval: 10s
@@ -49,7 +55,7 @@ services:
       # app/public) in a physical folder OUTSIDE the repo, so it survives not
       # just Docker teardown but also `git clean` / deleting the project dir.
       # This nested mount shadows the repo's storage skeleton inside /app.
-      - C:/docker_permanent/ladybug-storage:/app/storage
+      - ${LADYBUG_DATA_ROOT:-C:/docker_permanent}/ladybug-storage:/app/storage
     ports:
       - "8000:8000"
     depends_on:

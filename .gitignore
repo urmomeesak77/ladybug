@@ -1,3 +1,6 @@
+# Local docker-compose overrides (host paths, etc.); .env.example is the template
+/.env
+
 # Claude Code machine-local settings
 .claude/settings.local.json
 
