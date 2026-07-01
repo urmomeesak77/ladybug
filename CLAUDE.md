@@ -20,7 +20,8 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
 - **002-database-schema** — `trashposts` + `users` tables/migrations; posts carry a
   **10-char unique `hash`** public identifier.
 - **003-media-storage** — image storage tree with size variants on the `public`
-  disk (real media + the ~1.3 GB tree live at `C:\docker_permanent\ladybug-storage`, bind-mounted).
+  disk (real media + the ~1.3 GB tree live under `LADYBUG_DATA_ROOT`
+  (default `C:\docker_permanent`) at `…\ladybug-storage`, bind-mounted).
 - **004-read-feed-api** — read-side JSON API: `GET /api/posts` (newest-first keyset
   feed, 10/page) and `GET /api/posts/{hash}`, including per-image-size URLs.
 - **005-frontend-mainpage** — React Home feed (`HomePage`) that consumes the 004 API:
@@ -54,6 +55,16 @@ Supporting files:
 through the `php:8.3-cli` Docker container (project convention). The implemented code
 uses the prototype's vocabulary (**`Trashpost`** / **`hash`**), not the "Meme" /
 "public code" names used as placeholders in the structure sketch below.
+
+**Durable dev data (`LADYBUG_DATA_ROOT`):** all data meant to survive Docker
+teardown/uninstall lives OUTSIDE the repo under a single host dir,
+`LADYBUG_DATA_ROOT` (default `C:\docker_permanent`): `…\ladybug-mysql` (MySQL
+datadir, host bind-mount — not a named volume), `…\ladybug-storage` (media/storage
+tree), and `…\ladybug-backups` (`.sql` dumps from `scripts/backup-db.ps1`).
+`docker-compose.yml` bakes in the default via `${LADYBUG_DATA_ROOT:-C:/docker_permanent}`,
+so the stack runs with zero config; override in a root `.env` (see `.env.example`)
+to relocate everything. Because the DB is a bind-mount now, `docker compose down -v`
+no longer wipes it — but keep dumping before teardown anyway.
 
 ## Existing Prototype — `C:\projects\trash`
 
