@@ -30,7 +30,7 @@ This starts three services pinned to the versions CI uses:
 | Service  | Image / build | Host port | Notes |
 |----------|---------------|-----------|-------|
 | backend  | `docker/php` (PHP 8.3) | `8000` | `php artisan serve`; seeds `.env` + app key on first run |
-| mysql    | `mysql:8.0`   | `4444` → 3306 | database `trashdb`, root password `root` (dev only) |
+| mysql    | `mysql:8.0`   | `4444` → 3306 | database `trashdb`, root password `root` (dev only) — all configurable, see below |
 | frontend | `node:20`     | `5173` | Vite dev server |
 
 Verify the backend is live:
@@ -83,6 +83,26 @@ cd backend
 cp .env.example .env
 php artisan key:generate
 ```
+
+### Configuring the dev MySQL service
+
+The `mysql` service's database name, root password, and host port default to
+`trashdb` / `root` / `4444`, so the stack runs with zero config. Override them by
+copying the root `.env.example` to `.env` and editing:
+
+| Var | Default | Effect |
+|-----|---------|--------|
+| `MYSQL_DATABASE` | `trashdb` | name of the database the `mysql` service creates |
+| `MYSQL_ROOT_PASSWORD` | `root` | MySQL root password |
+| `MYSQL_HOST_PORT` | `4444` | host port mapped to the container's `3306` |
+
+These configure the MySQL **server** container only. The Laravel **app** reads its
+own DB connection from `backend/.env` (`DB_DATABASE` / `DB_PASSWORD`), a separate
+file: if you override `MYSQL_DATABASE` or `MYSQL_ROOT_PASSWORD`, mirror the change
+into `backend/.env` by hand — they can't be auto-linked (injecting `DB_*` into the
+backend container would override `phpunit.xml`'s SQLite test config and let tests
+wipe the dev database). The same root `.env` also holds `LADYBUG_DATA_ROOT`, which
+relocates all durable dev data (MySQL datadir, media, backups).
 
 ## Backend — lint, test, coverage (PHP)
 
