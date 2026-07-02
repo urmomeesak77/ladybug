@@ -45,33 +45,44 @@ curl http://localhost:8000/api/health      # -> {"status":"ok"}
 ## Database & persistence
 
 The schema lives in Laravel migrations (`backend/database/migrations/`) and the dev
-database is named **`trashdb`**.
+database defaults to **`trashdb`** (override with `MYSQL_DATABASE`, see above).
 
-**Fresh checkout** — the `mysql` service creates an empty `trashdb` automatically
-from `MYSQL_DATABASE`; apply the schema with:
+**Fresh checkout** — on first start, when the datadir is empty, the `mysql` service
+initialises the database named by `MYSQL_DATABASE`; apply the schema with:
 
 ```sh
 docker compose up -d mysql backend
 docker compose exec backend php artisan migrate
 ```
 
-**Data persists across container and image removal.** MySQL data is stored in the
-named Docker volume `mysql-data` (mounted at `/var/lib/mysql`), which is independent
-of container and image lifecycles. `docker compose down` (without `-v`) and even
-`docker rmi mysql:8.0` leave the data intact — `docker compose up -d` reattaches the
-same volume. Data is destroyed **only** by a deliberate wipe:
+**Durable data lives OUTSIDE the repo, on a host bind-mount.** The MySQL datadir is
+bind-mounted from `${LADYBUG_DATA_ROOT:-C:/docker_permanent}/ladybug-mysql` into the
+container's `/var/lib/mysql` — a real host folder, **not** a Docker-managed named
+volume. This survives not just `docker compose down` and `docker rmi mysql:8.0`, but
+also **`docker compose down -v` and uninstalling Docker entirely** (a named volume
+lives inside the WSL2 VM and is destroyed with it; a host folder is not). Relocate it
+— along with the media tree and backups — by setting `LADYBUG_DATA_ROOT` in the root
+`.env`; the whole tree is:
 
-```sh
-docker compose down -v                 # removes containers AND the volume
-docker volume rm ladybug_mysql-data    # or remove the volume directly
+```
+${LADYBUG_DATA_ROOT}/ladybug-mysql     MySQL datadir   (bind-mounted into the db)
+${LADYBUG_DATA_ROOT}/ladybug-storage   media/storage   (bind-mounted into the backend)
+${LADYBUG_DATA_ROOT}/ladybug-backups   .sql dumps      (scripts/backup-db.ps1)
 ```
 
-> **Pre-existing volume note.** A `mysql-data` volume created before this feature
-> initialised the database as `ladybug` and keeps it (MySQL only seeds
-> `MYSQL_DATABASE` on first init). Either create `trashdb` once —
-> `docker compose exec mysql mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS trashdb;"`
-> then `php artisan migrate` — or recreate the volume with `docker compose down -v`
-> for a clean `trashdb` (destroys existing data).
+**Backups & teardown.** Because the datadir persists through almost everything, take
+a logical dump before any teardown anyway — `scripts/down.ps1` runs
+`scripts/backup-db.ps1` (writes a timestamped `.sql` to `…/ladybug-backups`,
+self-sourcing the db name and root password from the running container) before
+stopping the stack.
+
+**Destroying the data** now means removing the host folder directly (a deliberate,
+explicit act — `down -v` no longer does it):
+
+```sh
+docker compose down                    # stops containers; datadir folder untouched
+rm -rf C:/docker_permanent/ladybug-mysql   # or your LADYBUG_DATA_ROOT — DESTROYS the DB
+```
 
 ## Environment / secrets
 
