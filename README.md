@@ -95,6 +95,11 @@ cp .env.example .env
 php artisan key:generate
 ```
 
+The app's DB credentials (`DB_USERNAME` / `DB_PASSWORD`) come from `backend/.env`.
+Dev connects as `root` because the local containerised MySQL ships with only the
+root account; **in production, set these to a dedicated non-root user scoped to this
+database — never root.**
+
 ### Configuring the dev MySQL service
 
 The `mysql` service's database name, root password, and host port default to
