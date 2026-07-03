@@ -48,16 +48,14 @@ services:
       sh -c "[ -f .env ] || cp .env.example .env;
              grep -q '^APP_KEY=base64:' .env || php artisan key:generate;
              php artisan serve --host=0.0.0.0 --port=8000"
-    environment:
-      # DB config intentionally lives in backend/.env (mysql -> trashdb), NOT
-      # here. Injecting DB_* as real container env vars overrode phpunit.xml's
-      # SQLite test config (real env wins over <env> even with force="true"), so
-      # `php artisan test` ran RefreshDatabase against the live dev database and
-      # wiped it. Keeping DB_* out of the process env lets tests use SQLite
-      # :memory: like CI, while the dev server reads MySQL from .env.
-      # File-backed drivers keep the dev server working without running migrations.
-      SESSION_DRIVER: file
-      CACHE_STORE: file
+    # NO driver env vars here, on purpose. App config (DB_*, SESSION_DRIVER,
+    # CACHE_STORE) lives in backend/.env: a real container env var overrides
+    # phpunit.xml's <env> test config (even with force="true"), which once made
+    # `php artisan test` run RefreshDatabase against the live dev DB and wipe
+    # it, and later made throttle counters persist in the file cache across
+    # test runs (CACHE_STORE=file beat the array store). Tests\TestCase guards
+    # both. backend/.env uses file-backed session/cache drivers so the dev
+    # server works without migrated sessions/cache tables.
     volumes:
       - ./backend:/app
       # Persist ALL Laravel storage (incl. the ~1.3 GB media library under

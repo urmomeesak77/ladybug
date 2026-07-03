@@ -22,6 +22,7 @@ abstract class TestCase extends BaseTestCase {
     protected function refreshApplication(): void {
         parent::refreshApplication();
         $this->assertIsolatedTestDatabase();
+        $this->assertIsolatedTestCache();
     }
 
     private function assertIsolatedTestDatabase(): void {
@@ -36,6 +37,25 @@ abstract class TestCase extends BaseTestCase {
             . 'A real DB_* env var is leaking into the test process — tests must never touch a real database.',
             (string) $connection,
             (string) $database,
+        ));
+    }
+
+    /**
+     * Same guard for the cache: phpunit.xml sets the array store, but a real
+     * CACHE_STORE env var wins over <env>. A persistent store leaks state across
+     * tests AND test runs — e.g. throttle counters from the file cache once made
+     * every login test 429 — so abort rather than debug ghost failures.
+     */
+    private function assertIsolatedTestCache(): void {
+        $store = config('cache.default');
+        if ($store === 'array') {
+            return;
+        }
+
+        throw new RuntimeException(sprintf(
+            'Refusing to run tests: expected the array cache store but got [%s]. '
+            . 'A real CACHE_STORE env var is leaking into the test process — tests must use the per-process array store.',
+            (string) $store,
         ));
     }
 }
