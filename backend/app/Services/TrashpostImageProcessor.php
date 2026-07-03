@@ -45,6 +45,22 @@ class TrashpostImageProcessor {
     }
 
     /**
+     * Remove every file process() may have written for this hash — the original and all
+     * size variants. Rolls back a failed upload so no orphaned media lingers on disk and
+     * the hash's paths are clean for whoever mints it next.
+     */
+    public function discard(string $hash, UploadedFile $file): void {
+        $ext = $this->extensionFor($file);
+        $disk = Storage::disk('public');
+        foreach (MediaPath::imageSizes() as $size) {
+            $rel = MediaPath::imageRelativePath($size, $hash, $ext);
+            if ($disk->exists($rel)) {
+                $disk->delete($rel);
+            }
+        }
+    }
+
+    /**
      * Derive the stored extension from the validated content type, never the client-supplied
      * filename (Principle VI): a polyglot uploaded as evil.php must still be stored as a safe
      * image extension. Only the three MIME types CreatePostRequest admits are mapped.

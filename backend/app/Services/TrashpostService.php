@@ -5,13 +5,24 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Trashpost;
+use App\Models\User;
+use App\Utils\Str;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\UploadedFile;
+use Throwable;
 
 class TrashpostService {
     private const DEFAULT_LIMIT = 10;
 
     private const MAX_LIMIT = 50;
+
+    /** Retries for the astronomically rare public-hash collision (unique column). */
+    private const MAX_HASH_ATTEMPTS = 3;
+
+    public function __construct(private readonly TrashpostImageProcessor $images = new TrashpostImageProcessor()) {
+    }
 
     /**
      * The newest visible posts, newest-first, as a bounded keyset page.
@@ -38,6 +49,78 @@ class TrashpostService {
      */
     public function findVisibleByHash(string $hash): ?Trashpost {
         return $this->visible()->where('hash', $hash)->first();
+    }
+
+    /**
+     * Create a post from an already-validated upload: an image file or a parsed YouTube id.
+     *
+     * The hash row is reserved (saved) BEFORE any file is written, so a hash collision can
+     * never overwrite another post's media — it just retries with a fresh hash. YouTube
+     * posts activate on the spot; image posts activate only after their files exist.
+     */
+    public function createPost(User $user, ?string $title, ?UploadedFile $image, ?string $youtubeId): Trashpost {
+        $post = $this->reserve($user, $title, $youtubeId, $image === null);
+        if ($image !== null) {
+            $this->attachImage($post, $image);
+        }
+
+        return $post;
+    }
+
+    /**
+     * Persist the row that claims a public hash, retrying on the unique-constraint
+     * collision (same pattern as UserService::create).
+     */
+    private function reserve(User $user, ?string $title, ?string $youtubeId, bool $activate): Trashpost {
+        for ($attempt = 1; ; $attempt++) {
+            $post = new Trashpost([
+                'hash' => $this->mintHash(),
+                'title' => $title,
+                'user_id' => $user->id,
+                'username' => $user->name,
+                'type' => $youtubeId === null ? null : 'youtube',
+                'youtube' => $youtubeId,
+            ]);
+            if ($activate) {
+                $post->activated_at = now();
+            }
+            try {
+                $post->save();
+
+                return $post;
+            }
+            catch (UniqueConstraintViolationException $e) {
+                if ($attempt >= self::MAX_HASH_ATTEMPTS) {
+                    throw $e;
+                }
+            }
+        }
+    }
+
+    /**
+     * Write the image files for a reserved post, then activate it. On failure the reserved
+     * row and any files already written are removed — no orphaned media, no invisible
+     * half-created row — and the failure is rethrown for the framework's error handling.
+     */
+    private function attachImage(Trashpost $post, UploadedFile $image): void {
+        try {
+            $post->fill($this->images->process($image, $post->hash));
+            $post->activated_at = now();
+            $post->save();
+        }
+        catch (Throwable $e) {
+            $this->images->discard($post->hash, $image);
+            $post->forceDelete();
+            throw $e;
+        }
+    }
+
+    /**
+     * Mint a candidate public hash. Protected so collision tests can substitute a
+     * deterministic sequence; production always delegates to Str::createUniqueHash.
+     */
+    protected function mintHash(): string {
+        return Str::createUniqueHash();
     }
 
     /**

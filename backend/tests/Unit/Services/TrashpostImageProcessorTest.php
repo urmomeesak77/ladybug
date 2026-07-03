@@ -29,6 +29,19 @@ class TrashpostImageProcessorTest extends TestCase {
         Storage::disk('public')->assertExists(MediaPath::imageRelativePath('original', 'abc1234567', 'jpg'));
     }
 
+    public function test_discard_removes_the_original_and_every_variant(): void {
+        $file = $this->image('m.jpg', 1200, 600);
+        $processor = new TrashpostImageProcessor();
+        $processor->process($file, 'abc1234567');
+
+        $processor->discard('abc1234567', $file);
+
+        $disk = Storage::disk('public');
+        foreach (MediaPath::imageSizes() as $size) {
+            $disk->assertMissing(MediaPath::imageRelativePath($size, 'abc1234567', 'jpg'));
+        }
+    }
+
     public function test_generates_variants_narrower_than_the_original(): void {
         (new TrashpostImageProcessor())->process($this->image('m.jpg', 1200, 600), 'abc1234567');
 

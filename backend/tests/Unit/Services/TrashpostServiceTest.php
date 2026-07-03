@@ -5,8 +5,14 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use App\Models\Trashpost;
+use App\Models\User;
+use App\Services\TrashpostImageProcessor;
 use App\Services\TrashpostService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Mockery;
+use RuntimeException;
 use Tests\TestCase;
 
 final class TrashpostServiceTest extends TestCase {
@@ -14,6 +20,19 @@ final class TrashpostServiceTest extends TestCase {
 
     private function service(): TrashpostService {
         return new TrashpostService();
+    }
+
+    /**
+     * A service whose protected mintHash() yields the given values in order, so
+     * collision behaviour is testable without racing the real generator.
+     */
+    private function serviceMinting(TrashpostImageProcessor $processor, string ...$hashes): TrashpostService {
+        $service = Mockery::mock(TrashpostService::class, [$processor])
+            ->makePartial()
+            ->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('mintHash')->andReturn(...$hashes);
+
+        return $service;
     }
 
     public function test_feed_returns_visible_posts_newest_first_by_activated_at(): void {
@@ -138,5 +157,62 @@ final class TrashpostServiceTest extends TestCase {
 
     public function test_find_visible_by_hash_returns_null_for_an_unknown_hash(): void {
         $this->assertNull($this->service()->findVisibleByHash('__nomatch__'));
+    }
+
+    public function test_create_post_stores_an_activated_youtube_post(): void {
+        $user = User::factory()->create();
+
+        $post = $this->service()->createPost($user, 'My meme', null, 'dQw4w9WgXcQ');
+
+        $this->assertSame('youtube', $post->type);
+        $this->assertSame('dQw4w9WgXcQ', $post->youtube);
+        $this->assertSame($user->id, $post->user_id);
+        $this->assertSame($user->name, $post->username);
+        $this->assertNotNull($post->activated_at);
+        $this->assertDatabaseHas('trashposts', ['hash' => $post->hash]);
+    }
+
+    public function test_create_post_retries_when_the_minted_hash_collides(): void {
+        Trashpost::factory()->create(['hash' => 'taken12345']);
+        $user = User::factory()->create();
+        $service = $this->serviceMinting(new TrashpostImageProcessor(), 'taken12345', 'fresh12345');
+
+        $post = $service->createPost($user, null, null, 'dQw4w9WgXcQ');
+
+        $this->assertSame('fresh12345', $post->hash);
+    }
+
+    public function test_create_post_gives_up_after_three_hash_collisions(): void {
+        Trashpost::factory()->create(['hash' => 'taken12345']);
+        $user = User::factory()->create();
+        $service = $this->serviceMinting(
+            new TrashpostImageProcessor(),
+            'taken12345',
+            'taken12345',
+            'taken12345',
+        );
+
+        $this->expectException(UniqueConstraintViolationException::class);
+        $service->createPost($user, null, null, 'dQw4w9WgXcQ');
+    }
+
+    public function test_create_post_removes_the_row_and_files_when_image_processing_fails(): void {
+        $user = User::factory()->create();
+        $image = UploadedFile::fake()->image('m.jpg', 100, 100);
+        $processor = Mockery::mock(TrashpostImageProcessor::class);
+        $processor->shouldReceive('process')->once()->andThrow(new RuntimeException('disk full'));
+        // Cleanup must remove whatever process() managed to write before failing.
+        $processor->shouldReceive('discard')->once();
+
+        try {
+            (new TrashpostService($processor))->createPost($user, null, $image, null);
+            $this->fail('Expected the processing failure to be rethrown.');
+        }
+        catch (RuntimeException $e) {
+            $this->assertSame('disk full', $e->getMessage());
+        }
+
+        // The reserved row must not linger (not even soft-deleted).
+        $this->assertDatabaseCount('trashposts', 0);
     }
 }
