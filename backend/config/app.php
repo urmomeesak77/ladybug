@@ -32,6 +32,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Abuse Throttles (requests per minute)
+    |--------------------------------------------------------------------------
+    |
+    | Caps for the named rate limiters in AppServiceProvider. The defaults are
+    | the production values: auth (login/register, per IP) is strict to slow
+    | credential guessing; uploads (per user) bound image processing. The e2e
+    | environment raises them via env, since its specs register several users.
+    |
+    */
+
+    'auth_throttle' => env('AUTH_THROTTLE_PER_MINUTE', 5),
+
+    'upload_throttle' => env('UPLOAD_THROTTLE_PER_MINUTE', 10),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Debug Mode
     |--------------------------------------------------------------------------
     |

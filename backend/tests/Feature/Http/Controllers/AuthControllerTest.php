@@ -110,6 +110,42 @@ class AuthControllerTest extends TestCase {
         $response->assertJsonValidationErrors(['email', 'password']);
     }
 
+    public function test_login_is_rate_limited_after_too_many_attempts(): void {
+        User::factory()->create(['email' => 'ada@example.com']);
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'wrong-password']);
+        }
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'wrong-password']);
+
+        // The default throttle:api (60/min) is too permissive for credential guessing;
+        // login must lock an origin out after a handful of attempts.
+        $response->assertStatus(429);
+    }
+
+    public function test_auth_throttle_limit_is_env_configurable(): void {
+        // The e2e stack registers several real users per run, so the limit must be
+        // tunable per environment; the production default stays at 5/min.
+        config(['app.auth_throttle' => 2]);
+        for ($i = 0; $i < 2; $i++) {
+            $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'wrong-password']);
+        }
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'wrong-password']);
+
+        $response->assertStatus(429);
+    }
+
+    public function test_register_is_rate_limited_after_too_many_attempts(): void {
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/register', []);
+        }
+
+        $response = $this->postJson('/api/register', []);
+
+        $response->assertStatus(429);
+    }
+
     public function test_logout_succeeds_for_an_authenticated_user(): void {
         // The actual session revocation (Auth::logout + session invalidate) is a
         // framework behavior best proven against real database sessions in the live SPA

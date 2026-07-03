@@ -77,6 +77,19 @@ class CreatePostTest extends TestCase {
         $response->assertStatus(422)->assertJsonValidationErrors('youtube');
     }
 
+    public function test_upload_is_rate_limited_after_too_many_attempts(): void {
+        $user = User::factory()->create();
+        for ($i = 0; $i < 10; $i++) {
+            $this->actingAs($user)->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ']);
+        }
+
+        $response = $this->actingAs($user)->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ']);
+
+        // Uploads are heavier than reads (image processing, disk writes); a per-user
+        // cap keeps one account from flooding the feed or the disk.
+        $response->assertStatus(429);
+    }
+
     public function test_rejects_a_non_image_file(): void {
         $user = User::factory()->create();
         $response = $this->actingAs($user)->postJson('/api/posts', [

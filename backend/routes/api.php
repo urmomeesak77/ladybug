@@ -16,14 +16,22 @@ Route::get('/posts', [TrashpostsApiController::class, 'index'])->name('api.posts
 Route::get('/posts/{hash}', [TrashpostsApiController::class, 'show'])->name('api.posts.show');
 
 // Create a post (image upload or YouTube link). Authenticated only (Sanctum SPA session).
+// Throttled per user: uploads are heavier than reads (image processing, disk writes).
 Route::post('/posts', [TrashpostsApiController::class, 'store'])
-    ->middleware('auth:sanctum')
+    ->middleware(['auth:sanctum', 'throttle:uploads'])
     ->name('api.posts.store');
 
 // Auth (Sanctum SPA cookie-session). Register/login establish the session; the
 // stateful middleware (bootstrap/app.php) starts it for requests from the SPA.
-Route::post('/register', [AuthController::class, 'register'])->name('api.auth.register');
-Route::post('/login', [AuthController::class, 'login'])->name('api.auth.login');
+// Both use the named `auth` limiter (default 5/min, well below throttle:api's
+// 60/min): login to slow credential guessing, register to slow bulk account
+// creation (Principle VI). Limits are env-tunable — see AppServiceProvider.
+Route::post('/register', [AuthController::class, 'register'])
+    ->middleware('throttle:auth')
+    ->name('api.auth.register');
+Route::post('/login', [AuthController::class, 'login'])
+    ->middleware('throttle:auth')
+    ->name('api.auth.login');
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('api.auth.logout');
 // Public on purpose: returns the user when authenticated, else {data:null} (FR-005).
 Route::get('/user', [AuthController::class, 'user'])->name('api.auth.user');
