@@ -2,9 +2,9 @@
 .SYNOPSIS
   Dump the dev MySQL database (name + root password read from the container's
   own env, so overrides in the root .env are respected) to a timestamped .sql
-  file, then prune to the
-  most recent 10. Safe to call any time; if the mysql container is not running
-  there is nothing to back up, so it warns and exits 0 (never blocks teardown).
+  file, then prune to the most recent 10. Safe to call any time; if the mysql
+  container is not running there is nothing to back up, so it warns and exits 0
+  (never blocks teardown).
 
 .NOTES
   Used by scripts/down.ps1 (manual teardown) and by the Claude Code PreToolUse
@@ -22,15 +22,20 @@ param(
     #   2. $env:LADYBUG_BACKUP_DIR         (explicit override for dumps only)
     #   3. $env:LADYBUG_DATA_ROOT\ladybug-backups  (shared root; see .env.example)
     #   4. C:\docker_permanent\ladybug-backups     (baked-in default)
-    [string]$BackupDir
-    ,
+    [string]$BackupDir,
+
     # Filename prefix + retention glob ONLY. The database actually dumped is
-    # read from the container's own $MYSQL_DATABASE env (below), so this never
-    # affects dump correctness -- only what the file is called. Resolution:
+    # always the container's own $MYSQL_DATABASE (see $dump below); by default
+    # this prefix is read from the same place, so the filename matches the
+    # contents and dumps of different databases never share a retention pool.
+    # Resolution (first non-empty wins):
     #   1. -Database argument
-    #   2. $env:MYSQL_DATABASE
-    #   3. 'trashdb' (baked-in default)
-    [string]$Database = $(if ($env:MYSQL_DATABASE) { $env:MYSQL_DATABASE } else { 'trashdb' })
+    #   2. $env:MYSQL_DATABASE                    (process env, if exported)
+    #   3. the running container's $MYSQL_DATABASE (queried after the
+    #      is-running check below -- root .env is compose-only and never
+    #      reaches this script's process env)
+    #   4. 'trashdb' (baked-in default)
+    [string]$Database
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,6 +61,20 @@ try {
         return
     }
 
+    # Resolve the filename prefix from the container so it matches what gets
+    # dumped (see the param comment). Single-quoted so $MYSQL_DATABASE expands
+    # inside the container's sh, not on the host.
+    if (-not $Database) {
+        if ($env:MYSQL_DATABASE) {
+            $Database = $env:MYSQL_DATABASE
+        } else {
+            # No stderr redirect: under EAP=Stop, PS 5.1 turns redirected
+            # native stderr into a terminating NativeCommandError.
+            $Database = (docker compose exec -T mysql sh -c 'echo $MYSQL_DATABASE' | Out-String).Trim()
+        }
+        if (-not $Database) { $Database = 'trashdb' }
+    }
+
     if (-not (Test-Path $backupsDir)) {
         New-Item -ItemType Directory -Path $backupsDir -Force | Out-Null
     }
@@ -68,7 +87,11 @@ try {
     # stays byte-clean. --single-transaction gives a consistent InnoDB snapshot.
     # The dumped db name + root password are read from the container's OWN env
     # ($MYSQL_DATABASE / $MYSQL_ROOT_PASSWORD, set by the mysql image), so the
-    # dump is correct no matter how those are overridden in the root .env.
+    # dump follows overrides in the root .env with no host-side plumbing.
+    # Caveat: the image applies those vars only on FIRST INIT of an empty
+    # datadir -- on an existing datadir a changed MYSQL_ROOT_PASSWORD is env-
+    # only, the server still has the old password, and this dump fails
+    # (caught by the size check below). See .env.example.
     # The sh -c script is wrapped in DOUBLE quotes with backslash-escaped inner
     # "s, not single quotes: this whole line is handed to cmd.exe, and both
     # cmd's own operator parsing and docker.exe's Windows-native argv splitting
