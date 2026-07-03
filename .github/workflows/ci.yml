@@ -81,3 +81,62 @@ jobs:
 
       - name: Test with coverage (>=90%)
         run: npx vitest run --coverage --coverage.thresholds.lines=90
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Same seeding scripts/e2e.ps1 does locally: the committed template plus a
+      # fresh APP_KEY. The file is mounted over /app/.env inside backend-e2e.
+      - name: Seed backend/.env.e2e
+        run: |
+          key="base64:$(openssl rand -base64 32)"
+          sed "s|^APP_KEY=$|APP_KEY=${key}|" backend/.env.e2e.example > backend/.env.e2e
+
+      # The isolated, disposable stack (tmpfs MySQL, ports 5174/8001) — the same one
+      # scripts/e2e.ps1 runs locally. There is no persistent database in this job.
+      - name: Boot the isolated e2e stack
+        run: docker compose -p ladybug-e2e -f docker-compose.e2e.yml up -d --build --wait
+
+      - name: Install Playwright
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      # --wait only covers container health; the backend serves only after
+      # migrate:fresh + seeding, and Vite only after its in-container npm install.
+      # Poll both (cap ~3 min each) like the local script does.
+      - name: Wait for the backend and the SPA
+        run: |
+          for url in http://localhost:8001/api/health http://localhost:5174; do
+            ready=""
+            for attempt in $(seq 1 90); do
+              if curl -fsS -o /dev/null "$url"; then ready=1; break; fi
+              sleep 2
+            done
+            if [ -z "$ready" ]; then
+              echo "not ready: $url" >&2
+              docker compose -p ladybug-e2e -f docker-compose.e2e.yml logs
+              exit 1
+            fi
+          done
+
+      - name: Run e2e specs
+        working-directory: frontend
+        env:
+          E2E_BASE_URL: http://localhost:5174
+        run: npx playwright test
+
+      - name: Tear down the e2e stack
+        if: always()
+        run: docker compose -p ladybug-e2e -f docker-compose.e2e.yml down -v

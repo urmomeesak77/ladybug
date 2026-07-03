@@ -43,18 +43,26 @@ try {
     Write-Host "e2e: bringing up the isolated stack ($project)..."
     docker compose -p $project -f $composeFile up -d --build --wait
 
-    # --wait only blocks on container health; the Vite dev server needs `npm install`
-    # to finish before it serves. Poll the SPA root until it answers (cap ~3 min).
-    Write-Host "e2e: waiting for the SPA at $baseUrl ..."
-    $ready = $false
-    foreach ($attempt in 1..90) {
-        try {
-            $resp = Invoke-WebRequest -Uri $baseUrl -UseBasicParsing -TimeoutSec 3
-            if ($resp.StatusCode -eq 200) { $ready = $true; break }
+    # --wait only blocks on container health; the backend serves only after
+    # migrate:fresh + seeding finish, and Vite only after its in-container npm
+    # install. Poll BOTH (cap ~3 min each) — a spec hitting the API before
+    # `artisan serve` listens fails as a connection-refused "network" error.
+    $probes = @(
+        @{ Name = 'backend'; Url = 'http://localhost:8001/api/health' },
+        @{ Name = 'SPA'; Url = $baseUrl }
+    )
+    foreach ($probe in $probes) {
+        Write-Host "e2e: waiting for the $($probe.Name) at $($probe.Url) ..."
+        $ready = $false
+        foreach ($attempt in 1..90) {
+            try {
+                $resp = Invoke-WebRequest -Uri $probe.Url -UseBasicParsing -TimeoutSec 3
+                if ($resp.StatusCode -eq 200) { $ready = $true; break }
+            }
+            catch { Start-Sleep -Seconds 2 }
         }
-        catch { Start-Sleep -Seconds 2 }
+        if (-not $ready) { throw "e2e: $($probe.Name) did not become ready at $($probe.Url)" }
     }
-    if (-not $ready) { throw "e2e: SPA did not become ready at $baseUrl" }
 
     Write-Host "e2e: running Playwright against $baseUrl ..."
     Push-Location (Join-Path $repoRoot 'frontend')

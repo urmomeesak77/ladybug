@@ -48,8 +48,10 @@ Supporting files:
 - **`docs/superpowers/`** — design specs and implementation plans (currently the
   CI lint+test pipeline).
 - **`docs/*.png`** — UI reference screenshots (login, signup, mainpage).
-- **`.github/workflows/ci.yml`** — CI pipeline (lint + test) for both stacks, plus
-  `.github/scripts/check_coverage.py` (the ≥90% Clover coverage gate).
+- **`.github/workflows/ci.yml`** — CI pipeline: lint + test jobs for both stacks
+  (the frontend Vitest coverage gate spans ALL of `src/`, not just `lib/`), plus an
+  `e2e` job that boots the isolated `docker-compose.e2e.yml` stack and runs the
+  Playwright specs; `.github/scripts/check_coverage.py` is the ≥90% Clover gate.
 
 **Local toolchain note:** there is no local PHP — run backend tests/artisan/coverage
 through the `php:8.3-cli` Docker container (project convention). The implemented code

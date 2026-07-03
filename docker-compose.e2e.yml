@@ -32,13 +32,15 @@ services:
     build:
       context: ./docker/php
     working_dir: /app
-    # migrate:fresh builds the throwaway ladybug_e2e schema from empty on every boot.
+    # migrate:fresh builds the throwaway ladybug_e2e schema from empty on every boot,
+    # then E2eSeeder plants the two deterministic feed batches feed.spec asserts.
     # The e2e DB/origin config comes from backend/.env.e2e (mounted over /app/.env
     # below), NOT container env vars: `php artisan serve` strips non-whitelisted env
     # (DB_*, SANCTUM_*) from its request workers, so those must live in the .env file
     # the workers read. This also keeps the dev backend/.env (mysql/trashdb) untouched.
     command: >
       sh -c "php artisan migrate:fresh --force;
+             php artisan db:seed --class=E2eSeeder --force;
              php artisan serve --host=0.0.0.0 --port=8000"
     volumes:
       - ./backend:/app
