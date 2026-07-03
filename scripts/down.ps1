@@ -1,16 +1,20 @@
 <#
 .SYNOPSIS
-  Safe teardown: dump trashdb first, then `docker compose down`.
+  Safe teardown: dump the dev MySQL database first, then `docker compose down`.
 
 .DESCRIPTION
-  Use this instead of `docker compose down`. All arguments are forwarded, so
-  `scripts\down.ps1 -v` still wipes the volume -- but only AFTER a fresh dump is
-  written to C:\docker_permanent\ladybug-backups (override via -BackupDir / LADYBUG_BACKUP_DIR),
-  which is exactly when a backup matters most.
+  Use this instead of `docker compose down`. A fresh dump is always written
+  first, to <LADYBUG_DATA_ROOT>\ladybug-backups (default
+  C:\docker_permanent\ladybug-backups; override via LADYBUG_BACKUP_DIR). All
+  arguments are forwarded to `docker compose down`. Note the MySQL datadir is
+  a host bind-mount, so even `down -v` does NOT wipe the database -- `-v` only
+  removes Docker-managed volumes (e.g. the frontend's anonymous node_modules
+  volume). The pre-down dump is kept anyway as a cheap logical backup.
 
 .EXAMPLE
-  scripts\down.ps1          # dump, then stop & remove containers (volume kept)
-  scripts\down.ps1 -v       # dump, then ALSO remove the data volume
+  scripts\down.ps1          # dump, then stop & remove containers
+  scripts\down.ps1 -v       # dump, then also remove Docker-managed volumes
+                            # (the bind-mounted DB datadir is untouched)
 #>
 [CmdletBinding()]
 param(

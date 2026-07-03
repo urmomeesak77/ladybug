@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-  Claude Code PreToolUse hook: dump trashdb before any `docker compose down`.
+  Claude Code PreToolUse hook: dump the dev MySQL database before any
+  `docker compose down`.
 
 .DESCRIPTION
   Reads the tool-call JSON from stdin. If the command is a compose teardown
