@@ -112,6 +112,16 @@ copying the root `.env.example` to `.env` and editing:
 | `MYSQL_ROOT_PASSWORD` | `root` | MySQL root password |
 | `MYSQL_HOST_PORT` | `4444` | host port mapped to the container's `3306` |
 
+> **Existing datadir? Overrides won't apply.** The MySQL image reads
+> `MYSQL_DATABASE` / `MYSQL_ROOT_PASSWORD` **only when initialising an empty
+> datadir**. Because the datadir is a durable bind-mount
+> (`…/ladybug-mysql`), it is almost never empty — changing these vars later
+> updates the container's env but **not** the actual server, leaving the two out
+> of sync (backups and the app then fail to authenticate). To change them on an
+> existing datadir, run `ALTER USER` / `CREATE DATABASE` against the server by
+> hand — or point `LADYBUG_DATA_ROOT` at a fresh location and re-initialise.
+> `MYSQL_HOST_PORT` is not affected; it applies on every `up`.
+
 These configure the MySQL **server** container only. The Laravel **app** reads its
 own DB connection from `backend/.env` (`DB_DATABASE` / `DB_PASSWORD`), a separate
 file: if you override `MYSQL_DATABASE` or `MYSQL_ROOT_PASSWORD`, mirror the change
