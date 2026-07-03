@@ -20,8 +20,8 @@ final class TrashpostsApiControllerTest extends TestCase {
         $response = $this->getJson('/api/posts');
 
         $response->assertOk();
-        $response->assertJsonPath('data.0.id', $newer->id);
-        $response->assertJsonPath('data.1.id', $older->id);
+        $response->assertJsonPath('data.0.hash', $newer->hash);
+        $response->assertJsonPath('data.1.hash', $older->hash);
     }
 
     public function test_feed_item_exposes_the_documented_json_shape(): void {
@@ -31,9 +31,9 @@ final class TrashpostsApiControllerTest extends TestCase {
 
         $response->assertJsonStructure([
             'data' => [[
-                'id', 'hash', 'title', 'type', 'file', 'youtube',
-                'user_id', 'username', 'comment', 'metadata',
-                'created_at', 'updated_at', 'activated_at', 'deleted_at',
+                'hash', 'title', 'type', 'file', 'youtube',
+                'username', 'metadata',
+                'created_at', 'updated_at', 'activated_at',
                 'url', 'url_api', 'original', 'default', 'sizes',
             ]],
         ]);
@@ -42,6 +42,18 @@ final class TrashpostsApiControllerTest extends TestCase {
             "/api/posts/{$post->hash}",
             $response->json('data.0.url_api'),
         );
+    }
+
+    public function test_feed_item_does_not_leak_internal_fields(): void {
+        Trashpost::factory()->visible()->create();
+
+        $item = $this->getJson('/api/posts')->json('data.0');
+
+        // The hash is the public identifier (Principle V); the DB id, owner id, and
+        // soft-delete bookkeeping are internal and stay out of the payload.
+        foreach (['id', 'user_id', 'deleted_at', 'comment'] as $internal) {
+            $this->assertArrayNotHasKey($internal, $item);
+        }
     }
 
     public function test_feed_caps_a_page_at_ten_posts(): void {
@@ -58,8 +70,7 @@ final class TrashpostsApiControllerTest extends TestCase {
     }
 
     public function test_feed_cursor_paging_walks_pages_with_no_overlap_or_gap(): void {
-        $posts = Trashpost::factory()->count(5)->visible()->create();
-        $allIds = $posts->pluck('id')->sort()->values()->all();
+        Trashpost::factory()->count(5)->visible()->create();
 
         $page1 = $this->getJson('/api/posts?limit=2');
         $page1->assertJsonCount(2, 'data');
@@ -68,7 +79,7 @@ final class TrashpostsApiControllerTest extends TestCase {
         $page2 = $this->getJson("/api/posts?limit=2&start={$cursor}");
         $page2->assertJsonCount(2, 'data');
 
-        $seen = array_merge($page1->json('data.*.id'), $page2->json('data.*.id'));
+        $seen = array_merge($page1->json('data.*.hash'), $page2->json('data.*.hash'));
         $this->assertSame($seen, array_unique($seen), 'pages must not overlap');
     }
 
@@ -79,7 +90,7 @@ final class TrashpostsApiControllerTest extends TestCase {
 
         $response = $this->getJson("/api/posts?start={$cursor->hash}");
 
-        $response->assertJsonPath('data.0.id', $olderButLargerId->id);
+        $response->assertJsonPath('data.0.hash', $olderButLargerId->hash);
     }
 
     public function test_feed_returns_an_empty_data_array_when_no_posts_are_visible(): void {
@@ -97,7 +108,6 @@ final class TrashpostsApiControllerTest extends TestCase {
         $response = $this->getJson("/api/posts/{$post->hash}");
 
         $response->assertOk();
-        $response->assertJsonPath('data.id', $post->id);
         $response->assertJsonPath('data.hash', $post->hash);
     }
 

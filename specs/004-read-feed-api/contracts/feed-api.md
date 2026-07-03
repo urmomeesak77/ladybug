@@ -72,25 +72,24 @@ GET /api/posts/<deleted>    → 404   (soft-deleted)
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `id` | int | DB id (informational; not the public handle). |
 | `hash` | string | Public identifier (URLs, cursor, lookups). |
 | `title` | string\|null | |
 | `type` | string\|null | |
 | `file` | string\|null | Image filename `{code}.{ext}`; null for link-only posts. |
 | `youtube` | string\|null | |
-| `user_id` | int\|null | Owner reference. |
 | `username` | string\|null | Denormalized owner name (for rendering). |
-| `comment` | string\|null | |
 | `metadata` | string\|null | |
 | `created_at` | string (ISO-8601) | |
 | `updated_at` | string (ISO-8601) | |
 | `activated_at` | string (ISO-8601)\|null | Always non-null for returned posts. |
-| `deleted_at` | null | Always null for returned posts. |
 | `url` | string | Frontend deep link `/posts/{hash}`. |
 | `url_api` | string | Absolute URL of `GET /api/posts/{hash}`. |
 | `original` | string\|null | URL of the `original` size if present on disk, else null. |
 | `default` | string\|null | `800` URL if present, else widest present size, else `original`, else null. |
 | `sizes` | array | `[{ "url": string, "width": int }, …]` — only numeric sizes present on disk, widest-first. `[]` when the post has no image. |
+
+Internal bookkeeping is deliberately **not** serialized: the DB `id` (the `hash` is the
+public identifier — Constitution Principle V), `user_id`, `comment`, and `deleted_at`.
 
 ### Image-size rules
 
