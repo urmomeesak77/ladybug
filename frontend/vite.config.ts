@@ -11,12 +11,14 @@ export default defineConfig({
     watch: { usePolling: true },
   },
   test: {
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.{ts,tsx}'],
     coverage: {
-      // Scope coverage to the source actually under test so untested skeleton
-      // entry files (main.tsx/App.tsx) do not mask or sink the real number.
+      // ALL source is coverage-gated (Principle VII), not just lib/. The only
+      // exclusion is main.tsx: it mounts <App/> at import time, so importing it
+      // in a test would boot the real app instead of exercising a unit.
       provider: 'v8',
-      include: ['src/lib/**/*.ts'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/main.tsx'],
       thresholds: { lines: 90 },
     },
   },
