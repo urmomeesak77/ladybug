@@ -57,6 +57,8 @@ Prototype reference files:
   Placeholders: `Display name`, `E-mail`, `Password`, `Re-type password`.
   A new `.sr-only` utility class is added to `theme.css`.
 - Inputs and submit button full-width with the prototype's 20px bottom rhythm.
+- Submit button captions per prototype: `Login` / `Register`, static while the
+  request runs (the disabled fieldset is the in-flight signal; no caption swap).
 - Cross-links, centered under the form:
   - Login: `No account? Register here....` → `/register`
   - Register: `Already have an account? Login here....` → `/login`
@@ -92,6 +94,13 @@ Port of the prototype's native `<dialog>` modal:
   prototype `.notice-dialog` styling.
 - Deviation from prototype: Esc/cancel triggers `onClose` instead of being
   swallowed (a11y improvement).
+- **Mounting:** a successful register flips auth state, which makes
+  `RequireAnon` unmount `RegisterPage` immediately — a page-local dialog would
+  vanish before it is seen. The dialog therefore renders from a small
+  `NoticeProvider` (`components/NoticeProvider.tsx` + `hooks/useNotice.ts`,
+  mirroring the AuthProvider/useAuth pattern) mounted above the routes in
+  `App.tsx`. Pages trigger it via `useNotice().show({ message })`; the provider
+  renders `NoticeDialog` until `clear()`.
 
 Usage:
 
