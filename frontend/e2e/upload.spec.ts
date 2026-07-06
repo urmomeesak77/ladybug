@@ -11,11 +11,13 @@ function uniqueEmail(): string {
 
 async function register(page: import('@playwright/test').Page, email: string): Promise<void> {
   await page.goto('/register');
-  await page.getByLabel('Name').fill('E2E Uploader');
-  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Display name').fill('E2E Uploader');
+  await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Password', { exact: true }).fill('Password1');
-  await page.getByLabel('Confirm password').fill('Password1');
+  await page.getByLabel('Re-type password').fill('Password1');
   await page.getByRole('button', { name: 'Register' }).click();
+  await expect(page.getByText('Welcome, E2E Uploader! Your account is ready.')).toBeVisible();
+  await page.getByRole('button', { name: 'Ok' }).click();
 }
 
 // A minimal valid 1x1 PNG — enough for the backend's getimagesize well-formedness check.

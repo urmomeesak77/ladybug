@@ -13,11 +13,13 @@ function uniqueEmail(): string {
 
 async function register(page: import('@playwright/test').Page, email: string): Promise<void> {
   await page.goto('/register');
-  await page.getByLabel('Name').fill('E2E User');
-  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Display name').fill('E2E User');
+  await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Password', { exact: true }).fill('Password1');
-  await page.getByLabel('Confirm password').fill('Password1');
+  await page.getByLabel('Re-type password').fill('Password1');
   await page.getByRole('button', { name: 'Register' }).click();
+  await expect(page.getByText('Welcome, E2E User! Your account is ready.')).toBeVisible();
+  await page.getByRole('button', { name: 'Ok' }).click();
 }
 
 test.describe('Auth', () => {
@@ -56,9 +58,9 @@ test.describe('Auth', () => {
     await expect(page.getByRole('link', { name: 'Login' })).toBeVisible();
 
     await page.goto('/login');
-    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('E-mail').fill(email);
     await page.getByLabel('Password', { exact: true }).fill('Password1');
-    await page.getByRole('button', { name: 'Log in' }).click();
+    await page.getByRole('button', { name: 'Login' }).click();
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('link', { name: 'Account' })).toBeVisible();
 
@@ -72,9 +74,9 @@ test.describe('Auth', () => {
 
   test('login with wrong credentials shows a single non-disclosing error', async ({ page }) => {
     await page.goto('/login');
-    await page.getByLabel('Email').fill(uniqueEmail());
+    await page.getByLabel('E-mail').fill(uniqueEmail());
     await page.getByLabel('Password', { exact: true }).fill('WrongPass1');
-    await page.getByRole('button', { name: 'Log in' }).click();
+    await page.getByRole('button', { name: 'Login' }).click();
 
     await expect(page.getByText('Email or password is incorrect.')).toBeVisible();
     await expect(page).toHaveURL('/login');
