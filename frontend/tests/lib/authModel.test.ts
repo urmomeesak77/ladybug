@@ -15,23 +15,50 @@ describe('validateRegister', () => {
   });
 
   it('flags a missing name', () => {
-    expect(AuthModel.validateRegister({ ...validRegister, name: '  ' }).name).toBeDefined();
+    expect(AuthModel.validateRegister({ ...validRegister, name: '  ' }).name)
+      .toEqual(['Display name is required.']);
   });
 
   it('flags a malformed email', () => {
-    expect(AuthModel.validateRegister({ ...validRegister, email: 'not-an-email' }).email).toBeDefined();
+    expect(AuthModel.validateRegister({ ...validRegister, email: 'not-an-email' }).email)
+      .toEqual(['Enter a valid email address.']);
   });
 
-  it('flags a password that is too short or lacks variety', () => {
-    for (const password of ['short', 'alllowercase1', 'NoNumbersHere']) {
-      const errors = AuthModel.validateRegister({ ...validRegister, password, passwordConfirmation: password });
-      expect(errors.password).toBeDefined();
-    }
+  it('reports each password policy violation as its own message', () => {
+    const errors = AuthModel.validateRegister({
+      ...validRegister, password: 'short', passwordConfirmation: 'short',
+    });
+    expect(errors.password).toEqual([
+      'The password field must be at least 8 characters.',
+      'The password field must contain at least one uppercase and one lowercase letter.',
+      'The password field must contain at least one number.',
+    ]);
   });
 
   it('flags a confirmation that does not match', () => {
     const errors = AuthModel.validateRegister({ ...validRegister, passwordConfirmation: 'Different1' });
-    expect(errors.passwordConfirmation).toBeDefined();
+    expect(errors.passwordConfirmation).toEqual(['Passwords do not match.']);
+  });
+
+  it('flags an empty confirmation as required', () => {
+    const errors = AuthModel.validateRegister({ ...validRegister, passwordConfirmation: '' });
+    expect(errors.passwordConfirmation).toEqual(['Re-type password is required.']);
+  });
+
+  it('only validates touched fields when a touched set is given', () => {
+    const empty = { name: '', email: '', password: '', passwordConfirmation: '' };
+    const errors = AuthModel.validateRegister(empty, new Set(['email']));
+    expect(errors).toEqual({ email: ['E-mail is required.'] });
+  });
+
+  it('holds the mismatch check until both password fields are touched', () => {
+    const values = { ...validRegister, passwordConfirmation: 'Different1' };
+    const oneTouched = AuthModel.validateRegister(values, new Set(['passwordConfirmation']));
+    expect(oneTouched.passwordConfirmation).toBeUndefined();
+    const bothTouched = AuthModel.validateRegister(
+      values, new Set(['password', 'passwordConfirmation']),
+    );
+    expect(bothTouched.passwordConfirmation).toEqual(['Passwords do not match.']);
   });
 });
 
@@ -42,8 +69,13 @@ describe('validateLogin', () => {
 
   it('flags a missing email and password', () => {
     const errors = AuthModel.validateLogin({ email: '', password: '' });
-    expect(errors.email).toBeDefined();
-    expect(errors.password).toBeDefined();
+    expect(errors.email).toEqual(['E-mail is required.']);
+    expect(errors.password).toEqual(['Password is required.']);
+  });
+
+  it('only validates touched fields when a touched set is given', () => {
+    const errors = AuthModel.validateLogin({ email: '', password: '' }, new Set(['password']));
+    expect(errors).toEqual({ password: ['Password is required.'] });
   });
 });
 

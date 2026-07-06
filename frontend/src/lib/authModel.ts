@@ -16,34 +16,43 @@ export type LoginValues = { email: string; password: string };
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Client-side auth form validation and small auth-state helpers, converged onto one class.
-// The server re-validates everything (FR-002); these only give instant feedback.
+// The server re-validates everything (FR-002); these only give instant feedback. A
+// `touched` set limits blur-time validation to fields the user has visited (prototype
+// behavior); omitting it validates everything, which is what submit does.
 export class AuthModel {
-  static validateRegister(values: RegisterValues): FieldErrors {
+  static validateRegister(values: RegisterValues, touched?: Set<string>): FieldErrors {
     const errors: FieldErrors = {};
-    if (!values.name.trim()) {
-      errors.name = ['Name is required.'];
+    if (AuthModel.isTouched(touched, 'name') && !values.name.trim()) {
+      errors.name = ['Display name is required.'];
     }
-    const emailError = AuthModel.emailFieldError(values.email);
-    if (emailError) {
-      errors.email = [emailError];
+    if (AuthModel.isTouched(touched, 'email')) {
+      const emailErrors = AuthModel.emailFieldErrors(values.email);
+      if (emailErrors.length > 0) {
+        errors.email = emailErrors;
+      }
     }
-    const passwordError = AuthModel.passwordPolicyError(values.password);
-    if (passwordError) {
-      errors.password = [passwordError];
+    if (AuthModel.isTouched(touched, 'password')) {
+      const passwordErrors = AuthModel.passwordPolicyErrors(values.password);
+      if (passwordErrors.length > 0) {
+        errors.password = passwordErrors;
+      }
     }
-    if (values.password !== values.passwordConfirmation) {
-      errors.passwordConfirmation = ['Passwords do not match.'];
+    const confirmationErrors = AuthModel.confirmationErrors(values, touched);
+    if (confirmationErrors.length > 0) {
+      errors.passwordConfirmation = confirmationErrors;
     }
     return errors;
   }
 
-  static validateLogin(values: LoginValues): FieldErrors {
+  static validateLogin(values: LoginValues, touched?: Set<string>): FieldErrors {
     const errors: FieldErrors = {};
-    const emailError = AuthModel.emailFieldError(values.email);
-    if (emailError) {
-      errors.email = [emailError];
+    if (AuthModel.isTouched(touched, 'email')) {
+      const emailErrors = AuthModel.emailFieldErrors(values.email);
+      if (emailErrors.length > 0) {
+        errors.email = emailErrors;
+      }
     }
-    if (!values.password) {
+    if (AuthModel.isTouched(touched, 'password') && !values.password) {
       errors.password = ['Password is required.'];
     }
     return errors;
@@ -59,29 +68,51 @@ export class AuthModel {
     return user ? 'authenticated' : 'anonymous';
   }
 
-  private static emailFieldError(email: string): string | null {
-    if (!email.trim()) {
-      return 'Email is required.';
-    }
-    if (!EMAIL_PATTERN.test(email)) {
-      return 'Enter a valid email address.';
-    }
-    return null;
+  private static isTouched(touched: Set<string> | undefined, field: string): boolean {
+    return touched === undefined || touched.has(field);
   }
 
-  // Mirrors the server policy (min 8, mixed case, a number — research D3) so users get
-  // feedback before submitting; the server re-validates regardless.
-  private static passwordPolicyError(password: string): string | null {
+  private static emailFieldErrors(email: string): string[] {
+    if (!email.trim()) {
+      return ['E-mail is required.'];
+    }
+    if (!EMAIL_PATTERN.test(email)) {
+      return ['Enter a valid email address.'];
+    }
+    return [];
+  }
+
+  // Mirrors the server policy (min 8, mixed case, a number — research D3), one message
+  // per violation like the prototype, so users see exactly what is missing.
+  private static passwordPolicyErrors(password: string): string[] {
     if (!password) {
-      return 'Password is required.';
+      return ['Password is required.'];
     }
-    const longEnough = password.length >= 8;
-    const hasLower = /[a-z]/.test(password);
-    const hasUpper = /[A-Z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    if (longEnough && hasLower && hasUpper && hasNumber) {
-      return null;
+    const violations: string[] = [];
+    if (password.length < 8) {
+      violations.push('The password field must be at least 8 characters.');
     }
-    return 'Password must be at least 8 characters and include upper and lower case letters and a number.';
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password)) {
+      violations.push('The password field must contain at least one uppercase and one lowercase letter.');
+    }
+    if (!/[0-9]/.test(password)) {
+      violations.push('The password field must contain at least one number.');
+    }
+    return violations;
+  }
+
+  // The mismatch check waits until BOTH password fields are touched and non-empty
+  // (prototype behavior) so filling the confirmation first is not punished early.
+  private static confirmationErrors(values: RegisterValues, touched?: Set<string>): string[] {
+    if (AuthModel.isTouched(touched, 'passwordConfirmation') && !values.passwordConfirmation) {
+      return ['Re-type password is required.'];
+    }
+    const bothTouched = AuthModel.isTouched(touched, 'password')
+      && AuthModel.isTouched(touched, 'passwordConfirmation');
+    const bothFilled = values.password.length > 0 && values.passwordConfirmation.length > 0;
+    if (bothTouched && bothFilled && values.password !== values.passwordConfirmation) {
+      return ['Passwords do not match.'];
+    }
+    return [];
   }
 }
