@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
-import NavMenu from './NavMenu';
+import LeftMenu from './LeftMenu';
 
-// Shared shell every route mounts inside: site logo header + primary nav, then the
-// routed view in the <main> landmark. Landmarks (<header>/<nav>/<main>) give assistive
-// tech a navigable page structure (Principle IV). The logo links home so it doubles
-// as a logo-home affordance. <picture> swaps the logo art per color scheme so the
-// wordmark stays legible in both themes (Principle IV); the <img> alt names the site.
+// Shared shell every route mounts inside: a logo-only header (the prototype's
+// top-menu), then a centered container holding the fixed left menu and the routed
+// view in the <main> landmark. Landmarks (<header>/<nav>/<main>) give assistive tech
+// a navigable page structure (Principle IV). The logo links home so it doubles as a
+// logo-home affordance; <picture> swaps the logo art per color scheme so the wordmark
+// stays legible in both themes (Principle IV); the <img> alt names the site.
 function PageLayout({ children }: { children: ReactNode }) {
   return (
     <>
@@ -18,9 +19,11 @@ function PageLayout({ children }: { children: ReactNode }) {
             <img src="/logo-light.png" alt="online-trash home" />
           </picture>
         </Link>
-        <NavMenu />
       </header>
-      <main>{children}</main>
+      <div className="main-container">
+        <LeftMenu />
+        <main>{children}</main>
+      </div>
     </>
   );
 }

@@ -50,4 +50,15 @@ describe('PageLayout', () => {
     const logo = screen.getByRole('img', { name: /online-trash home/i });
     expect(logo.closest('a')?.getAttribute('href')).toBe('/');
   });
+
+  it('keeps the header to the logo only; primary nav lives in the left menu', () => {
+    renderLayout();
+
+    const header = screen.getByRole('banner');
+    expect(header.querySelectorAll('a')).toHaveLength(1);
+
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    expect(header.contains(nav)).toBe(false);
+    expect(nav.closest('.main-container')).not.toBeNull();
+  });
 });
