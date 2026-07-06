@@ -12,6 +12,8 @@
   /* The prototype uses this gray-blue for input/button borders in BOTH schemes. */
   --color-control-border: #4a5568;
   --color-focus: #1a73e8;
+  /* Prototype leftbar hover wash (black-on-light, white-on-dark). */
+  --color-menu-hover: rgb(0 0 0 / 10%);
 
   /* Spacing scale. */
   --space-xs: 0.25rem;
@@ -77,6 +79,7 @@ img {
     --color-text-muted: #a6a6b3;
     --color-error: #ff6b81;
     --color-focus: #7cb0ff;
+    --color-menu-hover: rgb(255 255 255 / 10%);
   }
 }
 
@@ -85,18 +88,12 @@ img {
  * No horizontal scroll from ~320px to wide desktop (Principle VIII). *
  * ------------------------------------------------------------------ */
 
-/* Site header: centered logo + nav. Sticky so the logo and nav stay reachable while
-   scrolling the feed (Principle IV). The logo is absolutely centered (matching the
-   prototype's top-menu), nav sits at the right edge. */
+/* Site header: just the centered logo (the prototype's top-menu). Sticky so it stays
+   reachable while scrolling the feed (Principle IV). */
 header {
   position: sticky;
   top: 0;
   z-index: 10;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-sm);
   min-height: 70px;
   padding: var(--space-md);
   border-bottom: 1px solid var(--color-border);
@@ -127,46 +124,102 @@ header {
   object-fit: cover;
 }
 
-/* Below ~560px the absolutely-centered 250px logo and the right-aligned nav links can no
-   longer coexist on one row without overlapping (T017); stack them instead. */
-@media (max-width: 35rem) {
-  header {
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .site-logo {
-    position: static;
-    transform: none;
-  }
+/* Centered page container (prototype .main-container): the fixed left menu pins to
+   this container's left edge; the extra 210px keeps the content column at the width
+   it had before the leftbar arrived. */
+.main-container {
+  max-width: calc(var(--layout-max-width) + 210px);
+  margin-inline: auto;
 }
 
-nav ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-md);
+/* Prototype left menu: a 200px rail. position:fixed without offsets keeps the
+   element at its static position (below the header, at the container's left edge)
+   but stops it scrolling with the page — the prototype's trick. */
+#left-menu {
+  position: fixed;
+  width: 200px;
+  min-height: 60px;
+  padding: 10px 5px 0 0;
+  overflow: hidden;
+}
+
+#left-menu ul {
   list-style: none;
+  margin: 0;
   padding: 0;
 }
 
-nav a {
+#left-menu a,
+.left-menu__logout {
+  display: inline-block;
+  width: 90%;
+  margin: 0 0 15px 0;
+  padding: 0;
+  border-radius: 3px;
+  font-weight: 700;
   color: var(--color-text);
   text-decoration: none;
+  vertical-align: middle;
 }
 
-/* Current page: signalled by weight + underline as well as color, never color alone
-   (Principle IV / FR-011). aria-current is set by NavLink for assistive tech. */
-nav a[aria-current='page'] {
+/* The logout control is a button; strip the chrome so it reads like its link siblings. */
+.left-menu__logout {
+  font: inherit;
   font-weight: 700;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+#left-menu a:hover,
+.left-menu__logout:hover {
+  background-color: var(--color-menu-hover);
+}
+
+/* Current page: entries are already bold, so the underline carries the non-color
+   signal (Principle IV / FR-011). aria-current is set by NavLink for assistive tech. */
+#left-menu a[aria-current='page'] {
   text-decoration: underline;
   text-underline-offset: 0.25rem;
 }
 
+/* Prototype icon treatment: glyph and rounded backdrop both take the text color at
+   different opacities, so they follow the scheme tokens with no extra dark rules. */
+svg.left-menu-icon {
+  width: 25px;
+  height: 25px;
+  margin: 0 5px 0 0;
+  vertical-align: middle;
+  border-radius: 5px;
+}
+
+svg.left-menu-icon g {
+  fill: var(--color-text);
+  stroke: var(--color-text);
+  opacity: 0.5;
+}
+
+svg.left-menu-icon rect.left-menu-icon-bg {
+  fill: var(--color-text);
+  opacity: 0.2;
+}
+
 main {
-  max-width: var(--layout-max-width);
-  margin-inline: auto;
+  margin-left: 210px;
   padding: var(--space-md);
+}
+
+/* Prototype parity below 800px: the leftbar disappears and content goes full width
+   (accepted trade-off — 2026-07-06 leftbar design spec). */
+@media (max-width: 50rem) {
+  #left-menu {
+    display: none;
+  }
+
+  main {
+    margin-left: 0;
+  }
 }
 
 /* Feed list: one column of cards with consistent spacing. */
@@ -377,22 +430,10 @@ main {
   margin: 0;
 }
 
-/* Nav logout is a text-style button so it sits inline with the nav links. */
-.nav-logout {
-  font: inherit;
-  color: var(--color-text);
-  background: none;
-  border: 0;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 0.25rem;
-  cursor: pointer;
-}
-
 /* Centered cross-links under the form (prototype: "No account? Register here...."). */
 .auth-form__link {
   text-align: center;
-  margin-bottom: var(--space-sm);
+  margin: 20px 0 var(--space-md); /* Top matches the 20px control rhythm above. */
 }
 
 .auth-form__link a {
