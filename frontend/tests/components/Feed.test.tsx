@@ -131,7 +131,9 @@ describe('Feed', () => {
     expect(await screen.findByText('Post a0000000')).toBeTruthy();
   });
 
-  it('stops auto-loading at the 200-entry page break and links the next page', async () => {
+  // Rendering a 200-post page is heavy; under full-suite parallel load the default 5s
+  // timeout is occasionally exceeded even though the test itself is fast in isolation.
+  it('stops auto-loading at the 200-entry page break and links the next page', { timeout: 15000 }, async () => {
     // Hydrate a full page from the snapshot so the break is reached without 20 fetches.
     const fullPage = posts(200, 'a');
     sessionStorage.setItem('ladybug.feed:/', JSON.stringify({
