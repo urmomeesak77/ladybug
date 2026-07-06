@@ -3,10 +3,17 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import NoticeProvider from '../../src/components/NoticeProvider';
 import { AuthContext } from '../../src/hooks/useAuth';
 import type { AuthContextValue } from '../../src/hooks/useAuth';
 import type { AuthResult } from '../../src/lib/authApi';
 import RegisterPage from '../../src/pages/RegisterPage';
+
+if (!HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.open = true;
+  };
+}
 
 afterEach(cleanup);
 
@@ -28,8 +35,10 @@ function renderRegister(registerResult: AuthResult) {
   render(
     <MemoryRouter initialEntries={['/register']}>
       <AuthContext.Provider value={value}>
-        <LocationProbe />
-        <RegisterPage />
+        <NoticeProvider>
+          <LocationProbe />
+          <RegisterPage />
+        </NoticeProvider>
       </AuthContext.Provider>
     </MemoryRouter>,
   );
@@ -37,10 +46,10 @@ function renderRegister(registerResult: AuthResult) {
 }
 
 function fillForm(confirmation = 'Password1') {
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Ada' } });
-  fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } });
+  fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Ada' } });
+  fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ada@example.com' } });
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'Password1' } });
-  fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: confirmation } });
+  fireEvent.change(screen.getByLabelText('Re-type password'), { target: { value: confirmation } });
 }
 
 const okResult: AuthResult = {
@@ -55,14 +64,25 @@ const okResult: AuthResult = {
 };
 
 describe('RegisterPage', () => {
-  it('validates client-side before calling the API', async () => {
+  it('validates client-side on submit before calling the API', async () => {
     const register = renderRegister(okResult);
 
     fireEvent.click(screen.getByRole('button', { name: 'Register' }));
 
-    expect(await screen.findByText('Name is required.')).toBeTruthy();
-    expect(screen.getByText('Email is required.')).toBeTruthy();
+    expect(await screen.findByText('Display name is required.')).toBeTruthy();
+    expect(screen.getByText('E-mail is required.')).toBeTruthy();
     expect(register).not.toHaveBeenCalled();
+  });
+
+  it('shows password-policy violations on blur, one per line, and gates submit', async () => {
+    renderRegister(okResult);
+
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'short' } });
+    fireEvent.blur(screen.getByLabelText('Password'));
+
+    const error = await screen.findByText(/must be at least 8 characters/);
+    expect(error.textContent).toContain('must contain at least one number');
+    expect(screen.getByRole('button', { name: 'Register' })).toHaveProperty('disabled', true);
   });
 
   it('flags a mismatched password confirmation without calling the API', async () => {
@@ -75,12 +95,14 @@ describe('RegisterPage', () => {
     expect(register).not.toHaveBeenCalled();
   });
 
-  it('navigates home after a successful registration', async () => {
+  it('welcomes the user in a dialog and navigates home on success', async () => {
     const register = renderRegister(okResult);
 
     fillForm();
     fireEvent.click(screen.getByRole('button', { name: 'Register' }));
 
+    expect(await screen.findByText('Welcome, Ada! Your account is ready.')).toBeTruthy();
+    expect(document.querySelector('dialog')).not.toBeNull();
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/'));
     expect(register).toHaveBeenCalledWith({
       name: 'Ada',
@@ -103,12 +125,19 @@ describe('RegisterPage', () => {
     expect(await screen.findByText('The email has already been taken.')).toBeTruthy();
   });
 
-  it('shows a retryable generic message on a network failure', async () => {
+  it('raises a notice dialog on a network failure', async () => {
     renderRegister({ ok: false, kind: 'network' });
 
     fillForm();
     fireEvent.click(screen.getByRole('button', { name: 'Register' }));
 
-    expect(await screen.findByText(/something went wrong/i)).toBeTruthy();
+    expect(await screen.findByText('Failed to sign up. Please try again.')).toBeTruthy();
+  });
+
+  it('links to the login page', () => {
+    renderRegister(okResult);
+
+    const link = screen.getByRole('link', { name: 'Already have an account? Login here....' });
+    expect(link.getAttribute('href')).toBe('/login');
   });
 });
