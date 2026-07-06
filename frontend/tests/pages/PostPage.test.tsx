@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -48,7 +48,9 @@ describe('PostPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Funny cat' })).toBeTruthy();
     expect(screen.getByRole('img', { name: 'Funny cat' })).toBeTruthy();
-    expect(document.title).toBe('Funny cat - online-trash');
+    // The title is set in an effect keyed on the fetch state; await it rather than racing
+    // the effect flush (flaked under coverage-instrumented load).
+    await waitFor(() => expect(document.title).toBe('Funny cat - online-trash'));
   });
 
   it('falls back to a generic heading for an untitled meme', async () => {
@@ -57,7 +59,8 @@ describe('PostPage', () => {
     renderPost();
 
     expect(await screen.findByRole('heading', { name: 'Untitled meme' })).toBeTruthy();
-    expect(document.title).toBe('online-trash');
+    // Same effect race as above: the previous test's title lingers until the effect runs.
+    await waitFor(() => expect(document.title).toBe('online-trash'));
   });
 
   it('shows the not-found view for an unknown hash', async () => {
