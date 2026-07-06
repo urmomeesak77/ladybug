@@ -94,6 +94,20 @@ describe('mergeServerErrors', () => {
   });
 });
 
+describe('clearFieldError', () => {
+  it('removes only the named key', () => {
+    const errors = { email: ['server email msg'], password: ['server password msg'] };
+    expect(AuthModel.clearFieldError(errors, 'email')).toEqual({
+      password: ['server password msg'],
+    });
+  });
+
+  it('returns an equal-content object when the key is absent', () => {
+    const errors = { password: ['server password msg'] };
+    expect(AuthModel.clearFieldError(errors, 'email')).toEqual(errors);
+  });
+});
+
 describe('resolveStatus', () => {
   it('is authenticated when a user is present', () => {
     const user = { id: 1, name: 'A', email: 'a@b.c', createdAt: '', updatedAt: '' };

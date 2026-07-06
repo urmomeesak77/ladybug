@@ -24,26 +24,56 @@ function RegisterPage() {
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [touched, setTouched] = useState<Set<string>>(new Set());
-  const [errors, setErrors] = useState<FieldErrors>({});
+  // Client (blur/submit) and server (422) errors are tracked apart so that revalidating
+  // one field on blur never wipes out a server-reported error on another (server wins,
+  // but only the touched-aware client pass may replace clientErrors).
+  const [clientErrors, setClientErrors] = useState<FieldErrors>({});
+  const [serverErrors, setServerErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const errors = AuthModel.mergeServerErrors(clientErrors, serverErrors);
 
   function handleBlur(field: string): void {
     const nextTouched = new Set(touched).add(field);
     setTouched(nextTouched);
     const values = { name, email, password, passwordConfirmation };
-    setErrors(AuthModel.validateRegister(values, nextTouched));
+    setClientErrors(AuthModel.validateRegister(values, nextTouched));
+  }
+
+  // A field's server verdict no longer applies once its value changes.
+  function clearServerError(field: string): void {
+    setServerErrors(AuthModel.clearFieldError(serverErrors, field));
+  }
+
+  function handleNameChange(value: string): void {
+    setName(value);
+    clearServerError('name');
+  }
+
+  function handleEmailChange(value: string): void {
+    setEmail(value);
+    clearServerError('email');
+  }
+
+  function handlePasswordChange(value: string): void {
+    setPassword(value);
+    clearServerError('password');
+  }
+
+  function handlePasswordConfirmationChange(value: string): void {
+    setPasswordConfirmation(value);
+    clearServerError('passwordConfirmation');
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setTouched(new Set(REGISTER_FIELDS));
     const values = { name, email, password, passwordConfirmation };
-    const clientErrors = AuthModel.validateRegister(values);
-    if (Object.keys(clientErrors).length > 0) {
-      setErrors(clientErrors);
+    const validationErrors = AuthModel.validateRegister(values);
+    if (Object.keys(validationErrors).length > 0) {
+      setClientErrors(validationErrors);
       return;
     }
-    setErrors({});
+    setClientErrors({});
     setSubmitting(true);
     const result = await register(values);
     setSubmitting(false);
@@ -53,13 +83,16 @@ function RegisterPage() {
       return;
     }
     if (result.kind === 'validation') {
-      setErrors(AuthModel.mergeServerErrors({}, result.errors));
+      setClientErrors({});
+      setServerErrors(result.errors);
       return;
     }
     show({ message: 'Failed to sign up. Please try again.' });
   }
 
-  const hasErrors = Object.keys(errors).length > 0;
+  // Gates on client errors only: a lingering server error must not soft-lock the submit
+  // button once the user has corrected the field client-side validates.
+  const hasErrors = Object.keys(clientErrors).length > 0;
 
   return (
     <section className="auth">
@@ -73,7 +106,7 @@ function RegisterPage() {
             value={name}
             autoComplete="name"
             error={errors.name?.join('\n')}
-            onChange={setName}
+            onChange={handleNameChange}
             onBlur={() => handleBlur('name')}
           />
           <AuthField
@@ -83,7 +116,7 @@ function RegisterPage() {
             value={email}
             autoComplete="email"
             error={errors.email?.join('\n')}
-            onChange={setEmail}
+            onChange={handleEmailChange}
             onBlur={() => handleBlur('email')}
           />
           <AuthField
@@ -93,7 +126,7 @@ function RegisterPage() {
             value={password}
             autoComplete="new-password"
             error={errors.password?.join('\n')}
-            onChange={setPassword}
+            onChange={handlePasswordChange}
             onBlur={() => handleBlur('password')}
           />
           <AuthField
@@ -103,7 +136,7 @@ function RegisterPage() {
             value={passwordConfirmation}
             autoComplete="new-password"
             error={errors.passwordConfirmation?.join('\n')}
-            onChange={setPasswordConfirmation}
+            onChange={handlePasswordConfirmationChange}
             onBlur={() => handleBlur('passwordConfirmation')}
           />
           <button type="submit" disabled={submitting || hasErrors}>Register</button>

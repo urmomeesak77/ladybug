@@ -124,6 +124,30 @@ describe('LoginPage', () => {
     expect(await screen.findByText('Server says no.')).toBeTruthy();
   });
 
+  it('keeps a server field error when another field is blurred', async () => {
+    renderLogin({ ok: false, kind: 'validation', errors: { email: ['Server says no.'] } });
+
+    fillCredentials('ada@example.com', 'Password1');
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+    await screen.findByText('Server says no.');
+
+    fireEvent.blur(screen.getByLabelText('Password'));
+
+    expect(screen.getByText('Server says no.')).toBeTruthy();
+  });
+
+  it("clears a field's server error when its value changes", async () => {
+    renderLogin({ ok: false, kind: 'validation', errors: { email: ['Server says no.'] } });
+
+    fillCredentials('ada@example.com', 'Password1');
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+    await screen.findByText('Server says no.');
+
+    fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ada2@example.com' } });
+
+    expect(screen.queryByText('Server says no.')).toBeNull();
+  });
+
   it('raises a notice dialog on a network failure', async () => {
     renderLogin({ ok: false, kind: 'network' });
 

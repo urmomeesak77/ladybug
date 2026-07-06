@@ -64,6 +64,17 @@ export class AuthModel {
     return { ...client, ...server };
   }
 
+  // Drops one field's server-reported error, e.g. once its value changes and the prior
+  // server verdict no longer applies. A no-op copy is returned when the key is absent.
+  static clearFieldError(errors: FieldErrors, field: string): FieldErrors {
+    if (!(field in errors)) {
+      return errors;
+    }
+    const next = { ...errors };
+    delete next[field];
+    return next;
+  }
+
   static resolveStatus(user: AuthUser | null): AuthStatus {
     return user ? 'authenticated' : 'anonymous';
   }

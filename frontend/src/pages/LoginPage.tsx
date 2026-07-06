@@ -22,27 +22,47 @@ function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [touched, setTouched] = useState<Set<string>>(new Set());
-  const [errors, setErrors] = useState<FieldErrors>({});
+  // Client (blur/submit) and server (422) errors are tracked apart so that revalidating
+  // one field on blur never wipes out a server-reported error on another (server wins,
+  // but only the touched-aware client pass may replace clientErrors).
+  const [clientErrors, setClientErrors] = useState<FieldErrors>({});
+  const [serverErrors, setServerErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const errors = AuthModel.mergeServerErrors(clientErrors, serverErrors);
 
   function handleBlur(field: string): void {
     const nextTouched = new Set(touched).add(field);
     setTouched(nextTouched);
-    setErrors(AuthModel.validateLogin({ email, password }, nextTouched));
+    setClientErrors(AuthModel.validateLogin({ email, password }, nextTouched));
+  }
+
+  // A field's server verdict no longer applies once its value changes.
+  function clearServerError(field: string): void {
+    setServerErrors(AuthModel.clearFieldError(serverErrors, field));
+  }
+
+  function handleEmailChange(value: string): void {
+    setEmail(value);
+    clearServerError('email');
+  }
+
+  function handlePasswordChange(value: string): void {
+    setPassword(value);
+    clearServerError('password');
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    setFormError('');
     setTouched(new Set(LOGIN_FIELDS));
     const values = { email, password };
-    const clientErrors = AuthModel.validateLogin(values);
-    if (Object.keys(clientErrors).length > 0) {
-      setErrors(clientErrors);
+    const validationErrors = AuthModel.validateLogin(values);
+    if (Object.keys(validationErrors).length > 0) {
+      setClientErrors(validationErrors);
       return;
     }
-    setErrors({});
-    setFormError('');
+    setClientErrors({});
     setSubmitting(true);
     const result = await login(values);
     setSubmitting(false);
@@ -51,7 +71,8 @@ function LoginPage() {
       return;
     }
     if (result.kind === 'validation') {
-      setErrors(AuthModel.mergeServerErrors({}, result.errors));
+      setClientErrors({});
+      setServerErrors(result.errors);
       return;
     }
     if (result.kind === 'auth') {
@@ -61,7 +82,9 @@ function LoginPage() {
     show({ message: 'Failed to log in. Please try again.' });
   }
 
-  const hasErrors = Object.keys(errors).length > 0;
+  // Gates on client errors only: a lingering server error must not soft-lock the submit
+  // button once the user has corrected the field client-side validates.
+  const hasErrors = Object.keys(clientErrors).length > 0;
 
   return (
     <section className="auth">
@@ -76,7 +99,7 @@ function LoginPage() {
             value={email}
             autoComplete="email"
             error={errors.email?.join('\n')}
-            onChange={setEmail}
+            onChange={handleEmailChange}
             onBlur={() => handleBlur('email')}
           />
           <AuthField
@@ -86,7 +109,7 @@ function LoginPage() {
             value={password}
             autoComplete="current-password"
             error={errors.password?.join('\n')}
-            onChange={setPassword}
+            onChange={handlePasswordChange}
             onBlur={() => handleBlur('password')}
           />
           <button type="submit" disabled={submitting || hasErrors}>Login</button>

@@ -125,6 +125,38 @@ describe('RegisterPage', () => {
     expect(await screen.findByText('The email has already been taken.')).toBeTruthy();
   });
 
+  it('keeps a server field error when another field is blurred', async () => {
+    renderRegister({
+      ok: false,
+      kind: 'validation',
+      errors: { email: ['The email has already been taken.'] },
+    });
+
+    fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Register' }));
+    await screen.findByText('The email has already been taken.');
+
+    fireEvent.blur(screen.getByLabelText('Display name'));
+
+    expect(screen.getByText('The email has already been taken.')).toBeTruthy();
+  });
+
+  it("clears a field's server error when its value changes", async () => {
+    renderRegister({
+      ok: false,
+      kind: 'validation',
+      errors: { email: ['The email has already been taken.'] },
+    });
+
+    fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Register' }));
+    await screen.findByText('The email has already been taken.');
+
+    fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ada2@example.com' } });
+
+    expect(screen.queryByText('The email has already been taken.')).toBeNull();
+  });
+
   it('raises a notice dialog on a network failure', async () => {
     renderRegister({ ok: false, kind: 'network' });
 
