@@ -152,7 +152,7 @@ ladybug/
 ├── frontend/                     # React 18 + Vite + TypeScript SPA
 │   ├── src/
 │   │   ├── pages/                # HomePage, PostPage, LoginPage, RegisterPage, AccountPage, NotFoundPage
-│   │   ├── components/           # PageLayout, NavMenu, Feed, FeedItem, MemeMedia,
+│   │   ├── components/           # PageLayout, LeftMenu, Feed, FeedItem, MemeMedia,
 │   │   │                         #   AuthProvider, AuthField, RequireAuth, RequireAnon, states/
 │   │   ├── hooks/                # useFeed, usePost, useAuth, useTheme, useScrollRestoration
 │   │   ├── lib/                  # Api, AuthApi, FeedModel/PostModel/AuthModel, FeedCache,
