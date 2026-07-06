@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import AuthProvider from './components/AuthProvider';
+import NoticeProvider from './components/NoticeProvider';
 import PageLayout from './components/PageLayout';
 import RequireAnon from './components/RequireAnon';
 import RequireAuth from './components/RequireAuth';
@@ -19,17 +20,19 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <PageLayout>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/posts/:hash" element={<PostPage />} />
-            <Route path="/login" element={<RequireAnon><LoginPage /></RequireAnon>} />
-            <Route path="/register" element={<RequireAnon><RegisterPage /></RequireAnon>} />
-            <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
-            <Route path="/upload" element={<RequireAuth><UploadPage /></RequireAuth>} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </PageLayout>
+        <NoticeProvider>
+          <PageLayout>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/posts/:hash" element={<PostPage />} />
+              <Route path="/login" element={<RequireAnon><LoginPage /></RequireAnon>} />
+              <Route path="/register" element={<RequireAnon><RegisterPage /></RequireAnon>} />
+              <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
+              <Route path="/upload" element={<RequireAuth><UploadPage /></RequireAuth>} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </PageLayout>
+        </NoticeProvider>
       </AuthProvider>
     </BrowserRouter>
   );
