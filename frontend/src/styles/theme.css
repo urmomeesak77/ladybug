@@ -177,11 +177,10 @@ header {
   background-color: var(--color-menu-hover);
 }
 
-/* Current page: entries are already bold, so the underline carries the non-color
-   signal (Principle IV / FR-011). aria-current is set by NavLink for assistive tech. */
+/* Current page: the persistent hover-style backdrop marks the active entry without
+   an underline (Principle IV / FR-011). aria-current is set by NavLink for assistive tech. */
 #left-menu a[aria-current='page'] {
-  text-decoration: underline;
-  text-underline-offset: 0.25rem;
+  background-color: var(--color-menu-hover);
 }
 
 /* Prototype icon treatment: glyph and rounded backdrop both take the text color at
