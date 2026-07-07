@@ -95,6 +95,15 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # Before the stack boots: frontend-e2e's anonymous /app/node_modules volume
+      # makes Docker create frontend/node_modules on the host as root, after which
+      # a host npm ci hits EACCES. Installing first keeps the dir runner-owned.
+      - name: Install Playwright
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
       # backend-e2e bind-mounts ./backend and runs artisan straight off it, so the
       # checkout must carry vendor/ (locally the dev tree already has it). Same
       # install and cache key as the backend job, so this is usually a cache hit.
@@ -128,12 +137,6 @@ jobs:
       # scripts/e2e.ps1 runs locally. There is no persistent database in this job.
       - name: Boot the isolated e2e stack
         run: docker compose -p ladybug-e2e -f docker-compose.e2e.yml up -d --build --wait
-
-      - name: Install Playwright
-        working-directory: frontend
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
 
       # --wait only covers container health; the backend serves only after
       # migrate:fresh + seeding, and Vite only after its in-container npm install.
