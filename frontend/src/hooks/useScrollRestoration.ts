@@ -43,10 +43,13 @@ function scrollToAnchor(hash: string, offset: number): HTMLElement | null {
 // Restores the feed scroll position on Back/Forward/refresh and keeps the saved anchor
 // current as the user scrolls. Anchor-based so lazy images (no reserved height) cannot
 // throw off the restore: we pin a specific post to the viewport top, not a raw pixel.
-export function useScrollRestoration(cacheKey: string): void {
+// `fresh` (a link navigation, not history traversal) skips the saved anchor entirely:
+// the user asked for the page anew, so they start at the top.
+export function useScrollRestoration(cacheKey: string, fresh: boolean): void {
   // Restore before paint so the user never sees a flash at the top.
   useLayoutEffect(() => {
-    const target = ScrollAnchor.pickRestoreTarget(FeedCache.readSnapshot(sessionStorage, cacheKey));
+    const snapshot = fresh ? null : FeedCache.readSnapshot(sessionStorage, cacheKey);
+    const target = ScrollAnchor.pickRestoreTarget(snapshot);
     if (target.kind === 'top') {
       // A fresh page (e.g. reached via "Load more") starts at the top; with manual
       // scrollRestoration it would otherwise keep the previous page's clamped position.
@@ -62,7 +65,7 @@ export function useScrollRestoration(cacheKey: string): void {
       img.addEventListener('load', reapply, { once: true });
       return () => img.removeEventListener('load', reapply);
     }
-  }, [cacheKey]);
+  }, [cacheKey, fresh]);
 
   // Flush the final anchor when the feed unmounts. SPA Link navigation to a post does not
   // fire pagehide and cancels the throttled scroll timer, so without this the last scroll

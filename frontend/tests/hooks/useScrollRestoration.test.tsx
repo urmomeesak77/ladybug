@@ -38,7 +38,7 @@ afterEach(() => {
 
 describe('useScrollRestoration', () => {
   it('scrolls to the top when there is no saved anchor', () => {
-    renderHook(() => useScrollRestoration(CACHE_KEY));
+    renderHook(() => useScrollRestoration(CACHE_KEY, false));
 
     expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
   });
@@ -50,16 +50,28 @@ describe('useScrollRestoration', () => {
       anchorOffset: 40,
     }));
 
-    renderHook(() => useScrollRestoration(CACHE_KEY));
+    renderHook(() => useScrollRestoration(CACHE_KEY, false));
 
     // Item top (100) + saved offset (40); never a raw stored pixel value.
     expect(window.scrollTo).toHaveBeenCalledWith(0, 140);
   });
 
+  it('ignores the saved anchor and scrolls to the top when fresh', () => {
+    mountFeedList(['aaa0000001', 'bbb0000002']);
+    FeedCache.writeSnapshot(sessionStorage, CACHE_KEY, snapshot({
+      anchorHash: 'bbb0000002',
+      anchorOffset: 40,
+    }));
+
+    renderHook(() => useScrollRestoration(CACHE_KEY, true));
+
+    expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+  });
+
   it('captures the current anchor into the snapshot when the feed unmounts', () => {
     mountFeedList(['aaa0000001', 'bbb0000002']);
     FeedCache.writeSnapshot(sessionStorage, CACHE_KEY, snapshot({ anchorHash: null }));
-    const { unmount } = renderHook(() => useScrollRestoration(CACHE_KEY));
+    const { unmount } = renderHook(() => useScrollRestoration(CACHE_KEY, false));
 
     unmount();
 
@@ -70,7 +82,7 @@ describe('useScrollRestoration', () => {
   it('captures the anchor on pagehide (refresh / tab close)', () => {
     mountFeedList(['aaa0000001']);
     FeedCache.writeSnapshot(sessionStorage, CACHE_KEY, snapshot({ anchorHash: null }));
-    renderHook(() => useScrollRestoration(CACHE_KEY));
+    renderHook(() => useScrollRestoration(CACHE_KEY, false));
 
     window.dispatchEvent(new Event('pagehide'));
 
@@ -82,7 +94,7 @@ describe('useScrollRestoration', () => {
     try {
       mountFeedList(['aaa0000001']);
       FeedCache.writeSnapshot(sessionStorage, CACHE_KEY, snapshot({ anchorHash: null }));
-      renderHook(() => useScrollRestoration(CACHE_KEY));
+      renderHook(() => useScrollRestoration(CACHE_KEY, false));
 
       window.dispatchEvent(new Event('scroll'));
       vi.advanceTimersByTime(200);
