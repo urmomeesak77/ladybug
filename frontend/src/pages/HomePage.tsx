@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 
 import Feed from '../components/Feed';
 import { Pagination } from '../lib/pagination';
@@ -8,6 +8,7 @@ import { Pagination } from '../lib/pagination';
 // URL selects which feed page to show, so the view is bookmarkable and refresh-safe (US2).
 function HomePage() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const after = Pagination.pageStart(searchParams.get('after'));
 
   useEffect(() => {
@@ -16,9 +17,10 @@ function HomePage() {
 
   return (
     <section aria-label="Memes">
-      {/* Remount the feed when the page cursor changes so each page loads fresh, not
-          appended to the previous page (US2 page break / Back-Forward). */}
-      <Feed key={after ?? 'newest'} after={after} />
+      {/* Remount the feed on every navigation (location.key changes even when the URL
+          does not) so clicking Home while already on the feed still resets it; the
+          feed itself decides fresh-vs-restore from the navigation type. */}
+      <Feed key={location.key} after={after} />
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigationType } from 'react-router-dom';
 
 import { useFeed } from '../hooks/useFeed';
 import { useScrollRestoration } from '../hooks/useScrollRestoration';
@@ -31,9 +31,14 @@ function FeedStatusRegion({ status, onRetry }: { status: FeedStatus; onRetry: ()
 // Renders only the posts the API returned (FR-014); "Load more" advances the URL (US2).
 function Feed({ after }: { after?: string }) {
   const location = useLocation();
+  const navigationType = useNavigationType();
   const cacheKey = FeedCache.feedKey(location.pathname, location.search);
-  const { state, load, atPageBreak, canAutoLoad } = useFeed(after, cacheKey, false);
-  useScrollRestoration(cacheKey, false);
+  // How the user arrived decides fresh vs. restore: a link click (PUSH/REPLACE) asks
+  // for the page anew — top of feed, newest posts; Back/Forward/refresh/initial load
+  // (POP) restore the saved snapshot (Constitution: history must restore state).
+  const fresh = navigationType !== 'POP';
+  const { state, load, atPageBreak, canAutoLoad } = useFeed(after, cacheKey, fresh);
+  useScrollRestoration(cacheKey, fresh);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   // The next page's `?after` cursor is the last loaded post's hash (FR-004/FR-005).
   const nextCursor = Pagination.nextStart(state.posts);
