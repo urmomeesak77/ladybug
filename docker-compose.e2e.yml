@@ -22,7 +22,11 @@ services:
     tmpfs:
       - /var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-proot"]
+      # Ping over TCP (-h127.0.0.1), not the default socket: while the entrypoint
+      # initializes the fresh tmpfs datadir it runs a temporary, socket-only server
+      # that a socket ping declares "healthy" before MySQL actually listens on 3306,
+      # letting backend-e2e's migrate:fresh race ahead into "connection refused".
+      test: ["CMD", "mysqladmin", "ping", "-h127.0.0.1", "-proot"]
       interval: 5s
       timeout: 5s
       retries: 15
@@ -38,9 +42,11 @@ services:
     # below), NOT container env vars: `php artisan serve` strips non-whitelisted env
     # (DB_*, SANCTUM_*) from its request workers, so those must live in the .env file
     # the workers read. This also keeps the dev backend/.env (mysql/trashdb) untouched.
+    # && (not ;): if migrate/seed fail the container must die and fail `up --wait`
+    # loudly, not serve an empty schema whose /api/health still answers 200.
     command: >
-      sh -c "php artisan migrate:fresh --force;
-             php artisan db:seed --class=E2eSeeder --force;
+      sh -c "php artisan migrate:fresh --force &&
+             php artisan db:seed --class=E2eSeeder --force &&
              php artisan serve --host=0.0.0.0 --port=8000"
     volumes:
       - ./backend:/app
