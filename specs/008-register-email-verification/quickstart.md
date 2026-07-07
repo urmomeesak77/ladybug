@@ -36,7 +36,8 @@ Validation guide for the implemented feature. Contracts:
 
    (Join quoted-printable soft-wrapped lines and replace `=3D` with `=` if the
    URL is split.)
-4. Open the link (`http://localhost:5173/verify-email/{id}/{hash}?expires=…&signature=…`).
+4. Open the link (`http://localhost:5173/verify-email/{hash}?expires=…&signature=…` —
+   `{hash}` is a sha1 digest of your email; the link carries no user ids).
 5. **Expect**: a confirmation page; `/account` now shows **Verified** with no
    resend button. Refresh the link URL: an "already verified" notice, no error
    (idempotence, FR-005).

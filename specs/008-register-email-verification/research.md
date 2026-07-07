@@ -11,8 +11,11 @@ below; each decision records what was chosen, why, and what was rejected.
 **Decision**: Use the framework's stock email-verification stack, as the
 prototype does: `User implements MustVerifyEmail`, the built-in
 `Illuminate\Auth\Notifications\VerifyEmail` notification, temporary signed URLs,
-`EmailVerificationRequest::fulfill()` to mark verification, and `throttle:6,1`
-on verify/resend.
+`markEmailAsVerified()` + the `Verified` event to record verification, and
+`throttle:6,1` on verify/resend. One deliberate deviation: the stock
+`EmailVerificationRequest` is replaced by a small in-house `VerifyEmailRequest`
+because the stock request requires the user's DB id in the URL, which the owner
+does not want exposed (D3).
 
 **Prototype evidence**:
 - `app/Models/User.php` — `class User extends Authenticatable implements MustVerifyEmail`.
@@ -55,11 +58,12 @@ normalization for a single nullable column that already exists. Rejected.
 `AppServiceProvider::boot()`, via `VerifyEmail::createUrlUsing`:
 
 1. Build a **relative** temporary signed URL for the API route
-   `verification.verify` (`GET /api/email/verify/{id}/{hash}`), expiring per
+   `verification.verify` (`GET /api/email/verify/{hash}`, where `{hash}` is
+   `sha1` of the recipient's email), expiring per
    `config('auth.verification.expire')`.
 2. Emit it in the email as
-   `{FRONTEND_URL}/verify-email/{id}/{hash}?expires=…&signature=…`.
-3. The SPA landing page forwards `{id, hash, expires, signature}` back to the
+   `{FRONTEND_URL}/verify-email/{hash}?expires=…&signature=…`.
+3. The SPA landing page forwards `{hash, expires, signature}` back to the
    API URL; the route validates with the `signed:relative` middleware variant,
    so scheme/host/port differences between the two origins (5173 vs 8000 dev,
    5174 vs 8001 e2e) never break the signature.
@@ -73,13 +77,24 @@ signature validation must happen server-side. Signing the relative URL is the
 one arrangement where the same signature is valid no matter which origin the
 browser used, and it keeps the API contract identical across dev/e2e/prod.
 
-**On the user id in the link**: Laravel's convention puts the user's DB id in
-the path. Accepted: the link travels only to the owner's inbox, is
-HMAC-signed (any id tampering invalidates it), requires an authenticated
-session for that same account, and verifying is the only thing it can do.
-Principle V governs *meme* identifiers only. Re-keying the flow onto the user's
-public `hash` would mean replacing `EmailVerificationRequest` with custom
-binding logic — more code for no concrete threat. Rejected.
+**No identifiers in the link** (owner requirement, 2026-07-07): Laravel's
+convention is `/email/verify/{id}/{hash}` with `{id}` = the user's DB
+auto-increment key; the owner does not want any ids exposed to users. The id
+segment is dropped entirely rather than swapped for the public account code:
+the route is `auth:sanctum`-gated and always operates on the *authenticated*
+user, so `hash_equals(sha1(currentUser.email), {hash})` alone binds the link to
+the account — a different signed-in user fails the digest check (403), which is
+exactly the cross-account edge case in the spec. `{hash}` reveals nothing: it
+is a one-way digest of the recipient's own address, delivered to that address.
+Cost: the stock `EmailVerificationRequest` (hard-wired to `route('id')`) is
+replaced by an in-house `VerifyEmailRequest` (~15 lines: authorize via the
+digest comparison; the controller marks verification with
+`markEmailAsVerified()` + `event(new Verified($user))`).
+
+*Alternatives considered*: keeping the stock `{id}` (rejected — exposes the DB
+primary key, the very thing the owner excluded); substituting the user's public
+10-char code (rejected — still an identifier in the URL, still needs the custom
+request, and buys nothing the auth session + digest don't already provide).
 
 **Alternatives considered**:
 - *Email links straight to the backend route, redirect to SPA after fulfill*
@@ -153,7 +168,7 @@ provide. Quoted-printable decoding is ~10 lines of TypeScript.
 `/verify-email`, a `RequireAuth`-wrapped notice page showing "check your inbox
 at {email}" (the address comes from auth context) plus the resend button
 (FR-007, clarified in spec). The link-landing route is
-`/verify-email/:id/:hash`; its confirmation / already-verified /
+`/verify-email/:hash`; its confirmation / already-verified /
 invalid-or-expired states all live at that same real URL, driven by the
 server's idempotent answer, so refresh/Back/Forward reproduce them (FR-010).
 

@@ -7,7 +7,7 @@
 | Route | Guard | Page | Purpose |
 |-------|-------|------|---------|
 | `/verify-email` | `RequireAuth` | `VerifyEmailNoticePage` (new) | Post-registration notice (FR-007): "check your inbox at {email}" + resend button. |
-| `/verify-email/:id/:hash` | `RequireAuth` | `VerifyEmailPage` (new) | Link landing: forwards `:id/:hash` + `?expires&signature` to the API; renders the outcome. |
+| `/verify-email/:hash` | `RequireAuth` | `VerifyEmailPage` (new) | Link landing: forwards `:hash` (sha1 of the user's email — no ids in URLs) + `?expires&signature` to the API; renders the outcome. |
 
 Both are real, refresh-safe URLs (FR-010): the landing page re-calls the
 idempotent API on refresh and reproduces the same view; history entries behave
@@ -27,7 +27,7 @@ normally.
 
 ### `VerifyEmailPage` (new)
 
-On mount, parses `:id/:hash` + `expires`/`signature` query params and calls
+On mount, parses `:hash` + `expires`/`signature` query params and calls
 `AuthApi.verifyEmail`. View states (all at the same URL, server-derived):
 
 | State | Trigger | Content |
@@ -56,7 +56,7 @@ carrying the location, and login returns here — the link survives sign-in
 ### `AuthApi` additions
 
 ```ts
-type VerifyEmailInput = { id: string; hash: string; expires: string; signature: string };
+type VerifyEmailInput = { hash: string; expires: string; signature: string };
 
 type VerifyEmailResult =
   | { ok: true; user: AuthUser; alreadyVerified: boolean }   // 200
@@ -76,7 +76,7 @@ AuthApi.resendVerification(): Promise<ResendResult>
 ```
 
 `verifyEmail` GETs
-`/api/email/verify/{id}/{hash}?expires=…&signature=…` with
+`/api/email/verify/{hash}?expires=…&signature=…` with
 `credentials: 'include'`; `resendVerification` POSTs through the existing
 CSRF-aware `postJson` path.
 

@@ -5,10 +5,17 @@
 Both endpoints ride the Sanctum SPA cookie session established by 007 (CSRF
 cookie + `credentials: 'include'`; unsafe methods carry `X-XSRF-TOKEN`).
 
-## GET `/api/email/verify/{id}/{hash}`
+## GET `/api/email/verify/{hash}`
 
-Fulfills a verification link. Route name **`verification.verify`** (the built-in
-`VerifyEmail` notification resolves this name when signing URLs).
+Fulfills a verification link. Route name **`verification.verify`** (the
+`createUrlUsing` callback — a static class method, not a closure — signs
+against this name).
+
+`{hash}` is `sha1` of the recipient's email — **no user id or public code
+appears in the URL** (owner requirement, research D3). The account is
+identified by the authenticated session; the digest binds the link to it via
+the in-house `VerifyEmailRequest` (`hash_equals` against the signed-in user's
+email digest).
 
 **Middleware**: `auth:sanctum`, `signed:relative`, `throttle:6,1`
 
@@ -19,7 +26,7 @@ notification; the SPA forwards them verbatim from the email link.
 |--------|------|------|
 | `200` | Link valid; account was unverified and is now verified — or was already verified (idempotent, FR-005) | `{ "data": <user>, "meta": { "already_verified": false \| true } }` — `<user>` is the standard `UserResource` payload with fresh `email_verified_at` |
 | `401` | No authenticated session (SPA normally prevents this via `RequireAuth` + login return-to) | Laravel default `{ "message": "Unauthenticated." }` |
-| `403` | Signature invalid or expired (`signed:relative`), **or** `id`/`hash` doesn't belong to the authenticated user (`EmailVerificationRequest`) | `{ "message": ... }` — account state unchanged (FR-004, SC-003) |
+| `403` | Signature invalid or expired (`signed:relative`), **or** `{hash}` doesn't match the authenticated user's email digest (`VerifyEmailRequest` — covers cross-account use) | `{ "message": ... }` — account state unchanged (FR-004, SC-003) |
 | `429` | More than 6 hits/min per user | Laravel default throttle body + `Retry-After` |
 
 ## POST `/api/email/verification-notification`
@@ -60,11 +67,12 @@ The message (built-in `VerifyEmail` notification, `log` transport in dev/e2e)
 contains:
 
 ```text
-{FRONTEND_URL}/verify-email/{id}/{hash}?expires={unix}&signature={hmac}
+{FRONTEND_URL}/verify-email/{hash}?expires={unix}&signature={hmac}
 ```
 
+- `{hash}` = `sha1` of the recipient's email; no ids of any kind in the link.
 - Signature covers the **relative** API route
-  `/api/email/verify/{id}/{hash}?expires=…`, so it validates regardless of the
+  `/api/email/verify/{hash}?expires=…`, so it validates regardless of the
   origin the SPA runs on (research D3).
 - Lifetime: 24 h (`config/auth.php` → `verification.expire = 1440`, FR-002).
 - `FRONTEND_URL` env: dev `http://localhost:5173`, e2e `http://localhost:5174`.

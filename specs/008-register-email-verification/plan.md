@@ -16,10 +16,14 @@ their status on the account page. Verification gates nothing yet (FR-009).
 Technical approach: **Laravel's built-in email-verification machinery**, exactly
 as the prototype used it (`User implements MustVerifyEmail`, signed temporary
 URLs, `throttle:6,1`), adapted to the decoupled SPA: the notification's URL is
-rewritten to a frontend route (`/verify-email/{id}/{hash}?expires&signature`)
-via `VerifyEmail::createUrlUsing`, and the SPA forwards the components to
-`GET /api/email/verify/{id}/{hash}` validated with `signed:relative` +
-`auth:sanctum`. The notification is dispatched directly in `register` inside a
+rewritten to a frontend route (`/verify-email/{hash}?expires&signature`) via
+`VerifyEmail::createUrlUsing`, and the SPA forwards the components to
+`GET /api/email/verify/{hash}` validated with `signed:relative` +
+`auth:sanctum`. The link exposes **no identifiers** — `{hash}` is a sha1 digest
+of the recipient's own email, not a database id or public code; a small
+in-house `VerifyEmailRequest` replaces the stock `EmailVerificationRequest`,
+which assumes the user's DB id in the path (research D3). The notification is
+dispatched directly in `register` inside a
 try/catch so registration never fails on mail-transport errors (FR-011). Dev
 and e2e keep the `log` mailer; the Playwright spec extracts the link from
 `storage/logs/laravel.log` with a small in-house quoted-printable decoder — no
@@ -83,10 +87,10 @@ both stacks plus one new Playwright spec and a log-reading e2e helper.
 |-----------|------|--------|
 | I. Minimal Dependencies | New deps need approval + rationale | **PASS** — zero new npm/Composer packages and zero new containers. Everything used (MustVerifyEmail, VerifyEmail notification, signed URLs, log mailer, throttle) ships with the Laravel already installed. Mailpit (the prototype's mail catcher) was considered and rejected as a new infra dependency; the log mailer + an in-house link extractor covers dev and e2e (research D7). |
 | II. Coding Conventions | PSR-12/4-space/strict_types, PHP fns <30 lines; 2-space/semicolons/camelCase, TS fns <50 lines; braces on single-line bodies; comments explain *why* | **PASS (planned)** — a thin `EmailVerificationController` over framework calls; small pure additions to `lib/` classes; Pint + ESLint enforce. |
-| III. Browser-Native Navigation | Real URLs, Back/Forward/Refresh restore, deep-linkable | **PASS** — `/verify-email` (notice) and `/verify-email/:id/:hash` (link landing: confirmation/already/failure states) are real routes; refreshing the landing page re-calls the idempotent API and reproduces the same state; Back/Forward work as normal history entries (FR-010). |
+| III. Browser-Native Navigation | Real URLs, Back/Forward/Refresh restore, deep-linkable | **PASS** — `/verify-email` (notice) and `/verify-email/:hash` (link landing: confirmation/already/failure states) are real routes; refreshing the landing page re-calls the idempotent API and reproduces the same state; Back/Forward work as normal history entries (FR-010). |
 | IV. Theme & Accessibility | `prefers-color-scheme`; color not sole signal; alt/labels/aria | **PASS** — pages use the shared themed layout; status is stated in text ("verified"/"not verified"), never color alone; resend is a labeled `<button>`; async feedback announced via the existing notice dialog / `aria-live` (FR-008). |
-| V. Stable Meme Identifiers | 10-char code in meme URLs | **N/A** — no meme URLs. The verification link carries the user's DB id per Laravel's convention; it is signed, auth-bound, delivered only to the owner's inbox, and grants nothing beyond verifying that same account (research D3). |
-| VI. Security & Input Validation | Server-side validation; parameterized; escape output; secrets in env | **PASS** — links are HMAC-signed against `APP_KEY` and expire after 24 h (FR-002); `signed:relative` + `EmailVerificationRequest` reject tampering, expiry, and cross-account use (403, no state change — FR-004, SC-003); verify and resend are `auth:sanctum` + `throttle:6,1` (FR-006); mail failure at register is caught and reported without leaking transport errors (FR-011); no secrets in code, `FRONTEND_URL` in env. |
+| V. Stable Meme Identifiers | 10-char code in meme URLs | **N/A** — no meme URLs. The verification link exposes **no identifier at all** (owner requirement): no DB id, no public code — only a sha1 digest of the recipient's own email, signed and auth-bound (research D3). |
+| VI. Security & Input Validation | Server-side validation; parameterized; escape output; secrets in env | **PASS** — links are HMAC-signed against `APP_KEY` and expire after 24 h (FR-002); `signed:relative` + the in-house `VerifyEmailRequest` reject tampering, expiry, and cross-account use (403, no state change — FR-004, SC-003); verify and resend are `auth:sanctum` + `throttle:6,1` (FR-006); mail failure at register is caught and reported without leaking transport errors (FR-011); no secrets in code, `FRONTEND_URL` in env. |
 | VII. Test Coverage & Organization | ≥90%; tests mirror source under `tests/` | **PASS (planned)** — backend: `EmailVerificationControllerTest` (valid/expired/tampered/mismatched/already-verified/throttled) + `AuthControllerTest` additions (notification sent; register survives mail failure); frontend: mirrored tests for both pages, guard/login/provider edits, and lib additions; e2e spec for the full loop. |
 | VIII. Responsive Layout | Mobile→desktop, no horizontal scroll, fluid units, touch targets | **PASS** — both new pages are simple text+button views inside the existing responsive shell; controls reuse the auth form's touch-target sizing. |
 
@@ -120,14 +124,16 @@ backend/
 │   ├── Http/Controllers/
 │   │   ├── AuthController.php              # EDIT: register() dispatches the verification
 │   │   │                                   #   notification in try/catch + report() (FR-011)
-│   │   └── EmailVerificationController.php # NEW: verify (EmailVerificationRequest→fulfill),
+│   │   └── EmailVerificationController.php # NEW: verify (VerifyEmailRequest → mark verified),
 │   │                                       #   send (resend or 409 when already verified)
+│   ├── Http/Requests/VerifyEmailRequest.php # NEW: authorize = hash_equals(sha1(user email),
+│   │                                       #   {hash}) — no ids in the URL (research D3)
 │   ├── Http/Resources/UserResource.php     # EDIT: expose email_verified_at
 │   ├── Models/User.php                     # EDIT: implements MustVerifyEmail
 │   └── Providers/AppServiceProvider.php    # EDIT: VerifyEmail::createUrlUsing → frontend URL
 │                                           #   from a relative signed route (research D3)
 ├── config/auth.php                         # EDIT: verification.expire = 1440 (24 h)
-├── routes/api.php                          # EDIT: GET  /email/verify/{id}/{hash}
+├── routes/api.php                          # EDIT: GET  /email/verify/{hash}
 │                                           #         (auth:sanctum, signed:relative, throttle:6,1,
 │                                           #          name: verification.verify)
 │                                           #       POST /email/verification-notification
@@ -162,7 +168,7 @@ frontend/
 │   │   └── VerifyEmailPage.tsx             # NEW: link landing — calls API; verifying/
 │   │                                       #   confirmed/already-verified/invalid-or-expired
 │   ├── styles/theme.css                    # EXTEND: verification status + notice styles
-│   └── App.tsx                             # EDIT: /verify-email + /verify-email/:id/:hash
+│   └── App.tsx                             # EDIT: /verify-email + /verify-email/:hash
 │                                           #   routes (both RequireAuth-wrapped)
 ├── e2e/
 │   ├── helpers/mailLog.ts                  # NEW: read laravel.log, decode quoted-printable,
@@ -176,8 +182,9 @@ frontend/
 ```
 
 **Structure Decision**: Backend keeps the thin-controller pattern — the new
-`EmailVerificationController` is glue over `EmailVerificationRequest::fulfill()`
-and `sendEmailVerificationNotification()`, with the URL customization isolated
+`EmailVerificationController` is glue over the in-house `VerifyEmailRequest`
+(sha1-of-email authorization, no ids in the URL) and
+`sendEmailVerificationNotification()`, with the URL customization isolated
 in `AppServiceProvider`. Frontend follows the established split: typed outcomes
 and pure logic in `lib/` classes, thin pages/guards over them, every touched
 module with a mirrored test (the Vitest gate now spans all of `src/`). E2e mail

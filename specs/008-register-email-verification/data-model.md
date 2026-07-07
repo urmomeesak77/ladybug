@@ -9,7 +9,7 @@ existing column plus an ephemeral, never-persisted link artifact.
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `id` | bigint PK | Appears in the verification link path (research D3). |
+| `id` | bigint PK | Internal only — **never appears in the verification link** (owner requirement, research D3). |
 | `email` | string, unique | The address being proven; named on the notice page. |
 | `email_verified_at` | nullable timestamp | **The verification record.** `NULL` = unverified; a timestamp = verified at that moment. Already present since the 001 migration; `datetime` cast already on the model. |
 
@@ -44,10 +44,9 @@ against a table.
 
 | Component | Source | Validated by |
 |-----------|--------|--------------|
-| `id` | user primary key | `EmailVerificationRequest`: must equal the authenticated user's key (cross-account use → 403). |
-| `hash` | `sha1(user.email)` | `EmailVerificationRequest`: must match the authenticated user's current email. |
+| `hash` | `sha1(user.email)` | In-house `VerifyEmailRequest`: `hash_equals` against the authenticated user's current email digest — binds the link to the account without exposing any id (cross-account use → 403; research D3). |
 | `expires` | unix timestamp, issue-time + `auth.verification.expire` (1440 min = 24 h) | `signed:relative` middleware — past expiry → 403. |
-| `signature` | HMAC-SHA256 of the **relative** URL (path + ordered query) keyed by `APP_KEY` | `signed:relative` middleware — any alteration of `id`, `hash`, `expires`, or the signature itself → 403. |
+| `signature` | HMAC-SHA256 of the **relative** URL (path + ordered query) keyed by `APP_KEY` | `signed:relative` middleware — any alteration of `hash`, `expires`, or the signature itself → 403. |
 
 Validity = signature intact AND not expired AND belongs to the authenticated
 account. Each resend mints a fresh link; older unexpired links remain valid
