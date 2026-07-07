@@ -34,7 +34,7 @@ describe('useFeed', () => {
   it('auto-loads the first batch and persists the snapshot', async () => {
     vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(10, 'a') });
 
-    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY));
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
 
     await waitFor(() => expect(result.current.state.status).toBe('loaded'));
     expect(result.current.state.posts).toHaveLength(10);
@@ -54,7 +54,7 @@ describe('useFeed', () => {
     });
     const fetchFeed = vi.spyOn(Api, 'fetchFeed');
 
-    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY));
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
 
     expect(result.current.state.status).toBe('end');
     expect(result.current.state.posts).toHaveLength(3);
@@ -64,7 +64,7 @@ describe('useFeed', () => {
   it('requests the first batch after the URL cursor', async () => {
     const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: [] });
 
-    const { result } = renderHook(() => useFeed('cursor0001', CACHE_KEY));
+    const { result } = renderHook(() => useFeed('cursor0001', CACHE_KEY, false));
 
     await waitFor(() => expect(result.current.state.status).toBe('empty'));
     expect(fetchFeed).toHaveBeenCalledWith({ limit: 10, start: 'cursor0001' });
@@ -75,7 +75,7 @@ describe('useFeed', () => {
       .mockResolvedValueOnce({ ok: false, error: { kind: 'network' } })
       .mockResolvedValueOnce({ ok: true, posts: posts(2, 'a') });
 
-    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY));
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
     await waitFor(() => expect(result.current.state.status).toBe('error'));
 
     await act(() => result.current.load());
@@ -87,7 +87,7 @@ describe('useFeed', () => {
   it('ignores overlapping load calls while one is in flight', async () => {
     const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(10, 'a') });
 
-    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY));
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
     // Fire immediately while the mount load is still pending.
     await act(async () => {
       await Promise.all([result.current.load(), result.current.load()]);
@@ -106,9 +106,32 @@ describe('useFeed', () => {
       anchorOffset: 0,
     });
 
-    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY));
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
 
     expect(result.current.atPageBreak).toBe(true);
     expect(result.current.canAutoLoad).toBe(false);
+  });
+
+  it('skips the snapshot and refetches from the top when fresh', async () => {
+    FeedCache.writeSnapshot(sessionStorage, CACHE_KEY, {
+      posts: posts(3, 'a'),
+      cursor: 'a0000002',
+      status: 'end',
+      anchorHash: 'a0000001',
+      anchorOffset: 40,
+    });
+    const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(10, 'b') });
+
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, true));
+
+    await waitFor(() => expect(result.current.state.status).toBe('loaded'));
+    // The snapshot's cursor must not leak into the fresh request: page 1 starts unset.
+    expect(fetchFeed).toHaveBeenCalledWith({ limit: 10, start: undefined });
+    expect(result.current.state.posts[0].hash).toBe('b0000000');
+    // The old snapshot (posts + anchor) was cleared; the fresh load wrote a new one
+    // anchored at the top.
+    const saved = FeedCache.readSnapshot(sessionStorage, CACHE_KEY);
+    expect(saved?.posts).toHaveLength(10);
+    expect(saved?.anchorHash).toBeNull();
   });
 });

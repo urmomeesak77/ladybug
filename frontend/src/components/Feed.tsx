@@ -32,7 +32,7 @@ function FeedStatusRegion({ status, onRetry }: { status: FeedStatus; onRetry: ()
 function Feed({ after }: { after?: string }) {
   const location = useLocation();
   const cacheKey = FeedCache.feedKey(location.pathname, location.search);
-  const { state, load, atPageBreak, canAutoLoad } = useFeed(after, cacheKey);
+  const { state, load, atPageBreak, canAutoLoad } = useFeed(after, cacheKey, false);
   useScrollRestoration(cacheKey, false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   // The next page's `?after` cursor is the last loaded post's hash (FR-004/FR-005).
