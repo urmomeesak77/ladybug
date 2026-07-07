@@ -95,6 +95,28 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # backend-e2e bind-mounts ./backend and runs artisan straight off it, so the
+      # checkout must carry vendor/ (locally the dev tree already has it). Same
+      # install and cache key as the backend job, so this is usually a cache hit.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: bcmath, mbstring, gd
+          coverage: none
+          tools: composer
+
+      - name: Cache Composer packages
+        uses: actions/cache@v5
+        with:
+          path: backend/vendor
+          key: composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --no-interaction --prefer-dist --no-progress
+
       # Same seeding scripts/e2e.ps1 does locally: the committed template plus a
       # fresh APP_KEY. The file is mounted over /app/.env inside backend-e2e.
       - name: Seed backend/.env.e2e
