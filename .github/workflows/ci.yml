@@ -162,6 +162,30 @@ jobs:
           E2E_BASE_URL: http://localhost:5174
         run: npx playwright test
 
+      # Evidence for spec failures the runner can't show us locally: what the API
+      # actually returns from the runner, and what each container logged.
+      - name: Diagnose on failure
+        if: failure()
+        run: |
+          echo "=== GET /api/posts (as the SPA origin) ==="
+          curl -sS -i -H "Origin: http://localhost:5174" http://localhost:8001/api/posts | head -c 4000 || true
+          echo
+          echo "=== compose logs ==="
+          docker compose -p ladybug-e2e -f docker-compose.e2e.yml logs --no-color
+          echo "=== laravel.log ==="
+          tail -n 200 backend/storage/logs/laravel.log || true
+
+      # error-context.md page snapshots per failed spec — shows what the page rendered.
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+          if-no-files-found: ignore
+
       - name: Tear down the e2e stack
         if: always()
         run: docker compose -p ladybug-e2e -f docker-compose.e2e.yml down -v
