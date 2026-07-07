@@ -33,9 +33,9 @@ plan.md. Tests mirror source: `backend/tests/{Feature,Unit}/...` and
 
 **Purpose**: Environment/config groundwork every story's email link depends on.
 
-- [ ] T001 [P] Add `FRONTEND_URL=http://localhost:5173` to `backend/.env.example` (with a *why* comment: the verification email links to the SPA, not the API) and mirror it into the running dev `backend/.env`
-- [ ] T002 [P] Add `FRONTEND_URL=http://localhost:5174` and confirm `MAIL_MAILER=log` in `backend/.env.e2e`
-- [ ] T003 [P] Set `'verification' => ['expire' => 1440]` (24 h, FR-002/D5) in `backend/config/auth.php`
+- [X] T001 [P] Add `FRONTEND_URL=http://localhost:5173` to `backend/.env.example` (with a *why* comment: the verification email links to the SPA, not the API) and mirror it into the running dev `backend/.env`
+- [X] T002 [P] Add `FRONTEND_URL=http://localhost:5174` and confirm `MAIL_MAILER=log` in `backend/.env.e2e`
+- [X] T003 [P] Set `'verification' => ['expire' => 1440]` (24 h, FR-002/D5) in `backend/config/auth.php`
 
 ---
 
@@ -46,11 +46,11 @@ plan.md. Tests mirror source: `backend/tests/{Feature,Unit}/...` and
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T004 [P] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`: register/login/`GET /api/user` payloads include `email_verified_at` (`null` for a fresh registrant; ISO timestamp for a verified user) — must fail first
-- [ ] T005 [P] Extend `frontend/tests/lib/authApi.test.ts`: `AuthUser` carries `emailVerifiedAt: string | null` mapped from the API's `email_verified_at` — must fail first
-- [ ] T006 Make `User` implement `MustVerifyEmail` in `backend/app/Models/User.php` (data-model: enables `hasVerifiedEmail()` / `markEmailAsVerified()` / `sendEmailVerificationNotification()`; no attribute changes)
-- [ ] T007 Expose `email_verified_at` in `backend/app/Http/Resources/UserResource.php` (contract: verification-api.md "Changed payloads") — T004 goes green
-- [ ] T008 Add `emailVerifiedAt: string | null` to `AuthUser` and its response mapping in `frontend/src/lib/authApi.ts` — T005 goes green
+- [X] T004 [P] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`: register/login/`GET /api/user` payloads include `email_verified_at` (`null` for a fresh registrant; ISO timestamp for a verified user) — must fail first
+- [X] T005 [P] Extend `frontend/tests/lib/authApi.test.ts`: `AuthUser` carries `emailVerifiedAt: string | null` mapped from the API's `email_verified_at` — must fail first
+- [X] T006 Make `User` implement `MustVerifyEmail` in `backend/app/Models/User.php` (data-model: enables `hasVerifiedEmail()` / `markEmailAsVerified()` / `sendEmailVerificationNotification()`; no attribute changes)
+- [X] T007 Expose `email_verified_at` in `backend/app/Http/Resources/UserResource.php` (contract: verification-api.md "Changed payloads") — T004 goes green
+- [X] T008 Add `emailVerifiedAt: string | null` to `AuthUser` and its response mapping in `frontend/src/lib/authApi.ts` — T005 goes green
 
 **Checkpoint**: Verification state is readable end-to-end — user stories can begin.
 
