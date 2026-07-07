@@ -82,4 +82,34 @@ test.describe('Home feed', () => {
       .poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - before))
       .toBeLessThan(150);
   });
+
+  test('clicking Home or the logo resets to a fresh top-of-feed', async ({ page }) => {
+    await page.goto('/');
+    const items = page.locator('.feed__list > li');
+    await expect(items).toHaveCount(10);
+    const newestHref = (await items.first().locator('h2 a').getAttribute('href')) ?? '';
+
+    // Scroll a second batch in so there is a non-trivial position to reset from, and
+    // let the throttled scroll capture (150ms) persist the anchor — the reset must win
+    // over a saved position, not just over a blank one.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(items).toHaveCount(20);
+    await page.waitForTimeout(300);
+
+    // Unlike Back (previous test), a link navigation starts over: page 1 only, newest
+    // entry first, viewport at the top.
+    await page.getByRole('link', { name: 'Home', exact: true }).click();
+    await expect(items).toHaveCount(10);
+    await expect(items.first().locator('h2 a')).toHaveAttribute('href', newestHref);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+    // The logo is the same affordance; it must reset too.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(items).toHaveCount(20);
+    await page.waitForTimeout(300);
+
+    await page.getByRole('link', { name: 'online-trash home' }).click();
+    await expect(items).toHaveCount(10);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  });
 });
