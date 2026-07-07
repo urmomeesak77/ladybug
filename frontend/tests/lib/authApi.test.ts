@@ -20,6 +20,7 @@ const rawUser = {
   id: 7,
   name: 'Ada Lovelace',
   email: 'ada@example.com',
+  email_verified_at: null,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-02T00:00:00Z',
 };
@@ -41,9 +42,16 @@ describe('mapUser', () => {
       id: 7,
       name: 'Ada Lovelace',
       email: 'ada@example.com',
+      emailVerifiedAt: null,
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-02T00:00:00Z',
     });
+  });
+
+  it('carries a verified email timestamp through as emailVerifiedAt', () => {
+    const verified = { ...rawUser, email_verified_at: '2026-07-01T12:00:00Z' };
+
+    expect(AuthApi.mapUser(verified).emailVerifiedAt).toBe('2026-07-01T12:00:00Z');
   });
 });
 

@@ -38,6 +38,16 @@ class AuthControllerTest extends TestCase {
         $this->assertDatabaseHas('users', ['email' => 'ada@example.com']);
     }
 
+    public function test_register_reports_the_fresh_account_as_unverified(): void {
+        $response = $this->postJson('/api/register', $this->registration());
+
+        $response->assertCreated();
+        // The key must be present even while null — the SPA reads it to decide
+        // whether to steer the user toward the verification notice (008).
+        $this->assertArrayHasKey('email_verified_at', $response->json('data'));
+        $this->assertNull($response->json('data.email_verified_at'));
+    }
+
     public function test_register_logs_the_new_user_in(): void {
         $this->postJson('/api/register', $this->registration());
 
@@ -83,6 +93,21 @@ class AuthControllerTest extends TestCase {
         $response->assertJsonPath('data.email', 'ada@example.com');
         $this->assertArrayNotHasKey('password', $response->json('data'));
         $this->assertAuthenticated();
+    }
+
+    public function test_login_carries_the_verification_timestamp_for_a_verified_user(): void {
+        User::factory()->create([
+            'email' => 'ada@example.com',
+            'email_verified_at' => '2026-07-01 12:00:00',
+        ]);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password']);
+
+        $response->assertOk();
+        $this->assertMatchesRegularExpression(
+            '/^2026-07-01T12:00:00/',
+            (string) $response->json('data.email_verified_at'),
+        );
     }
 
     public function test_login_with_a_wrong_password_is_rejected_without_disclosure(): void {
@@ -175,6 +200,16 @@ class AuthControllerTest extends TestCase {
         $response->assertOk();
         $response->assertJsonPath('data.email', 'ada@example.com');
         $this->assertArrayNotHasKey('password', $response->json('data'));
+    }
+
+    public function test_user_reports_an_unverified_email_as_null(): void {
+        $user = User::factory()->unverified()->create();
+
+        $response = $this->actingAs($user)->getJson('/api/user');
+
+        $response->assertOk();
+        $this->assertArrayHasKey('email_verified_at', $response->json('data'));
+        $this->assertNull($response->json('data.email_verified_at'));
     }
 
     public function test_user_returns_null_for_an_anonymous_request(): void {

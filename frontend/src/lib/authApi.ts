@@ -5,6 +5,8 @@ export type AuthUser = {
   id: number;
   name: string;
   email: string;
+  // null until the account's email is verified (008).
+  emailVerifiedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -31,6 +33,7 @@ type RawUser = {
   id: number;
   name: string;
   email: string;
+  email_verified_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -42,6 +45,7 @@ export class AuthApi {
       id: raw.id,
       name: raw.name,
       email: raw.email,
+      emailVerifiedAt: raw.email_verified_at,
       createdAt: raw.created_at,
       updatedAt: raw.updated_at,
     };
