@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { StrictMode } from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -107,6 +107,28 @@ describe('VerifyEmailPage', () => {
     renderLanding();
 
     expect(await screen.findByText(/invalid or expired/i)).toBeTruthy();
+  });
+
+  it('offers a resend action in the failed state (FR-004)', async () => {
+    vi.spyOn(AuthApi, 'verifyEmail').mockResolvedValue({ ok: false, kind: 'invalid' });
+    vi.spyOn(AuthApi, 'resendVerification').mockResolvedValue({ ok: true });
+
+    renderLanding();
+    await screen.findByText(/invalid or expired/i);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resend verification e-mail' }));
+
+    expect(await screen.findByText('Verification link sent. Check your inbox.')).toBeTruthy();
+  });
+
+  it('does not offer a resend action after a successful verification', async () => {
+    vi.spyOn(AuthApi, 'verifyEmail')
+      .mockResolvedValue({ ok: true, user: verifiedAda, alreadyVerified: false });
+
+    renderLanding();
+    await screen.findByText(/your e-mail is verified/i);
+
+    expect(screen.queryByRole('button', { name: 'Resend verification e-mail' })).toBeNull();
   });
 
   it('tells a rate-limited user to try again in a minute', async () => {

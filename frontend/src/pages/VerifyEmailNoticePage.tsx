@@ -1,13 +1,27 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '../hooks/useAuth';
+import { useNotice } from '../hooks/useNotice';
+import { AuthApi } from '../lib/authApi';
+import { AuthModel } from '../lib/authModel';
 
 // Post-registration notice (FR-007): tells the signed-in user where their
-// verification link went. Status is stated in text, never by color alone
-// (Principle IV). RequireAuth gates the route, so the null guard only
-// satisfies type narrowing. The resend button arrives with US2.
+// verification link went and offers a fresh message (US2, FR-006). Status is
+// stated in text, never by color alone (Principle IV). RequireAuth gates the
+// route, so the null guard only satisfies type narrowing.
 function VerifyEmailNoticePage() {
   const { user } = useAuth();
+  const { show } = useNotice();
+  const [resending, setResending] = useState(false);
+
+  async function handleResend(): Promise<void> {
+    setResending(true);
+    const result = await AuthApi.resendVerification();
+    setResending(false);
+    // The app-level dialog announces the outcome (it is an aria-modal alert).
+    show({ message: AuthModel.resendFeedback(result) });
+  }
 
   if (!user) {
     return null;
@@ -31,6 +45,14 @@ function VerifyEmailNoticePage() {
         We sent a verification link to <strong>{user.email}</strong>.
         Check your inbox and open the link to verify your account.
       </p>
+      <button
+        type="button"
+        className="verify__resend"
+        disabled={resending}
+        onClick={() => void handleResend()}
+      >
+        Resend verification e-mail
+      </button>
     </section>
   );
 }

@@ -3,17 +3,29 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import NoticeProvider from '../../src/components/NoticeProvider';
 import { AuthContext } from '../../src/hooks/useAuth';
 import type { AuthContextValue } from '../../src/hooks/useAuth';
+import { AuthApi } from '../../src/lib/authApi';
 import type { AuthUser } from '../../src/lib/authApi';
 import AccountPage from '../../src/pages/AccountPage';
 
-afterEach(cleanup);
+if (!HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.open = true;
+  };
+}
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const ada: AuthUser = {
   id: 1,
   name: 'Ada',
   email: 'ada@example.com',
+  emailVerifiedAt: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
@@ -32,12 +44,15 @@ function renderAccount(user: AuthUser | null) {
     register: vi.fn(),
     login: vi.fn(),
     logout,
+    refresh: vi.fn(),
   };
   const { container } = render(
     <MemoryRouter initialEntries={['/account']}>
       <AuthContext.Provider value={value}>
-        <LocationProbe />
-        <AccountPage />
+        <NoticeProvider>
+          <LocationProbe />
+          <AccountPage />
+        </NoticeProvider>
       </AuthContext.Provider>
     </MemoryRouter>,
   );
@@ -66,5 +81,28 @@ describe('AccountPage', () => {
 
     expect(screen.queryByRole('heading')).toBeNull();
     expect(container.querySelector('.account')).toBeNull();
+  });
+
+  it('states an unverified email as text and offers the resend action (FR-008)', async () => {
+    vi.spyOn(AuthApi, 'resendVerification').mockResolvedValue({ ok: true });
+    renderAccount(ada);
+
+    // Status is words in the details list, never color alone (Principle IV).
+    expect(screen.getByText('Email verification')).toBeTruthy();
+    expect(screen.getByText('Not verified')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resend verification e-mail' }));
+
+    // Same outcome handling as the notice page (shared AuthModel mapping).
+    expect(await screen.findByText('Verification link sent. Check your inbox.')).toBeTruthy();
+  });
+
+  it('states a verified email and offers no resend control', () => {
+    renderAccount({ ...ada, emailVerifiedAt: '2026-07-07T10:00:00Z' });
+
+    expect(screen.getByText('Email verification')).toBeTruthy();
+    expect(screen.getByText('Verified')).toBeTruthy();
+    expect(screen.queryByText('Not verified')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Resend verification e-mail' })).toBeNull();
   });
 });

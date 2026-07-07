@@ -278,6 +278,52 @@ describe('verifyEmail', () => {
   });
 });
 
+describe('resendVerification', () => {
+  it('POSTs through the CSRF-aware path with credentials included', async () => {
+    withXsrfCookie();
+    const mock = stubFetch({ ok: true, status: 200, json: async () => ({ message: 'Verification link sent.' }) });
+
+    const result = await AuthApi.resendVerification();
+
+    const [url, init] = mock.mock.calls[0] as FetchArgs;
+    expect(url).toMatch(/\/api\/email\/verification-notification$/);
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('include');
+    expect((init.headers as Record<string, string>)['X-XSRF-TOKEN']).toBe('tok+123');
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('maps a 409 to an already-verified result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 409, json: async () => ({ message: 'Email already verified.' }) });
+
+    expect(await AuthApi.resendVerification()).toEqual({ ok: false, kind: 'already-verified' });
+  });
+
+  it('maps a 429 to a rate-limited result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 429, json: async () => ({ message: 'Too Many Attempts.' }) });
+
+    expect(await AuthApi.resendVerification()).toEqual({ ok: false, kind: 'rate-limited' });
+  });
+
+  it('maps any other failure to a network result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 500, json: async () => ({}) });
+
+    expect(await AuthApi.resendVerification()).toEqual({ ok: false, kind: 'network' });
+  });
+
+  it('maps a thrown fetch to a network result', async () => {
+    withXsrfCookie();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }));
+
+    expect(await AuthApi.resendVerification()).toEqual({ ok: false, kind: 'network' });
+  });
+});
+
 describe('fetchCurrentUser', () => {
   it('returns the user when the session is valid', async () => {
     stubFetch({ ok: true, status: 200, json: async () => ({ data: rawUser }) });

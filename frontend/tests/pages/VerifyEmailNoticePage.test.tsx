@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import NoticeProvider from '../../src/components/NoticeProvider';
 import { AuthContext } from '../../src/hooks/useAuth';
 import type { AuthContextValue } from '../../src/hooks/useAuth';
-import type { AuthUser } from '../../src/lib/authApi';
+import { AuthApi } from '../../src/lib/authApi';
+import type { AuthUser, ResendResult } from '../../src/lib/authApi';
 import VerifyEmailNoticePage from '../../src/pages/VerifyEmailNoticePage';
 
 if (!HTMLDialogElement.prototype.showModal) {
@@ -15,7 +16,10 @@ if (!HTMLDialogElement.prototype.showModal) {
   };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const ada: AuthUser = {
   id: 1,
@@ -63,5 +67,55 @@ describe('VerifyEmailNoticePage', () => {
     expect(screen.queryByText(/check your inbox/i)).toBeNull();
     const link = screen.getByRole('link', { name: /account/i });
     expect(link.getAttribute('href')).toBe('/account');
+    expect(screen.queryByRole('button', { name: 'Resend verification e-mail' })).toBeNull();
+  });
+
+  it('announces a successful resend', async () => {
+    vi.spyOn(AuthApi, 'resendVerification').mockResolvedValue({ ok: true });
+    renderNotice(ada);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resend verification e-mail' }));
+
+    expect(await screen.findByText('Verification link sent. Check your inbox.')).toBeTruthy();
+    expect(document.querySelector('dialog')).not.toBeNull();
+  });
+
+  it('announces an already-verified answer to a resend', async () => {
+    vi.spyOn(AuthApi, 'resendVerification').mockResolvedValue({ ok: false, kind: 'already-verified' });
+    renderNotice(ada);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resend verification e-mail' }));
+
+    expect(await screen.findByText('Your e-mail is already verified.')).toBeTruthy();
+  });
+
+  it('tells a rate-limited user to try again in a minute (SC-005)', async () => {
+    vi.spyOn(AuthApi, 'resendVerification').mockResolvedValue({ ok: false, kind: 'rate-limited' });
+    renderNotice(ada);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resend verification e-mail' }));
+
+    expect(await screen.findByText('Too many attempts. Please try again in a minute.')).toBeTruthy();
+  });
+
+  it('reports a network failure on resend as retryable', async () => {
+    vi.spyOn(AuthApi, 'resendVerification').mockResolvedValue({ ok: false, kind: 'network' });
+    renderNotice(ada);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resend verification e-mail' }));
+
+    expect(await screen.findByText('Something went wrong. Please check your connection and try again.'))
+      .toBeTruthy();
+  });
+
+  it('disables the resend button while the request is in flight', async () => {
+    vi.spyOn(AuthApi, 'resendVerification')
+      .mockReturnValue(new Promise<ResendResult>(() => undefined));
+    renderNotice(ada);
+    const button = screen.getByRole('button', { name: 'Resend verification e-mail' });
+
+    fireEvent.click(button);
+
+    expect(button).toHaveProperty('disabled', true);
   });
 });

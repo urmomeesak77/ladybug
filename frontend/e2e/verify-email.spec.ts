@@ -35,6 +35,11 @@ test.describe('Email verification', () => {
     await expect(page).toHaveURL('/verify-email');
     await expect(page.getByText(email)).toBeVisible();
 
+    // FR-008 (US3): the account page states the pending status in text.
+    await page.goto('/account');
+    await expect(page.getByText('Not verified')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Resend verification e-mail' })).toBeVisible();
+
     const link = MailLog.latestVerificationLink(email);
     expect(link).not.toBeNull();
 
@@ -45,6 +50,35 @@ test.describe('Email verification', () => {
     // Re-using the link is a friendly no-op, never an error (FR-005, Scenario 2).
     await page.goto(link ?? '');
     await expect(page.getByText('Your e-mail was already verified.')).toBeVisible();
+
+    // FR-008 (US3): the account page now says Verified and drops the resend action.
+    await page.goto('/account');
+    await expect(page.getByText('Verified', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Resend verification e-mail' })).toHaveCount(0);
+  });
+
+  test('a resent link (not the discarded original) verifies the account', async ({ page }) => {
+    const email = uniqueEmail();
+    await register(page, email);
+    await expect(page).toHaveURL('/verify-email');
+    const original = MailLog.latestVerificationLink(email) ?? '';
+    expect(original).not.toBe('');
+
+    // Quickstart Scenario 3: ignore the first message and ask for a new one. The
+    // link's expiry has second granularity, so step past it to guarantee the
+    // resent link differs from the original byte-for-byte.
+    await page.waitForTimeout(1100);
+    await page.getByRole('button', { name: 'Resend verification e-mail' }).click();
+    await expect(page.getByText('Verification link sent. Check your inbox.')).toBeVisible();
+    await page.getByRole('button', { name: 'Ok' }).click();
+
+    // The mail is logged before the 200 answers, so the newest link is in place.
+    const resent = MailLog.latestVerificationLink(email) ?? '';
+    expect(resent).not.toBe('');
+    expect(resent).not.toBe(original);
+
+    await page.goto(resent);
+    await expect(page.getByText('Your e-mail is verified.')).toBeVisible();
   });
 
   test('a link opened while signed out survives the login round-trip', async ({ page }) => {

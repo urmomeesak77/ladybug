@@ -177,6 +177,27 @@ describe('verifyViewState', () => {
   });
 });
 
+describe('resendFeedback', () => {
+  it('confirms a sent message', () => {
+    expect(AuthModel.resendFeedback({ ok: true })).toBe('Verification link sent. Check your inbox.');
+  });
+
+  it('tells an already-verified user there is nothing to send', () => {
+    expect(AuthModel.resendFeedback({ ok: false, kind: 'already-verified' }))
+      .toBe('Your e-mail is already verified.');
+  });
+
+  it('tells a rate-limited user to try again in a minute', () => {
+    expect(AuthModel.resendFeedback({ ok: false, kind: 'rate-limited' }))
+      .toBe('Too many attempts. Please try again in a minute.');
+  });
+
+  it('reports a network failure as retryable', () => {
+    expect(AuthModel.resendFeedback({ ok: false, kind: 'network' }))
+      .toBe('Something went wrong. Please check your connection and try again.');
+  });
+});
+
 describe('verifyFailureMessage', () => {
   it('explains an invalid or expired link', () => {
     expect(AuthModel.verifyFailureMessage('invalid')).toBe('This verification link is invalid or expired.');

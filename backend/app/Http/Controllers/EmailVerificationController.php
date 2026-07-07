@@ -8,6 +8,7 @@ use App\Http\Requests\VerifyEmailRequest;
 use App\Http\Resources\UserResource;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class EmailVerificationController extends Controller {
     /**
@@ -29,5 +30,23 @@ class EmailVerificationController extends Controller {
         return (new UserResource($user))
             ->additional(['meta' => ['already_verified' => $alreadyVerified]])
             ->response();
+    }
+
+    /**
+     * Send a fresh verification message to the authenticated user (US2). Refused
+     * with 409 when there is nothing to verify, so the SPA can tell the user
+     * instead of silently mailing nothing. Unlike verify, resending is not
+     * idempotent-OK: the contract distinguishes "sent" from "nothing to send".
+     */
+    public function send(Request $request): JsonResponse {
+        $user = $request->user();
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Email already verified.'], 409);
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return response()->json(['message' => 'Verification link sent.']);
     }
 }

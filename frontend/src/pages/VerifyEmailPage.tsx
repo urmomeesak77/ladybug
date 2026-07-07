@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../hooks/useAuth';
+import { useNotice } from '../hooks/useNotice';
 import { AuthApi } from '../lib/authApi';
 import { AuthModel } from '../lib/authModel';
 import type { VerifyViewState } from '../lib/authModel';
@@ -13,6 +14,8 @@ function VerifyEmailPage() {
   const { hash } = useParams();
   const [searchParams] = useSearchParams();
   const { refresh } = useAuth();
+  const { show } = useNotice();
+  const [resending, setResending] = useState(false);
   // A structurally broken link can never validate, so the failure state is
   // derived up front and no doomed request is ever issued.
   const input = AuthModel.parseVerifyParams(hash, searchParams);
@@ -49,6 +52,13 @@ function VerifyEmailPage() {
     });
   }, [hash, searchParams, refresh]);
 
+  async function handleResend(): Promise<void> {
+    setResending(true);
+    const result = await AuthApi.resendVerification();
+    setResending(false);
+    show({ message: AuthModel.resendFeedback(result) });
+  }
+
   const statusText = {
     verifying: 'Verifying your e-mail…',
     confirmed: 'Your e-mail is verified.',
@@ -63,6 +73,19 @@ function VerifyEmailPage() {
       <p className="verify__status" role="status">{statusText}</p>
       {view === 'confirmed' || view === 'already'
         ? <p><Link to="/account">Go to your account</Link></p>
+        : null}
+      {view === 'failed'
+        // FR-004: a dead link explains itself and offers the path to a new one.
+        ? (
+          <button
+            type="button"
+            className="verify__resend"
+            disabled={resending}
+            onClick={() => void handleResend()}
+          >
+            Resend verification e-mail
+          </button>
+        )
         : null}
     </section>
   );

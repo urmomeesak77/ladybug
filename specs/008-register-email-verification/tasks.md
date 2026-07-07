@@ -121,18 +121,18 @@ verify with the newly delivered link; 7 rapid resends yield a clear 429 message
 
 ### Tests for User Story 2 (write first — must fail)
 
-- [ ] T035 [P] [US2] Extend `backend/tests/Feature/Http/Controllers/EmailVerificationControllerTest.php` for `POST /api/email/verification-notification`: unverified user → 200 `{message}` and a fresh `VerifyEmail` notification (`Notification::fake()`); already-verified → 409, nothing sent; anonymous → 401; 7th request within a minute → 429 (FR-006)
-- [ ] T036 [P] [US2] Extend `frontend/tests/lib/authApi.test.ts` (`AuthApi.resendVerification` outcomes: 200 `sent`, 409 `already-verified`, 429 `rate-limited`, fetch failure `network`) and `frontend/tests/lib/authModel.test.ts` (resend-result → user feedback mapping, incl. "try again in a minute" for 429)
-- [ ] T037 [P] [US2] Extend `frontend/tests/pages/VerifyEmailNoticePage.test.tsx` (resend button: success/already/rate-limited/network feedback announced; button disabled while in flight) and `frontend/tests/pages/VerifyEmailPage.test.tsx` (`failed` state offers the resend action, FR-004)
+- [X] T035 [P] [US2] Extend `backend/tests/Feature/Http/Controllers/EmailVerificationControllerTest.php` for `POST /api/email/verification-notification`: unverified user → 200 `{message}` and a fresh `VerifyEmail` notification (`Notification::fake()`); already-verified → 409, nothing sent; anonymous → 401; 7th request within a minute → 429 (FR-006)
+- [X] T036 [P] [US2] Extend `frontend/tests/lib/authApi.test.ts` (`AuthApi.resendVerification` outcomes: 200 `sent`, 409 `already-verified`, 429 `rate-limited`, fetch failure `network`) and `frontend/tests/lib/authModel.test.ts` (resend-result → user feedback mapping, incl. "try again in a minute" for 429)
+- [X] T037 [P] [US2] Extend `frontend/tests/pages/VerifyEmailNoticePage.test.tsx` (resend button: success/already/rate-limited/network feedback announced; button disabled while in flight) and `frontend/tests/pages/VerifyEmailPage.test.tsx` (`failed` state offers the resend action, FR-004)
 
 ### Implementation for User Story 2
 
-- [ ] T038 [US2] Add `send()` to `backend/app/Http/Controllers/EmailVerificationController.php`: already verified → 409 `{message: "Email already verified."}`; otherwise `sendEmailVerificationNotification()` → 200 `{message: "Verification link sent."}` per contracts/verification-api.md
-- [ ] T039 [US2] Register `POST /email/verification-notification` in `backend/routes/api.php`, middleware `auth:sanctum`, `throttle:6,1` (depends on T038) — T035 goes green
-- [ ] T040 [US2] Add `AuthApi.resendVerification(): Promise<ResendResult>` (POST via the existing CSRF-aware path) in `frontend/src/lib/authApi.ts` and the resend feedback mapping in `frontend/src/lib/authModel.ts` — T036 goes green
-- [ ] T041 [US2] Add the resend button to `frontend/src/pages/VerifyEmailNoticePage.tsx` (labeled, disabled in flight, outcome announced via the existing notice/`aria-live` pattern) (depends on T040) — T037 (notice half) goes green
-- [ ] T042 [US2] Add the resend action to the `failed` state of `frontend/src/pages/VerifyEmailPage.tsx` (FR-004: clear explanation + path to a new message) (depends on T040) — T037 (landing half) goes green
-- [ ] T043 [US2] Extend `frontend/e2e/verify-email.spec.ts`: register → discard first link → press resend on the notice page → extract the *newest* link → verify with it (quickstart Scenario 3)
+- [X] T038 [US2] Add `send()` to `backend/app/Http/Controllers/EmailVerificationController.php`: already verified → 409 `{message: "Email already verified."}`; otherwise `sendEmailVerificationNotification()` → 200 `{message: "Verification link sent."}` per contracts/verification-api.md
+- [X] T039 [US2] Register `POST /email/verification-notification` in `backend/routes/api.php`, middleware `auth:sanctum`, `throttle:6,1` (depends on T038) — T035 goes green
+- [X] T040 [US2] Add `AuthApi.resendVerification(): Promise<ResendResult>` (POST via the existing CSRF-aware path) in `frontend/src/lib/authApi.ts` and the resend feedback mapping in `frontend/src/lib/authModel.ts` — T036 goes green
+- [X] T041 [US2] Add the resend button to `frontend/src/pages/VerifyEmailNoticePage.tsx` (labeled, disabled in flight, outcome announced via the existing notice/`aria-live` pattern) (depends on T040) — T037 (notice half) goes green
+- [X] T042 [US2] Add the resend action to the `failed` state of `frontend/src/pages/VerifyEmailPage.tsx` (FR-004: clear explanation + path to a new message) (depends on T040) — T037 (landing half) goes green
+- [X] T043 [US2] Extend `frontend/e2e/verify-email.spec.ts`: register → discard first link → press resend on the notice page → extract the *newest* link → verify with it (quickstart Scenario 3)
 
 **Checkpoint**: Users who missed or outlived their first link can recover unaided.
 
@@ -149,12 +149,12 @@ offers resend; verify → page says "Verified" with no resend control
 
 ### Tests for User Story 3 (write first — must fail)
 
-- [ ] T044 [P] [US3] Extend `frontend/tests/pages/AccountPage.test.tsx`: unverified user sees "Not verified" **as text** plus a labeled resend button with the shared outcome handling; verified user sees "Verified" and no resend control
+- [X] T044 [P] [US3] Extend `frontend/tests/pages/AccountPage.test.tsx`: unverified user sees "Not verified" **as text** plus a labeled resend button with the shared outcome handling; verified user sees "Verified" and no resend control
 
 ### Implementation for User Story 3
 
-- [ ] T045 [US3] Add an "Email verification" row to the details list in `frontend/src/pages/AccountPage.tsx`: status from `useAuth().user.emailVerifiedAt`, resend button reusing `AuthApi.resendVerification` + the `AuthModel` feedback mapping (depends on US2's T040 for the resend action; the status text alone needs only Phase 2) — T044 goes green
-- [ ] T046 [US3] Extend `frontend/e2e/verify-email.spec.ts`: before verifying, `/account` shows "Not verified"; after the verify flow, `/account` shows "Verified" with no resend button
+- [X] T045 [US3] Add an "Email verification" row to the details list in `frontend/src/pages/AccountPage.tsx`: status from `useAuth().user.emailVerifiedAt`, resend button reusing `AuthApi.resendVerification` + the `AuthModel` feedback mapping (depends on US2's T040 for the resend action; the status text alone needs only Phase 2) — T044 goes green
+- [X] T046 [US3] Extend `frontend/e2e/verify-email.spec.ts`: before verifying, `/account` shows "Not verified"; after the verify flow, `/account` shows "Verified" with no resend button
 
 **Checkpoint**: All three stories independently functional.
 

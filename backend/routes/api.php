@@ -45,3 +45,8 @@ Route::get('/user', [AuthController::class, 'user'])->name('api.auth.user');
 Route::get('/email/verify/{hash}', [EmailVerificationController::class, 'verify'])
     ->middleware(['auth:sanctum', 'signed:relative', 'throttle:6,1'])
     ->name('verification.verify');
+// Resend the verification message (FR-006): rate-limited per user like the verify
+// route — a signed-in user can mint at most 6 fresh links per minute.
+Route::post('/email/verification-notification', [EmailVerificationController::class, 'send'])
+    ->middleware(['auth:sanctum', 'throttle:6,1'])
+    ->name('verification.send');

@@ -1,4 +1,4 @@
-import type { AuthUser, FieldErrors, VerifyEmailInput, VerifyEmailResult } from './authApi';
+import type { AuthUser, FieldErrors, ResendResult, VerifyEmailInput, VerifyEmailResult } from './authApi';
 
 export type AuthStatus = 'unknown' | 'anonymous' | 'authenticated';
 
@@ -102,6 +102,21 @@ export class AuthModel {
       return result.alreadyVerified ? 'already' : 'confirmed';
     }
     return 'failed';
+  }
+
+  // User feedback for a resend attempt, shared by the notice, landing, and account
+  // pages (FR-006/FR-008). One message per outcome, stated in text (Principle IV).
+  static resendFeedback(result: ResendResult): string {
+    if (result.ok) {
+      return 'Verification link sent. Check your inbox.';
+    }
+    if (result.kind === 'already-verified') {
+      return 'Your e-mail is already verified.';
+    }
+    if (result.kind === 'rate-limited') {
+      return 'Too many attempts. Please try again in a minute.';
+    }
+    return 'Something went wrong. Please check your connection and try again.';
   }
 
   // One message per failure kind, stated in text (Principle IV). Rate-limit and network

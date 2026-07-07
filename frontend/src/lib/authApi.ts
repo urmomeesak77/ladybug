@@ -38,6 +38,12 @@ export type VerifyEmailResult =
   | { ok: false; kind: 'rate-limited' }
   | { ok: false; kind: 'network' };
 
+export type ResendResult =
+  | { ok: true }
+  | { ok: false; kind: 'already-verified' }
+  | { ok: false; kind: 'rate-limited' }
+  | { ok: false; kind: 'network' };
+
 type RawUser = {
   id: number;
   name: string;
@@ -116,6 +122,25 @@ export class AuthApi {
       }
       if (response.status === 403) {
         return { ok: false, kind: 'invalid' };
+      }
+      if (response.status === 429) {
+        return { ok: false, kind: 'rate-limited' };
+      }
+      return { ok: false, kind: 'network' };
+    } catch {
+      return { ok: false, kind: 'network' };
+    }
+  }
+
+  // Request a fresh verification message for the signed-in user (US2, FR-006).
+  static async resendVerification(): Promise<ResendResult> {
+    try {
+      const response = await AuthApi.postJson('/api/email/verification-notification', {});
+      if (response.status === 200) {
+        return { ok: true };
+      }
+      if (response.status === 409) {
+        return { ok: false, kind: 'already-verified' };
       }
       if (response.status === 429) {
         return { ok: false, kind: 'rate-limited' };
