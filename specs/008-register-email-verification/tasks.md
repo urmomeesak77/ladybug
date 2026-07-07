@@ -70,41 +70,41 @@ a confirmation page. Idempotent re-use; links survive sign-in (return-to login).
 
 ### Tests for User Story 1 (write first — must fail)
 
-- [ ] T009 [P] [US1] Create `backend/tests/Feature/Http/Controllers/EmailVerificationControllerTest.php` covering `GET /api/email/verify/{hash}`: valid link → 200, `email_verified_at` set, `meta.already_verified: false`, `Verified` event fired; already-verified → 200, `meta.already_verified: true`, timestamp unchanged (FR-005); expired (time-travel past 24 h) → 403, state unchanged; tampered signature → 403; `{hash}` of a *different* user's email → 403 (cross-account edge case); anonymous → 401; 7th hit within a minute → 429
-- [ ] T010 [P] [US1] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`: register dispatches the `VerifyEmail` notification to the new user (`Notification::fake()`); register still returns 201 when notification dispatch throws a transport exception (FR-011)
-- [ ] T011 [P] [US1] Extend `frontend/tests/lib/authApi.test.ts`: `AuthApi.verifyEmail` outcomes — 200 fresh (`{ok:true, alreadyVerified:false}`), 200 already, 403 → `invalid`, 429 → `rate-limited`, fetch failure → `network`
-- [ ] T012 [P] [US1] Extend `frontend/tests/lib/authModel.test.ts`: `parseVerifyParams` (valid → `VerifyEmailInput`; missing/blank hash, expires, or signature → `null`) and verify-result → `verifying/confirmed/already/failed` view-state mapping
-- [ ] T013 [P] [US1] Extend `frontend/tests/hooks/useAuth.test.tsx` and `frontend/tests/components/AuthProvider.test.tsx`: context `refresh()` re-probes `/api/user` and updates `emailVerifiedAt`
-- [ ] T014 [P] [US1] Extend `frontend/tests/components/RequireAuth.test.tsx` (redirects to `/login` carrying the blocked location in router state) and `frontend/tests/pages/LoginPage.test.tsx` (on success navigates to `state.from ?? '/'`) — D9
-- [ ] T015 [P] [US1] Extend `frontend/tests/pages/RegisterPage.test.tsx`: successful registration navigates to `/verify-email` (FR-007)
-- [ ] T016 [P] [US1] Create `frontend/tests/pages/VerifyEmailNoticePage.test.tsx`: names the signed-in user's address in text; already-verified visitor sees "already verified" + link to `/account` instead of the notice
-- [ ] T017 [P] [US1] Create `frontend/tests/pages/VerifyEmailPage.test.tsx`: `verifying` while in flight; `confirmed` on 200 fresh (and auth `refresh()` called); `already` on 200 already-verified; `failed` on 403; malformed params render `failed` without issuing a request
+- [X] T009 [P] [US1] Create `backend/tests/Feature/Http/Controllers/EmailVerificationControllerTest.php` covering `GET /api/email/verify/{hash}`: valid link → 200, `email_verified_at` set, `meta.already_verified: false`, `Verified` event fired; already-verified → 200, `meta.already_verified: true`, timestamp unchanged (FR-005); expired (time-travel past 24 h) → 403, state unchanged; tampered signature → 403; `{hash}` of a *different* user's email → 403 (cross-account edge case); anonymous → 401; 7th hit within a minute → 429
+- [X] T010 [P] [US1] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`: register dispatches the `VerifyEmail` notification to the new user (`Notification::fake()`); register still returns 201 when notification dispatch throws a transport exception (FR-011)
+- [X] T011 [P] [US1] Extend `frontend/tests/lib/authApi.test.ts`: `AuthApi.verifyEmail` outcomes — 200 fresh (`{ok:true, alreadyVerified:false}`), 200 already, 403 → `invalid`, 429 → `rate-limited`, fetch failure → `network`
+- [X] T012 [P] [US1] Extend `frontend/tests/lib/authModel.test.ts`: `parseVerifyParams` (valid → `VerifyEmailInput`; missing/blank hash, expires, or signature → `null`) and verify-result → `verifying/confirmed/already/failed` view-state mapping
+- [X] T013 [P] [US1] Extend `frontend/tests/hooks/useAuth.test.tsx` and `frontend/tests/components/AuthProvider.test.tsx`: context `refresh()` re-probes `/api/user` and updates `emailVerifiedAt`
+- [X] T014 [P] [US1] Extend `frontend/tests/components/RequireAuth.test.tsx` (redirects to `/login` carrying the blocked location in router state) and `frontend/tests/pages/LoginPage.test.tsx` (on success navigates to `state.from ?? '/'`) — D9
+- [X] T015 [P] [US1] Extend `frontend/tests/pages/RegisterPage.test.tsx`: successful registration navigates to `/verify-email` (FR-007)
+- [X] T016 [P] [US1] Create `frontend/tests/pages/VerifyEmailNoticePage.test.tsx`: names the signed-in user's address in text; already-verified visitor sees "already verified" + link to `/account` instead of the notice
+- [X] T017 [P] [US1] Create `frontend/tests/pages/VerifyEmailPage.test.tsx`: `verifying` while in flight; `confirmed` on 200 fresh (and auth `refresh()` called); `already` on 200 already-verified; `failed` on 403; malformed params render `failed` without issuing a request
 
 ### Backend implementation for User Story 1
 
-- [ ] T018 [P] [US1] Create `backend/app/Http/Requests/VerifyEmailRequest.php`: `authorize()` = `hash_equals(sha1(authenticated user's email), route('hash'))` — the in-house replacement for the stock id-based `EmailVerificationRequest` (D3, no ids in URLs)
-- [ ] T019 [US1] Create `backend/app/Http/Controllers/EmailVerificationController.php` with `verify(VerifyEmailRequest)`: if unverified, `markEmailAsVerified()` + `event(new Verified($user))`; respond 200 `{data: UserResource, meta: {already_verified}}` per contracts/verification-api.md (depends on T018)
-- [ ] T020 [US1] Register `GET /email/verify/{hash}` in `backend/routes/api.php`, name `verification.verify`, middleware `auth:sanctum`, `signed:relative`, `throttle:6,1` (depends on T019)
-- [ ] T021 [US1] In `backend/app/Providers/AppServiceProvider.php` `boot()`, wire `VerifyEmail::createUrlUsing` to a **static class method** (not a closure — conventions) that builds a *relative* temporary signed URL for `verification.verify` (expiry from `auth.verification.expire`) and emits `{FRONTEND_URL}/verify-email/{hash}?expires&signature` (D3; depends on T020 for the route name)
-- [ ] T022 [US1] In `backend/app/Http/Controllers/AuthController.php` `register()`, call `$user->sendEmailVerificationNotification()` inside try/catch with `report()` on failure — registration always returns 201 (FR-011, D4) — T009/T010 go green
+- [X] T018 [P] [US1] Create `backend/app/Http/Requests/VerifyEmailRequest.php`: `authorize()` = `hash_equals(sha1(authenticated user's email), route('hash'))` — the in-house replacement for the stock id-based `EmailVerificationRequest` (D3, no ids in URLs)
+- [X] T019 [US1] Create `backend/app/Http/Controllers/EmailVerificationController.php` with `verify(VerifyEmailRequest)`: if unverified, `markEmailAsVerified()` + `event(new Verified($user))`; respond 200 `{data: UserResource, meta: {already_verified}}` per contracts/verification-api.md (depends on T018)
+- [X] T020 [US1] Register `GET /email/verify/{hash}` in `backend/routes/api.php`, name `verification.verify`, middleware `auth:sanctum`, `signed:relative`, `throttle:6,1` (depends on T019)
+- [X] T021 [US1] In `backend/app/Providers/AppServiceProvider.php` `boot()`, wire `VerifyEmail::createUrlUsing` to a **static class method** (not a closure — conventions) that builds a *relative* temporary signed URL for `verification.verify` (expiry from `auth.verification.expire`) and emits `{FRONTEND_URL}/verify-email/{hash}?expires&signature` (D3; depends on T020 for the route name)
+- [X] T022 [US1] In `backend/app/Http/Controllers/AuthController.php` `register()`, call `$user->sendEmailVerificationNotification()` inside try/catch with `report()` on failure — registration always returns 201 (FR-011, D4) — T009/T010 go green
 
 ### Frontend implementation for User Story 1
 
-- [ ] T023 [P] [US1] Add `AuthApi.verifyEmail(input: VerifyEmailInput): Promise<VerifyEmailResult>` (GET with `credentials: 'include'`, typed outcomes per contracts/frontend.md) in `frontend/src/lib/authApi.ts` — T011 goes green
-- [ ] T024 [P] [US1] Add `AuthModel.parseVerifyParams` and verify-result → view-state mapping helpers in `frontend/src/lib/authModel.ts` — T012 goes green
-- [ ] T025 [US1] Implement `refresh(): Promise<void>` in `frontend/src/components/AuthProvider.tsx` and expose it via the context type in `frontend/src/hooks/useAuth.ts` — T013 goes green
-- [ ] T026 [P] [US1] Edit `frontend/src/components/RequireAuth.tsx`: `<Navigate to="/login" replace state={{ from: location }} />` — T014 (guard half) goes green
-- [ ] T027 [US1] Edit `frontend/src/pages/LoginPage.tsx`: on success navigate to `state.from ?? '/'` (D9) — T014 (login half) goes green
-- [ ] T028 [US1] Edit `frontend/src/pages/RegisterPage.tsx`: on success navigate to `/verify-email`; success notice mentions checking email (FR-007) — T015 goes green
-- [ ] T029 [US1] Create `frontend/src/pages/VerifyEmailNoticePage.tsx`: "check your inbox at {email}" from auth context, status in text (Principle IV); already-verified variant links to `/account` (resend button arrives in US2) — T016 goes green
-- [ ] T030 [US1] Create `frontend/src/pages/VerifyEmailPage.tsx`: on mount parse `:hash` + `expires`/`signature` via `AuthModel.parseVerifyParams`, call `AuthApi.verifyEmail`, render `verifying/confirmed/already/failed`; call auth `refresh()` on `confirmed`; outcomes announced accessibly (`aria-live`) (depends on T023–T025) — T017 goes green
-- [ ] T031 [US1] Add `RequireAuth`-wrapped routes `/verify-email` → `VerifyEmailNoticePage` and `/verify-email/:hash` → `VerifyEmailPage` in `frontend/src/App.tsx` (depends on T029, T030)
-- [ ] T032 [P] [US1] Extend `frontend/src/styles/theme.css` with verification status/notice styles for both light and dark schemes (Principle IV)
+- [X] T023 [P] [US1] Add `AuthApi.verifyEmail(input: VerifyEmailInput): Promise<VerifyEmailResult>` (GET with `credentials: 'include'`, typed outcomes per contracts/frontend.md) in `frontend/src/lib/authApi.ts` — T011 goes green
+- [X] T024 [P] [US1] Add `AuthModel.parseVerifyParams` and verify-result → view-state mapping helpers in `frontend/src/lib/authModel.ts` — T012 goes green
+- [X] T025 [US1] Implement `refresh(): Promise<void>` in `frontend/src/components/AuthProvider.tsx` and expose it via the context type in `frontend/src/hooks/useAuth.ts` — T013 goes green
+- [X] T026 [P] [US1] Edit `frontend/src/components/RequireAuth.tsx`: `<Navigate to="/login" replace state={{ from: location }} />` — T014 (guard half) goes green
+- [X] T027 [US1] Edit `frontend/src/pages/LoginPage.tsx`: on success navigate to `state.from ?? '/'` (D9) — T014 (login half) goes green
+- [X] T028 [US1] Edit `frontend/src/pages/RegisterPage.tsx`: on success navigate to `/verify-email`; success notice mentions checking email (FR-007) — T015 goes green
+- [X] T029 [US1] Create `frontend/src/pages/VerifyEmailNoticePage.tsx`: "check your inbox at {email}" from auth context, status in text (Principle IV); already-verified variant links to `/account` (resend button arrives in US2) — T016 goes green
+- [X] T030 [US1] Create `frontend/src/pages/VerifyEmailPage.tsx`: on mount parse `:hash` + `expires`/`signature` via `AuthModel.parseVerifyParams`, call `AuthApi.verifyEmail`, render `verifying/confirmed/already/failed`; call auth `refresh()` on `confirmed`; outcomes announced accessibly (`aria-live`) (depends on T023–T025) — T017 goes green
+- [X] T031 [US1] Add `RequireAuth`-wrapped routes `/verify-email` → `VerifyEmailNoticePage` and `/verify-email/:hash` → `VerifyEmailPage` in `frontend/src/App.tsx` (depends on T029, T030)
+- [X] T032 [P] [US1] Extend `frontend/src/styles/theme.css` with verification status/notice styles for both light and dark schemes (Principle IV)
 
 ### E2E for User Story 1
 
-- [ ] T033 [P] [US1] Create `frontend/e2e/helpers/mailLog.ts`: read `backend/storage/logs/laravel.log`, decode quoted-printable (`=3D`, `=` soft line breaks), return the newest `/verify-email/...` URL, filterable by recipient (D7, in-house — no new deps)
-- [ ] T034 [US1] Create `frontend/e2e/verify-email.spec.ts`: register unique user → lands on `/verify-email` naming the address → extract link via `mailLog.ts` → open it → confirmation shown → reload the link URL shows "already verified" (FR-005); second case: open a valid link in a signed-out context → `/login` → sign in → returned to the link and verified (spec scenario 4) (depends on T033)
+- [X] T033 [P] [US1] Create `frontend/e2e/helpers/mailLog.ts`: read `backend/storage/logs/laravel.log`, decode quoted-printable (`=3D`, `=` soft line breaks), return the newest `/verify-email/...` URL, filterable by recipient (D7, in-house — no new deps)
+- [X] T034 [US1] Create `frontend/e2e/verify-email.spec.ts`: register unique user → lands on `/verify-email` naming the address → extract link via `mailLog.ts` → open it → confirmation shown → reload the link URL shows "already verified" (FR-005); second case: open a valid link in a signed-out context → `/login` → sign in → returned to the link and verified (spec scenario 4) (depends on T033)
 
 **Checkpoint**: Register → email → verify → confirmation works end-to-end — MVP.
 

@@ -110,11 +110,84 @@ describe('clearFieldError', () => {
 
 describe('resolveStatus', () => {
   it('is authenticated when a user is present', () => {
-    const user = { id: 1, name: 'A', email: 'a@b.c', createdAt: '', updatedAt: '' };
+    const user = { id: 1, name: 'A', email: 'a@b.c', emailVerifiedAt: null, createdAt: '', updatedAt: '' };
     expect(AuthModel.resolveStatus(user)).toBe('authenticated');
   });
 
   it('is anonymous when there is no user', () => {
     expect(AuthModel.resolveStatus(null)).toBe('anonymous');
+  });
+});
+
+describe('parseVerifyParams', () => {
+  const query = new URLSearchParams({ expires: '1767225600', signature: 'deadbeef' });
+
+  it('extracts the link components from the route param and query', () => {
+    expect(AuthModel.parseVerifyParams('abc123', query)).toEqual({
+      hash: 'abc123',
+      expires: '1767225600',
+      signature: 'deadbeef',
+    });
+  });
+
+  it('returns null when the hash segment is missing or blank', () => {
+    expect(AuthModel.parseVerifyParams(undefined, query)).toBeNull();
+    expect(AuthModel.parseVerifyParams('  ', query)).toBeNull();
+  });
+
+  it('returns null when expires is missing or blank', () => {
+    expect(AuthModel.parseVerifyParams('abc123', new URLSearchParams({ signature: 'deadbeef' }))).toBeNull();
+    expect(AuthModel.parseVerifyParams(
+      'abc123',
+      new URLSearchParams({ expires: ' ', signature: 'deadbeef' }),
+    )).toBeNull();
+  });
+
+  it('returns null when the signature is missing or blank', () => {
+    expect(AuthModel.parseVerifyParams('abc123', new URLSearchParams({ expires: '1767225600' }))).toBeNull();
+    expect(AuthModel.parseVerifyParams(
+      'abc123',
+      new URLSearchParams({ expires: '1767225600', signature: '' }),
+    )).toBeNull();
+  });
+});
+
+describe('verifyViewState', () => {
+  const ada = {
+    id: 1,
+    name: 'Ada',
+    email: 'ada@example.com',
+    emailVerifiedAt: '2026-07-07T10:00:00Z',
+    createdAt: '',
+    updatedAt: '',
+  };
+
+  it('maps a fresh verification to confirmed', () => {
+    expect(AuthModel.verifyViewState({ ok: true, user: ada, alreadyVerified: false })).toBe('confirmed');
+  });
+
+  it('maps an idempotent re-use to already', () => {
+    expect(AuthModel.verifyViewState({ ok: true, user: ada, alreadyVerified: true })).toBe('already');
+  });
+
+  it('maps every failure kind to failed', () => {
+    expect(AuthModel.verifyViewState({ ok: false, kind: 'invalid' })).toBe('failed');
+    expect(AuthModel.verifyViewState({ ok: false, kind: 'rate-limited' })).toBe('failed');
+    expect(AuthModel.verifyViewState({ ok: false, kind: 'network' })).toBe('failed');
+  });
+});
+
+describe('verifyFailureMessage', () => {
+  it('explains an invalid or expired link', () => {
+    expect(AuthModel.verifyFailureMessage('invalid')).toBe('This verification link is invalid or expired.');
+  });
+
+  it('tells a rate-limited user to try again in a minute', () => {
+    expect(AuthModel.verifyFailureMessage('rate-limited')).toBe('Too many attempts. Please try again in a minute.');
+  });
+
+  it('reports a network failure as retryable', () => {
+    expect(AuthModel.verifyFailureMessage('network'))
+      .toBe('Something went wrong. Please check your connection and try again.');
   });
 });

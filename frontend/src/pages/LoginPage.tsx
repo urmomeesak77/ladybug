@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import type { Location } from 'react-router-dom';
 
 import AuthField from '../components/AuthField';
 import { useAuth } from '../hooks/useAuth';
@@ -19,6 +20,7 @@ function LoginPage() {
   const { login } = useAuth();
   const { show } = useNotice();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [touched, setTouched] = useState<Set<string>>(new Set());
@@ -67,7 +69,10 @@ function LoginPage() {
     const result = await login(values);
     setSubmitting(false);
     if (result.ok) {
-      navigate('/');
+      // Return to the location the auth guard blocked, if any (D9) — e.g. a
+      // verification link opened while signed out completes after login.
+      const from = (location.state as { from?: Location } | null)?.from;
+      navigate(from ?? '/');
       return;
     }
     if (result.kind === 'validation') {

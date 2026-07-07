@@ -1,6 +1,11 @@
-import type { AuthUser, FieldErrors } from './authApi';
+import type { AuthUser, FieldErrors, VerifyEmailInput, VerifyEmailResult } from './authApi';
 
 export type AuthStatus = 'unknown' | 'anonymous' | 'authenticated';
+
+// The link-landing page's view states (008): all server-derived, all at one URL.
+export type VerifyViewState = 'verifying' | 'confirmed' | 'already' | 'failed';
+
+export type VerifyFailureKind = 'invalid' | 'rate-limited' | 'network';
 
 export type RegisterValues = {
   name: string;
@@ -77,6 +82,38 @@ export class AuthModel {
 
   static resolveStatus(user: AuthUser | null): AuthStatus {
     return user ? 'authenticated' : 'anonymous';
+  }
+
+  // Extract a verification link's components from the route param + query. Any missing
+  // or blank piece means the link cannot possibly validate, so the page can render the
+  // failure state without issuing a doomed request (contracts/frontend.md).
+  static parseVerifyParams(hash: string | undefined, query: URLSearchParams): VerifyEmailInput | null {
+    const cleanHash = (hash ?? '').trim();
+    const expires = (query.get('expires') ?? '').trim();
+    const signature = (query.get('signature') ?? '').trim();
+    if (!cleanHash || !expires || !signature) {
+      return null;
+    }
+    return { hash: cleanHash, expires, signature };
+  }
+
+  static verifyViewState(result: VerifyEmailResult): VerifyViewState {
+    if (result.ok) {
+      return result.alreadyVerified ? 'already' : 'confirmed';
+    }
+    return 'failed';
+  }
+
+  // One message per failure kind, stated in text (Principle IV). Rate-limit and network
+  // failures are retryable and say so; an invalid link points at the resend path (US2).
+  static verifyFailureMessage(kind: VerifyFailureKind): string {
+    if (kind === 'invalid') {
+      return 'This verification link is invalid or expired.';
+    }
+    if (kind === 'rate-limited') {
+      return 'Too many attempts. Please try again in a minute.';
+    }
+    return 'Something went wrong. Please check your connection and try again.';
   }
 
   private static isTouched(touched: Set<string> | undefined, field: string): boolean {

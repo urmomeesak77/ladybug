@@ -11,6 +11,7 @@ use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Throwable;
 
 class AuthController extends Controller {
     public function __construct(private readonly UserService $users) {
@@ -22,6 +23,16 @@ class AuthController extends Controller {
      */
     public function register(RegisterRequest $request): JsonResponse {
         $user = $this->users->create($request->validated());
+
+        // FR-011: a mail-transport failure must never fail registration — the
+        // account exists and the resend endpoint is the recovery path, so the
+        // error is reported server-side and the request proceeds.
+        try {
+            $user->sendEmailVerificationNotification();
+        }
+        catch (Throwable $exception) {
+            report($exception);
+        }
 
         Auth::login($user);
         // Rotate the session id after authenticating to prevent session fixation.

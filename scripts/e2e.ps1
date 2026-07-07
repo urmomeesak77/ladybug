@@ -64,6 +64,28 @@ try {
         if (-not $ready) { throw "e2e: $($probe.Name) did not become ready at $($probe.Url)" }
     }
 
+    # Warm the register/mail path: the stack's FIRST register renders the first
+    # mail on a cold opcache over the Windows bind mount (symfony-mailer graph +
+    # Blade mail views), which can take 30s+. Pay that cost here with a throwaway
+    # user instead of inside the first spec's test budget. Best-effort by design.
+    Write-Host "e2e: warming the register/mail path..."
+    $warmBody = @{
+        name                  = 'Warmup User'
+        email                 = "warmup+$(Get-Random)@example.com"
+        password              = 'Password1'
+        password_confirmation = 'Password1'
+    } | ConvertTo-Json
+    try {
+        Invoke-WebRequest -Uri 'http://localhost:8001/api/register' -Method Post `
+            -Body $warmBody -ContentType 'application/json' `
+            -Headers @{ Accept = 'application/json' } -UseBasicParsing -TimeoutSec 120 | Out-Null
+    }
+    catch {
+        # A 500 is expected here: the stateless request dies at session handling,
+        # but only AFTER rendering the register mail — the path is warmed anyway.
+        Write-Host "e2e: warmup register answered an error (mail path warmed regardless)"
+    }
+
     Write-Host "e2e: running Playwright against $baseUrl ..."
     Push-Location (Join-Path $repoRoot 'frontend')
     try {

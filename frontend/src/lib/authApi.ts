@@ -29,6 +29,15 @@ export type RegisterInput = {
 
 export type LoginInput = { email: string; password: string };
 
+// The components of a verification link, forwarded verbatim to the API (008).
+export type VerifyEmailInput = { hash: string; expires: string; signature: string };
+
+export type VerifyEmailResult =
+  | { ok: true; user: AuthUser; alreadyVerified: boolean }
+  | { ok: false; kind: 'invalid' }
+  | { ok: false; kind: 'rate-limited' }
+  | { ok: false; kind: 'network' };
+
 type RawUser = {
   id: number;
   name: string;
@@ -85,6 +94,35 @@ export class AuthApi {
       return { ok: response.ok };
     } catch {
       return { ok: false };
+    }
+  }
+
+  // Fulfill a verification link (008): the signature was computed server-side over the
+  // relative API URL, so the components pass through untouched. 403 covers tampered,
+  // expired, and cross-account links alike — the server does not distinguish (FR-004).
+  static async verifyEmail(input: VerifyEmailInput): Promise<VerifyEmailResult> {
+    const query = new URLSearchParams({ expires: input.expires, signature: input.signature });
+    try {
+      const response = await fetch(
+        `${Api.base()}/api/email/verify/${encodeURIComponent(input.hash)}?${query.toString()}`,
+        { credentials: 'include', headers: { Accept: 'application/json' } },
+      );
+      if (response.status === 200) {
+        const body = (await response.json()) as { data?: RawUser; meta?: { already_verified?: boolean } };
+        if (body.data) {
+          return { ok: true, user: AuthApi.mapUser(body.data), alreadyVerified: body.meta?.already_verified === true };
+        }
+        return { ok: false, kind: 'network' };
+      }
+      if (response.status === 403) {
+        return { ok: false, kind: 'invalid' };
+      }
+      if (response.status === 429) {
+        return { ok: false, kind: 'rate-limited' };
+      }
+      return { ok: false, kind: 'network' };
+    } catch {
+      return { ok: false, kind: 'network' };
     }
   }
 

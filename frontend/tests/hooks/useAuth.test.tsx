@@ -23,6 +23,7 @@ describe('useAuth', () => {
       register: vi.fn(),
       login: vi.fn(),
       logout: vi.fn(),
+      refresh: vi.fn(),
     };
     const wrapper = ({ children }: { children: ReactNode }) => (
       <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

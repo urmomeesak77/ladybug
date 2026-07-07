@@ -498,3 +498,39 @@ main {
   border-radius: 10px;
   cursor: pointer;
 }
+
+/* ------------------------------------------------------------------ *
+ * Email verification (008): notice + link-landing pages. Same column *
+ * as the auth forms; every color is a theme variable, so both light  *
+ * and dark schemes are covered. Outcomes are stated in text inside a *
+ * bordered status box — never signalled by color alone (IV/FR-008).  *
+ * ------------------------------------------------------------------ */
+.verify {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 5px;
+}
+
+.verify h1 {
+  font-size: 1.17rem; /* Matches the auth headings' prototype scale. */
+  border-bottom: 1px solid var(--color-control-border);
+  padding: 10px 0;
+  margin-bottom: var(--space-lg);
+}
+
+.verify__status {
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+  color: var(--color-text);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+}
+
+.verify__notice {
+  margin-bottom: var(--space-md);
+  line-height: 1.5;
+}
+
+.verify a {
+  color: var(--color-text);
+}

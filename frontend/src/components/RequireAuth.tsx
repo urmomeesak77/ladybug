@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../hooks/useAuth';
 
@@ -8,11 +8,14 @@ import { useAuth } from '../hooks/useAuth';
 // does not flash to /login before the session resolves (FR-012/FR-013).
 function RequireAuth({ children }: { children: ReactNode }) {
   const { status } = useAuth();
+  const location = useLocation();
   if (status === 'unknown') {
     return null;
   }
   if (status === 'anonymous') {
-    return <Navigate to="/login" replace />;
+    // Carry the blocked location in router state so login can return to it — a
+    // verification link opened while signed out survives the sign-in (D9).
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
   return <>{children}</>;
 }

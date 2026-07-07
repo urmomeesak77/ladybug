@@ -78,8 +78,10 @@ function RegisterPage() {
     const result = await register(values);
     setSubmitting(false);
     if (result.ok) {
-      show({ message: `Welcome, ${result.user.name}! Your account is ready.` });
-      navigate('/');
+      // FR-007: steer the fresh registrant to the verification notice — the
+      // account works, but the email must be confirmed to prove address control.
+      show({ message: `Welcome, ${result.user.name}! Check your inbox to verify your e-mail.` });
+      navigate('/verify-email');
       return;
     }
     if (result.kind === 'validation') {

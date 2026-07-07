@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Notification;
+use RuntimeException;
 use Tests\TestCase;
 
 class AuthControllerTest extends TestCase {
@@ -46,6 +51,31 @@ class AuthControllerTest extends TestCase {
         // whether to steer the user toward the verification notice (008).
         $this->assertArrayHasKey('email_verified_at', $response->json('data'));
         $this->assertNull($response->json('data.email_verified_at'));
+    }
+
+    public function test_register_sends_the_verification_notification_to_the_new_user(): void {
+        Notification::fake();
+
+        $response = $this->postJson('/api/register', $this->registration());
+
+        $response->assertCreated();
+        $user = User::where('email', 'ada@example.com')->firstOrFail();
+        Notification::assertSentTo($user, VerifyEmail::class);
+    }
+
+    public function test_register_still_succeeds_when_the_verification_email_cannot_be_sent(): void {
+        // FR-011: a mail-transport failure must be reported, not surfaced — the
+        // account exists and the resend endpoint is the recovery path.
+        Exceptions::fake();
+        $this->mock(NotificationDispatcher::class, static function ($mock): void {
+            $mock->shouldReceive('send')->andThrow(new RuntimeException('mail transport down'));
+        });
+
+        $response = $this->postJson('/api/register', $this->registration());
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('users', ['email' => 'ada@example.com']);
+        Exceptions::assertReported(RuntimeException::class);
     }
 
     public function test_register_logs_the_new_user_in(): void {
