@@ -164,10 +164,10 @@ offers resend; verify → page says "Verified" with no resend control
 
 **Purpose**: Prove the constitution gates on the finished feature.
 
-- [ ] T047 Run backend gates in Docker: `vendor/bin/pint --test` and `php artisan test` via `php:8.3-cli`; run coverage the CI way (pcov + `.github/scripts/check_coverage.py`, ≥90% over `app/`) and close any gaps
-- [ ] T048 Run frontend gates: `docker compose exec frontend npm run lint` and `npm run test` — Vitest coverage ≥90% across ALL of `src/`; close any gaps
-- [ ] T049 Run the full e2e suite against the isolated stack: `scripts\e2e.ps1` (ports 5174/8001; includes `verify-email.spec.ts`)
-- [ ] T050 Manual quickstart validation: Scenarios 1–5 plus the constitution gates — Back/Forward/Refresh on `/verify-email` and `/verify-email/:hash` (Principle III/FR-010), both themes + status-not-by-color + labeled controls (IV), 320 px → desktop (VIII)
+- [X] T047 Run backend gates in Docker: `vendor/bin/pint --test` and `php artisan test` via `php:8.3-cli`; run coverage the CI way (pcov + `.github/scripts/check_coverage.py`, ≥90% over `app/`) and close any gaps
+- [X] T048 Run frontend gates: `docker compose exec frontend npm run lint` and `npm run test` — Vitest coverage ≥90% across ALL of `src/`; close any gaps
+- [X] T049 Run the full e2e suite against the isolated stack: `scripts\e2e.ps1` (ports 5174/8001; includes `verify-email.spec.ts`)
+- [X] T050 Manual quickstart validation: Scenarios 1–5 plus the constitution gates — Back/Forward/Refresh on `/verify-email` and `/verify-email/:hash` (Principle III/FR-010), both themes + status-not-by-color + labeled controls (IV), 320 px → desktop (VIII)
 
 ---
 
