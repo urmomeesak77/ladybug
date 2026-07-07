@@ -8,6 +8,17 @@
 
 **Input**: User description: "Registering should use validation as well. check prototype how validating by email is implemented"
 
+## Clarifications
+
+### Session 2026-07-07
+
+- Q: After successful registration, where does the user land to see the "check
+  your email inbox" message (naming their address)? → A: A dedicated
+  verification-notice page with its own URL, showing the message and offering
+  the resend action.
+- Q: How long should a verification link remain valid before it expires? →
+  A: 24 hours.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Verify a new account via email (Priority: P1)
@@ -30,7 +41,8 @@ status changes from unverified to verified and the user sees a confirmation.
 1. **Given** a visitor on the registration form with valid details, **When**
    they submit the form successfully, **Then** their account is created as
    unverified, a verification message is sent to the registered address, and
-   the site tells them to check that inbox (naming the address).
+   they land on a dedicated verification-notice page (with its own URL) telling
+   them to check that inbox (naming the address) and offering a resend.
 2. **Given** a registered but unverified user who received the verification
    message, **When** they open the verification link, **Then** their account is
    marked verified (with the time of verification recorded) and they see a page
@@ -119,7 +131,7 @@ and confirm the page now states it is verified.
   address.
 - **FR-002**: Each verification message MUST contain a link that is unique to
   the account, tamper-evident (any alteration invalidates it), and
-  time-limited.
+  time-limited: it expires 24 hours after being sent.
 - **FR-003**: Opening a valid verification link MUST mark the account as
   verified, record when verification happened, and show the user a
   confirmation.
@@ -132,8 +144,10 @@ and confirm the page now states it is verified.
 - **FR-006**: Signed-in unverified users MUST be able to request a new
   verification message, and such requests MUST be rate-limited to prevent
   abuse.
-- **FR-007**: Immediately after registering, the user MUST be told to check
-  their email for the verification message, with the registered address named.
+- **FR-007**: Immediately after registering, the user MUST land on a dedicated
+  verification-notice page with its own URL that tells them to check their
+  email for the verification message (naming the registered address) and
+  offers the resend action.
 - **FR-008**: The account page MUST show the user's verification status and,
   when unverified, offer the resend action; status MUST NOT be conveyed by
   color alone and all controls MUST be labeled accessibly.
@@ -141,9 +155,9 @@ and confirm the page now states it is verified.
   (signing in, browsing, viewing their account); the recorded status exists so
   future contribution features (uploads, comments) can require a verified
   account.
-- **FR-010**: The pages a user lands on during verification (confirmation,
-  failure/expired) MUST have real shareable URLs that survive refresh and
-  Back/Forward navigation.
+- **FR-010**: The pages a user lands on during verification (the
+  post-registration notice, confirmation, failure/expired) MUST have real
+  shareable URLs that survive refresh and Back/Forward navigation.
 - **FR-011**: Registration MUST succeed even when the verification message
   cannot be dispatched; the failure MUST NOT expose account creation errors to
   the registrant beyond the normal registration outcome.
@@ -182,8 +196,8 @@ and confirm the page now states it is verified.
   immediately, and unverified users are not blocked from signing in or
   browsing. Nothing on the site requires a verified account yet — enforcement
   arrives with future contribution features (uploads, comments).
-- Verification links expire after a limited period (60 minutes assumed, the
-  common industry default); an expired link is recoverable via resend.
+- Verification links expire after 24 hours (clarified 2026-07-07); an expired
+  link is recoverable via resend.
 - Resend requests are rate-limited to roughly 6 per minute per user, matching
   the prototype's throttle.
 - Email delivery infrastructure is available in every environment (development
