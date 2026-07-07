@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import type { FeedMedia } from '../lib/feedModel';
 
@@ -6,7 +7,9 @@ import type { FeedMedia } from '../lib/feedModel';
 // <iframe> built only from the parsed embed URL (Principle VI); `none` ⇒ nothing (the
 // FeedItem still shows the title). A runtime-broken image degrades to title-only rather
 // than leaving a broken-image element (spec edge case).
-function MemeMedia({ media }: { media: FeedMedia }) {
+// `linkTo` (feed only) wraps the image in a permalink; YouTube stays unwrapped because
+// clicks land in the iframe, and on PostPage the prop is omitted (self-link is useless).
+function MemeMedia({ media, linkTo }: { media: FeedMedia; linkTo?: string }) {
   const [isBroken, setIsBroken] = useState(false);
 
   if (media.kind === 'youtube') {
@@ -25,7 +28,7 @@ function MemeMedia({ media }: { media: FeedMedia }) {
   }
 
   if (media.kind === 'image' && !isBroken) {
-    return (
+    const image = (
       <img
         className="meme-media meme-media__image"
         src={media.src}
@@ -38,6 +41,16 @@ function MemeMedia({ media }: { media: FeedMedia }) {
         onError={() => setIsBroken(true)}
       />
     );
+    if (linkTo) {
+      // tabIndex -1: pointer affordance only — the title link is the same destination,
+      // so keyboard users keep one tab stop per entry; alt text stays exposed to AT.
+      return (
+        <Link className="meme-media__link" to={linkTo} tabIndex={-1}>
+          {image}
+        </Link>
+      );
+    }
+    return image;
   }
 
   return null;

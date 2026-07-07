@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import MemeMedia from '../../src/components/MemeMedia';
@@ -35,6 +36,41 @@ describe('MemeMedia', () => {
     const img = screen.getByRole('img');
     expect(img.getAttribute('srcset')).toBeNull();
     expect(img.getAttribute('sizes')).toBeNull();
+  });
+
+  it('renders no link when linkTo is omitted', () => {
+    render(<MemeMedia media={imageMedia} />);
+
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  it('wraps the image in a permalink when linkTo is given', () => {
+    render(<MemeMedia media={imageMedia} linkTo="/posts/abc1234567" />, { wrapper: MemoryRouter });
+
+    const link = screen.getByRole('link', { name: 'Funny cat' });
+    expect(link.getAttribute('href')).toBe('/posts/abc1234567');
+    expect(link.getAttribute('tabindex')).toBe('-1');
+    expect(link.querySelector('img')).not.toBeNull();
+  });
+
+  it('drops the link together with a broken image', () => {
+    render(<MemeMedia media={imageMedia} linkTo="/posts/abc1234567" />, { wrapper: MemoryRouter });
+
+    fireEvent.error(screen.getByRole('img'));
+
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  it('does not wrap youtube media in a link', () => {
+    render(
+      <MemeMedia
+        media={{ kind: 'youtube', embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ', title: 'Song' }}
+        linkTo="/posts/abc1234567"
+      />,
+      { wrapper: MemoryRouter },
+    );
+
+    expect(screen.queryByRole('link')).toBeNull();
   });
 
   it('degrades to nothing when the image fails to load', () => {

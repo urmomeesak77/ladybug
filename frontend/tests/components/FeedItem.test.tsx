@@ -26,6 +26,22 @@ describe('FeedItem', () => {
     expect(link.getAttribute('href')).toBe('/posts/abc1234567');
   });
 
+  it('links the image to the post permalink as well', () => {
+    const media = {
+      kind: 'image' as const,
+      src: '/img/800/a/abc.jpg',
+      srcset: '',
+      sizes: '',
+      alt: 'Funny cat pic',
+      width: 800,
+      height: 400,
+    };
+    render(<FeedItem post={post({ media })} />, { wrapper: MemoryRouter });
+
+    const link = screen.getByRole('link', { name: 'Funny cat pic' });
+    expect(link.getAttribute('href')).toBe('/posts/abc1234567');
+  });
+
   it('falls back to a generic title for untitled posts', () => {
     render(<FeedItem post={post({ title: null })} />, { wrapper: MemoryRouter });
 

@@ -252,6 +252,11 @@ main {
   text-decoration: underline;
 }
 
+/* The permalink wrapper must be block so the inline <a> adds no line-height gap below the image. */
+.meme-media__link {
+  display: block;
+}
+
 /* Images scale within the card; the reset already caps width and sets display:block. */
 .meme-media__image {
   width: 100%;
