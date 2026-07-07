@@ -45,9 +45,12 @@ type distinguishes the two:
 - **`useScrollRestoration`** — when `fresh`: ignore the saved anchor and take the
   existing `'top'` path (`window.scrollTo(0, 0)`).
 
-Unchanged: `POP` navigations restore posts + scroll from the snapshot; "Load
-more" page-break URLs (`/?after=…`) are `PUSH` navigations and already load
-fresh today, so they keep the same behavior.
+Unchanged: `POP` navigations restore posts + scroll from the snapshot. "Load
+more" page-break URLs (`/?after=…`) are `PUSH` navigations, so they now also
+load fresh; previously a revisited page-break URL with a leftover snapshot from
+earlier in the session would restore it. That delta is intended — the decision
+rule applies uniformly. Likewise, `REPLACE` redirects to `/` (e.g. post-login)
+reset the feed.
 
 ## Accepted consequence
 
