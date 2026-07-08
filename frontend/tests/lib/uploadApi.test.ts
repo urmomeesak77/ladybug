@@ -46,6 +46,12 @@ describe('uploadApi', () => {
     expect(result).toEqual({ ok: false, kind: 'auth' });
   });
 
+  it('maps 403 to an unverified result', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(403, {}));
+    const result = await UploadApi.uploadYoutube({ title: '', youtube: 'dQw4w9WgXcQ' });
+    expect(result).toEqual({ ok: false, kind: 'unverified' });
+  });
+
   it('maps 422 to field errors', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse(422, { errors: { youtube: ['Enter a valid YouTube link.'] } }),

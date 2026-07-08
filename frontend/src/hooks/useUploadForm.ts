@@ -37,7 +37,15 @@ export function useUploadForm() {
       setErrors(result.errors);
       return;
     }
-    setFormError(result.kind === 'auth' ? 'Please log in again to post.' : 'Something went wrong. Please try again.');
+    if (result.kind === 'auth') {
+      setFormError('Please log in again to post.');
+      return;
+    }
+    if (result.kind === 'unverified') {
+      setFormError('Verify your e-mail address before posting.');
+      return;
+    }
+    setFormError('Something went wrong. Please try again.');
   }
 
   return { mode, setMode, title, setTitle, youtube, setYoutube, setFile, errors, formError, submitting, submit };

@@ -6,6 +6,7 @@ export type UploadResult =
   | { ok: true; hash: string }
   | { ok: false; kind: 'validation'; errors: FieldErrors }
   | { ok: false; kind: 'auth' }
+  | { ok: false; kind: 'unverified' }
   | { ok: false; kind: 'network' };
 
 // POST /api/posts client. Converges the two submission shapes (multipart image, JSON
@@ -52,6 +53,11 @@ export class UploadApi {
     }
     if (response.status === 401) {
       return { ok: false, kind: 'auth' };
+    }
+    if (response.status === 403) {
+      // The 'verified' middleware refused: the session is fine but the e-mail is not
+      // verified (possible when verification state changed after the route gate passed).
+      return { ok: false, kind: 'unverified' };
     }
     if (response.status === 422) {
       const body = (await response.json()) as { errors?: FieldErrors };

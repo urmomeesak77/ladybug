@@ -86,6 +86,16 @@ describe('useUploadForm', () => {
     expect(result.current.formError).toMatch(/log in again/i);
   });
 
+  it('shows the verification message when the API says unverified', async () => {
+    vi.spyOn(UploadApi, 'uploadYoutube').mockResolvedValue({ ok: false, kind: 'unverified' });
+    const { result } = renderHook(() => useUploadForm(), { wrapper });
+
+    act(() => result.current.setMode('youtube'));
+    await act(() => result.current.submit());
+
+    expect(result.current.formError).toBe('Verify your e-mail address before posting.');
+  });
+
   it('shows a generic retryable message on a network failure', async () => {
     vi.spyOn(UploadApi, 'uploadYoutube').mockResolvedValue({ ok: false, kind: 'network' });
     const { result } = renderHook(() => useUploadForm(), { wrapper });
