@@ -21,6 +21,7 @@ const rawUser = {
   name: 'Ada Lovelace',
   email: 'ada@example.com',
   email_verified_at: null,
+  role: 'member' as const,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-02T00:00:00Z',
 };
@@ -43,6 +44,7 @@ describe('mapUser', () => {
       name: 'Ada Lovelace',
       email: 'ada@example.com',
       emailVerifiedAt: null,
+      role: 'member',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-02T00:00:00Z',
     });
@@ -52,6 +54,12 @@ describe('mapUser', () => {
     const verified = { ...rawUser, email_verified_at: '2026-07-01T12:00:00Z' };
 
     expect(AuthApi.mapUser(verified).emailVerifiedAt).toBe('2026-07-01T12:00:00Z');
+  });
+
+  it('copies the account role through from the payload', () => {
+    const admin = { ...rawUser, role: 'admin' as const };
+
+    expect(AuthApi.mapUser(admin).role).toBe('admin');
   });
 });
 

@@ -73,16 +73,16 @@ description: "Task list for feature implementation: User Roles (Backbone)"
 
 ### Tests for User Story 2 ⚠️ (write first, ensure they FAIL)
 
-- [ ] T008 [P] [US2] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`: register (201) payload includes `"role": "member"`; `GET /api/user` for a logged-in account includes its `role`; anonymous `GET /api/user` stays `{ "data": null }` (FR-006 handled client-side).
-- [ ] T009 [P] [US2] Extend `frontend/tests/lib/authApi.test.ts`: `AuthApi.mapUser` copies `role` through from the raw payload (`data.role` → `AuthUser.role`).
-- [ ] T010 [P] [US2] Extend `frontend/tests/components/AuthProvider.test.tsx`: the context `role` is `'guest'` when anonymous and equals the user's stored role when authenticated (member/admin/superuser); stays `'guest'` while `status === 'unknown'`.
+- [X] T008 [P] [US2] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`: register (201) payload includes `"role": "member"`; `GET /api/user` for a logged-in account includes its `role`; anonymous `GET /api/user` stays `{ "data": null }` (FR-006 handled client-side).
+- [X] T009 [P] [US2] Extend `frontend/tests/lib/authApi.test.ts`: `AuthApi.mapUser` copies `role` through from the raw payload (`data.role` → `AuthUser.role`).
+- [X] T010 [P] [US2] Extend `frontend/tests/components/AuthProvider.test.tsx`: the context `role` is `'guest'` when anonymous and equals the user's stored role when authenticated (member/admin/superuser); stays `'guest'` while `status === 'unknown'`.
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Edit `backend/app/Http/Resources/UserResource.php`: add `'role' => $this->role->value` (FR-007). No other field is reshaped.
-- [ ] T012 [US2] Edit `frontend/src/lib/authApi.ts`: add `role: RoleName` to `AuthUser` and `RawUser` (import `RoleName` from `./role`); `AuthApi.mapUser` maps `role: raw.role`.
-- [ ] T013 [US2] Edit `frontend/src/hooks/useAuth.ts`: `AuthContextValue` gains `role: RoleName`.
-- [ ] T014 [US2] Edit `frontend/src/components/AuthProvider.tsx`: derive effective role `user?.role ?? 'guest'` and include it in the memoised context value alongside `status`/`user`.
+- [X] T011 [US2] Edit `backend/app/Http/Resources/UserResource.php`: add `'role' => $this->role->value` (FR-007). No other field is reshaped.
+- [X] T012 [US2] Edit `frontend/src/lib/authApi.ts`: add `role: RoleName` to `AuthUser` and `RawUser` (import `RoleName` from `./role`); `AuthApi.mapUser` maps `role: raw.role`.
+- [X] T013 [US2] Edit `frontend/src/hooks/useAuth.ts`: `AuthContextValue` gains `role: RoleName`.
+- [X] T014 [US2] Edit `frontend/src/components/AuthProvider.tsx`: derive effective role `user?.role ?? 'guest'` and include it in the memoised context value alongside `status`/`user`.
 
 **Checkpoint**: US1 + US2 both work — payload carries role; context exposes effective role (guest vs stored).
 
@@ -111,11 +111,11 @@ description: "Task list for feature implementation: User Roles (Backbone)"
 
 ### Tests for User Story 4 ⚠️ (write first, ensure they FAIL)
 
-- [ ] T017 [P] [US4] Create `backend/tests/Feature/Console/MakeSuperuserCommandTest.php`: promoting a member by email sets `role = Role::Superuser` and exits `0` (SC-005); unknown email prints an error, changes nothing, exits non-zero; already-superuser is idempotent (exit `0`, no spurious change).
+- [X] T017 [P] [US4] Create `backend/tests/Feature/Console/MakeSuperuserCommandTest.php`: promoting a member by email sets `role = Role::Superuser` and exits `0` (SC-005); unknown email prints an error, changes nothing, exits non-zero; already-superuser is idempotent (exit `0`, no spurious change).
 
 ### Implementation for User Story 4
 
-- [ ] T018 [US4] Create `backend/app/Console/Commands/MakeSuperuserCommand.php` (signature `user:make-superuser {email}`): find the account by **email** (not a DB id); set `role` to `Role::Superuser`, persist, print confirmation, exit `SUCCESS`; unknown email ⇒ error + `FAILURE`; already-superuser ⇒ idempotent success. Thin handler modelled on `SeedMediaCommand`; PSR-12, `declare(strict_types=1)`.
+- [X] T018 [US4] Create `backend/app/Console/Commands/MakeSuperuserCommand.php` (signature `user:make-superuser {email}`): find the account by **email** (not a DB id); set `role` to `Role::Superuser`, persist, print confirmation, exit `SUCCESS`; unknown email ⇒ error + `FAILURE`; already-superuser ⇒ idempotent success. Thin handler modelled on `SeedMediaCommand`; PSR-12, `declare(strict_types=1)`.
 
 **Checkpoint**: All four stories independently functional; the hierarchy can be bootstrapped.
 

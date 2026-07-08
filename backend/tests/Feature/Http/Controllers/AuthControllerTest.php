@@ -43,6 +43,15 @@ class AuthControllerTest extends TestCase {
         $this->assertDatabaseHas('users', ['email' => 'ada@example.com']);
     }
 
+    public function test_register_reports_the_new_account_as_a_member(): void {
+        // Every new account defaults to the member role, and the payload exposes it so
+        // the SPA knows the viewer's role from the register response alone (FR-004/FR-007).
+        $response = $this->postJson('/api/register', $this->registration());
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.role', 'member');
+    }
+
     public function test_register_reports_the_fresh_account_as_unverified(): void {
         $response = $this->postJson('/api/register', $this->registration());
 
@@ -230,6 +239,17 @@ class AuthControllerTest extends TestCase {
         $response->assertOk();
         $response->assertJsonPath('data.email', 'ada@example.com');
         $this->assertArrayNotHasKey('password', $response->json('data'));
+    }
+
+    public function test_user_payload_includes_the_accounts_role(): void {
+        // The current-user probe carries the stored role so the SPA can derive the
+        // viewer's effective role from the session it rehydrates (FR-006/FR-007).
+        $user = User::factory()->admin()->create();
+
+        $response = $this->actingAs($user)->getJson('/api/user');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.role', 'admin');
     }
 
     public function test_user_reports_an_unverified_email_as_null(): void {
