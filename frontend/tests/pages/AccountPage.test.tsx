@@ -36,8 +36,16 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>;
 }
 
-function renderAccount(user: AuthUser | null) {
-  const logout = vi.fn().mockResolvedValue(undefined);
+// Lets a test hold the resend request open to observe the in-flight UI state.
+function deferredResend() {
+  type Result = Awaited<ReturnType<typeof AuthApi.resendVerification>>;
+  let resolve!: (result: Result) => void;
+  const promise = new Promise<Result>((res) => { resolve = res; });
+  return { promise, resolve };
+}
+
+function renderAccount(user: AuthUser | null, logoutResult: Promise<void> = Promise.resolve()) {
+  const logout = vi.fn().mockReturnValue(logoutResult);
   const value: AuthContextValue = {
     status: 'authenticated',
     user,
@@ -95,6 +103,41 @@ describe('AccountPage', () => {
 
     // Same outcome handling as the notice page (shared AuthModel mapping).
     expect(await screen.findByText('Verification link sent. Check your inbox.')).toBeTruthy();
+  });
+
+  it('shows a busy spinner on the resend button while the request runs', async () => {
+    const pending = deferredResend();
+    vi.spyOn(AuthApi, 'resendVerification').mockReturnValue(pending.promise);
+    renderAccount(ada);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resend verification e-mail' }));
+
+    const button = screen.getByRole('button', { name: 'Resend verification e-mail' });
+    await waitFor(() => expect(button.getAttribute('aria-busy')).toBe('true'));
+    expect(button.querySelector('.busy-button__spinner')).not.toBeNull();
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+
+    pending.resolve({ ok: true });
+
+    expect(await screen.findByText('Verification link sent. Check your inbox.')).toBeTruthy();
+    expect(button.getAttribute('aria-busy')).toBeNull();
+  });
+
+  it('shows a busy spinner on Log out while the request runs', async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>((res) => { finish = res; });
+    renderAccount(ada, pending);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
+
+    const button = screen.getByRole('button', { name: 'Log out' });
+    await waitFor(() => expect(button.getAttribute('aria-busy')).toBe('true'));
+    expect(button.querySelector('.busy-button__spinner')).not.toBeNull();
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+
+    finish();
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/'));
   });
 
   it('states a verified email and offers no resend control', () => {

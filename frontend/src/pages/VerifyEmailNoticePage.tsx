@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import BusyButton from '../components/BusyButton';
 import { useAuth } from '../hooks/useAuth';
 import { useNotice } from '../hooks/useNotice';
 import { AuthApi } from '../lib/authApi';
@@ -45,14 +46,9 @@ function VerifyEmailNoticePage() {
         We sent a verification link to <strong>{user.email}</strong>.
         Check your inbox and open the link to verify your account.
       </p>
-      <button
-        type="button"
-        className="verify__resend"
-        disabled={resending}
-        onClick={() => void handleResend()}
-      >
+      <BusyButton className="verify__resend" busy={resending} onClick={() => void handleResend()}>
         Resend verification e-mail
-      </button>
+      </BusyButton>
     </section>
   );
 }

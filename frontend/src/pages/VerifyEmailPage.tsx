@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 
+import BusyButton from '../components/BusyButton';
 import { useAuth } from '../hooks/useAuth';
 import { useNotice } from '../hooks/useNotice';
 import { AuthApi } from '../lib/authApi';
@@ -77,14 +78,9 @@ function VerifyEmailPage() {
       {view === 'failed'
         // FR-004: a dead link explains itself and offers the path to a new one.
         ? (
-          <button
-            type="button"
-            className="verify__resend"
-            disabled={resending}
-            onClick={() => void handleResend()}
-          >
+          <BusyButton className="verify__resend" busy={resending} onClick={() => void handleResend()}>
             Resend verification e-mail
-          </button>
+          </BusyButton>
         )
         : null}
     </section>

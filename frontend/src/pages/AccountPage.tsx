@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import BusyButton from '../components/BusyButton';
 import { useAuth } from '../hooks/useAuth';
 import { useNotice } from '../hooks/useNotice';
 import { AuthApi } from '../lib/authApi';
@@ -16,9 +17,12 @@ function AccountPage() {
   const { show } = useNotice();
   const navigate = useNavigate();
   const [resending, setResending] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout(): Promise<void> {
+    setLoggingOut(true);
     await logout();
+    setLoggingOut(false);
     navigate('/');
   }
 
@@ -46,19 +50,14 @@ function AccountPage() {
       </dl>
       {user.emailVerifiedAt === null
         ? (
-          <button
-            type="button"
-            className="account__resend"
-            disabled={resending}
-            onClick={() => void handleResend()}
-          >
+          <BusyButton className="account__resend" busy={resending} onClick={() => void handleResend()}>
             Resend verification e-mail
-          </button>
+          </BusyButton>
         )
         : null}
-      <button type="button" className="account__logout" onClick={() => void handleLogout()}>
+      <BusyButton className="account__logout" busy={loggingOut} onClick={() => void handleLogout()}>
         Log out
-      </button>
+      </BusyButton>
     </section>
   );
 }

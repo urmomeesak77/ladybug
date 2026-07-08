@@ -23,7 +23,14 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>;
 }
 
-function renderRegister(registerResult: AuthResult) {
+// Lets a test hold the register request open to observe the in-flight UI state.
+function deferredResult() {
+  let resolve!: (result: AuthResult) => void;
+  const promise = new Promise<AuthResult>((res) => { resolve = res; });
+  return { promise, resolve };
+}
+
+function renderRegister(registerResult: AuthResult | Promise<AuthResult>) {
   const register = vi.fn().mockResolvedValue(registerResult);
   const value: AuthContextValue = {
     status: 'anonymous',
@@ -168,6 +175,25 @@ describe('RegisterPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Register' }));
 
     expect(await screen.findByText('Failed to sign up. Please try again.')).toBeTruthy();
+  });
+
+  it('shows a busy spinner and visibly disables the form while the request runs', async () => {
+    const pending = deferredResult();
+    renderRegister(pending.promise);
+
+    fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Register' }));
+
+    const button = screen.getByRole('button', { name: 'Register' });
+    await waitFor(() => expect(button.getAttribute('aria-busy')).toBe('true'));
+    expect(button.querySelector('.busy-button__spinner')).not.toBeNull();
+    const fieldset = screen.getByLabelText('E-mail').closest('fieldset');
+    expect(fieldset?.disabled).toBe(true);
+
+    pending.resolve(okResult);
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/verify-email'));
+    expect(screen.getByRole('button', { name: 'Register' }).getAttribute('aria-busy')).toBeNull();
   });
 
   it('links to the login page', () => {

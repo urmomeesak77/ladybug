@@ -23,7 +23,14 @@ function LocationProbe() {
   return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
 }
 
-function renderLogin(loginResult: AuthResult, initialEntry: unknown = '/login') {
+// Lets a test hold the login request open to observe the in-flight UI state.
+function deferredResult() {
+  let resolve!: (result: AuthResult) => void;
+  const promise = new Promise<AuthResult>((res) => { resolve = res; });
+  return { promise, resolve };
+}
+
+function renderLogin(loginResult: AuthResult | Promise<AuthResult>, initialEntry: unknown = '/login') {
   const login = vi.fn().mockResolvedValue(loginResult);
   const value: AuthContextValue = {
     status: 'anonymous',
@@ -173,6 +180,25 @@ describe('LoginPage', () => {
 
     expect(await screen.findByText('Failed to log in. Please try again.')).toBeTruthy();
     expect(document.querySelector('dialog')).not.toBeNull();
+  });
+
+  it('shows a busy spinner and visibly disables the form while the request runs', async () => {
+    const pending = deferredResult();
+    renderLogin(pending.promise);
+
+    fillCredentials('ada@example.com', 'Password1');
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+
+    const button = screen.getByRole('button', { name: 'Login' });
+    await waitFor(() => expect(button.getAttribute('aria-busy')).toBe('true'));
+    expect(button.querySelector('.busy-button__spinner')).not.toBeNull();
+    const fieldset = screen.getByLabelText('E-mail').closest('fieldset');
+    expect(fieldset?.disabled).toBe(true);
+
+    pending.resolve(okResult);
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/'));
+    expect(screen.getByRole('button', { name: 'Login' }).getAttribute('aria-busy')).toBeNull();
   });
 
   it('links to the register page', () => {

@@ -108,7 +108,7 @@ describe('VerifyEmailNoticePage', () => {
       .toBeTruthy();
   });
 
-  it('disables the resend button while the request is in flight', async () => {
+  it('disables the resend button and shows a busy spinner while the request is in flight', async () => {
     vi.spyOn(AuthApi, 'resendVerification')
       .mockReturnValue(new Promise<ResendResult>(() => undefined));
     renderNotice(ada);
@@ -117,5 +117,7 @@ describe('VerifyEmailNoticePage', () => {
     fireEvent.click(button);
 
     expect(button).toHaveProperty('disabled', true);
+    expect(button.getAttribute('aria-busy')).toBe('true');
+    expect(button.querySelector('.busy-button__spinner')).not.toBeNull();
   });
 });

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import AuthField from '../components/AuthField';
+import BusyButton from '../components/BusyButton';
 import { useAuth } from '../hooks/useAuth';
 import { useNotice } from '../hooks/useNotice';
 import type { FieldErrors } from '../lib/authApi';
@@ -141,7 +142,7 @@ function RegisterPage() {
             onChange={handlePasswordConfirmationChange}
             onBlur={() => handleBlur('passwordConfirmation')}
           />
-          <button type="submit" disabled={submitting || hasErrors}>Register</button>
+          <BusyButton type="submit" busy={submitting} disabled={hasErrors}>Register</BusyButton>
         </fieldset>
         <p className="auth-form__link"><Link to="/login">Already have an account? Login here....</Link></p>
       </form>

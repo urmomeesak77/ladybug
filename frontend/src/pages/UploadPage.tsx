@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react';
 
 import AuthField from '../components/AuthField';
+import BusyButton from '../components/BusyButton';
 import UploadMediaField from '../components/UploadMediaField';
 import { useUploadForm } from '../hooks/useUploadForm';
 
@@ -24,32 +25,36 @@ function UploadPage() {
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         {formError ? <p className="auth-form__error" role="alert">{formError}</p> : null}
 
-        <fieldset className="upload__mode">
-          <legend>What are you posting?</legend>
-          <label>
-            <input type="radio" name="mode" checked={mode === 'image'} onChange={() => setMode('image')} />
-            Image
-          </label>
-          <label>
-            <input type="radio" name="mode" checked={mode === 'youtube'} onChange={() => setMode('youtube')} />
-            YouTube
-          </label>
+        {/* Disabling this wrapper (not just the button) makes the in-flight state
+            visually detectable across the whole form while the request runs. */}
+        <fieldset disabled={submitting}>
+          <fieldset className="upload__mode">
+            <legend>What are you posting?</legend>
+            <label>
+              <input type="radio" name="mode" checked={mode === 'image'} onChange={() => setMode('image')} />
+              Image
+            </label>
+            <label>
+              <input type="radio" name="mode" checked={mode === 'youtube'} onChange={() => setMode('youtube')} />
+              YouTube
+            </label>
+          </fieldset>
+
+          <AuthField
+            id="title"
+            label="Title (optional)"
+            type="text"
+            value={title}
+            autoComplete="off"
+            error={errors.title?.[0]}
+            onChange={setTitle}
+          />
+          <UploadMediaField mode={mode} youtube={youtube} errors={errors} onFile={setFile} onYoutube={setYoutube} />
+
+          <BusyButton type="submit" busy={submitting}>
+            {submitting ? 'Posting…' : 'Post'}
+          </BusyButton>
         </fieldset>
-
-        <AuthField
-          id="title"
-          label="Title (optional)"
-          type="text"
-          value={title}
-          autoComplete="off"
-          error={errors.title?.[0]}
-          onChange={setTitle}
-        />
-        <UploadMediaField mode={mode} youtube={youtube} errors={errors} onFile={setFile} onYoutube={setYoutube} />
-
-        <button type="submit" disabled={submitting}>
-          {submitting ? 'Posting…' : 'Post'}
-        </button>
       </form>
     </section>
   );

@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Location } from 'react-router-dom';
 
 import AuthField from '../components/AuthField';
+import BusyButton from '../components/BusyButton';
 import { useAuth } from '../hooks/useAuth';
 import { useNotice } from '../hooks/useNotice';
 import type { FieldErrors } from '../lib/authApi';
@@ -117,7 +118,7 @@ function LoginPage() {
             onChange={handlePasswordChange}
             onBlur={() => handleBlur('password')}
           />
-          <button type="submit" disabled={submitting || hasErrors}>Login</button>
+          <BusyButton type="submit" busy={submitting} disabled={hasErrors}>Login</BusyButton>
         </fieldset>
         <p className="auth-form__link"><Link to="/register">No account? Register here....</Link></p>
       </form>

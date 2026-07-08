@@ -121,6 +121,22 @@ describe('VerifyEmailPage', () => {
     expect(await screen.findByText('Verification link sent. Check your inbox.')).toBeTruthy();
   });
 
+  it('disables the resend button and shows a busy spinner while the resend runs', async () => {
+    vi.spyOn(AuthApi, 'verifyEmail').mockResolvedValue({ ok: false, kind: 'invalid' });
+    vi.spyOn(AuthApi, 'resendVerification')
+      .mockReturnValue(new Promise(() => undefined));
+
+    renderLanding();
+    await screen.findByText(/invalid or expired/i);
+    const button = screen.getByRole('button', { name: 'Resend verification e-mail' });
+
+    fireEvent.click(button);
+
+    expect(button).toHaveProperty('disabled', true);
+    expect(button.getAttribute('aria-busy')).toBe('true');
+    expect(button.querySelector('.busy-button__spinner')).not.toBeNull();
+  });
+
   it('does not offer a resend action after a successful verification', async () => {
     vi.spyOn(AuthApi, 'verifyEmail')
       .mockResolvedValue({ ok: true, user: verifiedAda, alreadyVerified: false });

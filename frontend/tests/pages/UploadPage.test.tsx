@@ -5,6 +5,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import UploadPage from '../../src/pages/UploadPage';
 import { UploadApi } from '../../src/lib/uploadApi';
+import type { UploadResult } from '../../src/lib/uploadApi';
+
+// Lets a test hold the upload request open to observe the in-flight UI state.
+function deferredResult() {
+  let resolve!: (result: UploadResult) => void;
+  const promise = new Promise<UploadResult>((res) => { resolve = res; });
+  return { promise, resolve };
+}
 
 afterEach(() => {
   cleanup();
@@ -66,6 +74,26 @@ describe('UploadPage', () => {
 
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/posts/newpost001'));
     expect(UploadApi.uploadImage).toHaveBeenCalledWith({ title: 'My meme', file });
+  });
+
+  it('shows a busy spinner and visibly disables the form while the upload runs', async () => {
+    const pending = deferredResult();
+    vi.spyOn(UploadApi, 'uploadImage').mockReturnValue(pending.promise);
+    renderUpload();
+    const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
+
+    fireEvent.change(screen.getByLabelText('Image file'), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+
+    const button = await screen.findByRole('button', { name: 'Posting…' });
+    expect(button.getAttribute('aria-busy')).toBe('true');
+    expect(button.querySelector('.busy-button__spinner')).not.toBeNull();
+    const fieldset = screen.getByLabelText('Title (optional)').closest('fieldset');
+    expect(fieldset?.disabled).toBe(true);
+
+    pending.resolve({ ok: true, hash: 'newpost001' });
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/posts/newpost001'));
   });
 
   it('announces a form-level error when the session expired', async () => {
