@@ -290,8 +290,6 @@ main {
 
 .feed-state--error {
   color: var(--color-text);
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-md);
 }
 
 /* "Load more" page-break control, styled as an accent button (it is a router link). */
