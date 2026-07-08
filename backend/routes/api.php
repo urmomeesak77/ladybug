@@ -16,10 +16,12 @@ Route::get('/health', static fn () => response()->json(['status' => 'ok']));
 Route::get('/posts', [TrashpostsApiController::class, 'index'])->name('api.posts.index');
 Route::get('/posts/{hash}', [TrashpostsApiController::class, 'show'])->name('api.posts.show');
 
-// Create a post (image upload or YouTube link). Authenticated only (Sanctum SPA session).
-// Throttled per user: uploads are heavier than reads (image processing, disk writes).
+// Create a post (image upload or YouTube link). Authenticated only (Sanctum SPA session)
+// AND verified-email only ('verified' = EnsureEmailIsVerified, 403 otherwise) — the
+// enforcement spec 008 deferred to contribution features. Throttled per user: uploads
+// are heavier than reads (image processing, disk writes).
 Route::post('/posts', [TrashpostsApiController::class, 'store'])
-    ->middleware(['auth:sanctum', 'throttle:uploads'])
+    ->middleware(['auth:sanctum', 'verified', 'throttle:uploads'])
     ->name('api.posts.store');
 
 // Auth (Sanctum SPA cookie-session). Register/login establish the session; the

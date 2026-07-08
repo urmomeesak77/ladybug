@@ -56,6 +56,20 @@ class CreatePostTest extends TestCase {
         $response->assertJsonPath('data.youtube', 'dQw4w9WgXcQ');
     }
 
+    public function test_unverified_user_cannot_create_post(): void {
+        $user = User::factory()->unverified()->create();
+
+        // Valid YouTube payload on purpose: a 403 here is unambiguously the
+        // verification gate, not validation.
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Blocked post',
+            'youtube' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        ]);
+
+        $response->assertStatus(403);
+        $this->assertDatabaseCount('trashposts', 0);
+    }
+
     public function test_rejects_when_neither_image_nor_youtube_is_present(): void {
         $user = User::factory()->create();
         $response = $this->actingAs($user)->postJson('/api/posts', ['title' => 'x']);
