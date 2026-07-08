@@ -20,10 +20,10 @@ afterEach(cleanup);
 // Surfaces the current route in the DOM so navigation side effects are observable.
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}</output>;
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
 }
 
-function renderLogin(loginResult: AuthResult) {
+function renderLogin(loginResult: AuthResult, initialEntry: unknown = '/login') {
   const login = vi.fn().mockResolvedValue(loginResult);
   const value: AuthContextValue = {
     status: 'anonymous',
@@ -31,9 +31,10 @@ function renderLogin(loginResult: AuthResult) {
     register: vi.fn(),
     login,
     logout: vi.fn(),
+    refresh: vi.fn(),
   };
   render(
-    <MemoryRouter initialEntries={['/login']}>
+    <MemoryRouter initialEntries={[initialEntry as string]}>
       <AuthContext.Provider value={value}>
         <NoticeProvider>
           <LocationProbe />
@@ -56,6 +57,7 @@ const okResult: AuthResult = {
     id: 1,
     name: 'Ada',
     email: 'ada@example.com',
+    emailVerifiedAt: null,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   },
@@ -104,6 +106,21 @@ describe('LoginPage', () => {
 
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/'));
     expect(login).toHaveBeenCalledWith({ email: 'ada@example.com', password: 'Password1' });
+  });
+
+  it('returns to the location the auth guard blocked once login succeeds', async () => {
+    // Opening a verification link signed out bounces to /login; after signing in
+    // the user must land back on the link so it still verifies (D9, scenario 4).
+    renderLogin(okResult, {
+      pathname: '/login',
+      state: { from: { pathname: '/verify-email/abc123', search: '?expires=1&signature=2', hash: '' } },
+    });
+
+    fillCredentials('ada@example.com', 'Password1');
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent)
+      .toBe('/verify-email/abc123?expires=1&signature=2'));
   });
 
   it('shows one non-disclosing message on an authentication failure', async () => {

@@ -116,4 +116,19 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email Verification
+    |--------------------------------------------------------------------------
+    |
+    | Minutes a signed email-verification link stays valid. 24 hours balances
+    | giving registrants time to reach their inbox against limiting how long
+    | a leaked link is usable (FR-002, research D5).
+    |
+    */
+
+    'verification' => [
+        'expire' => 1440,
+    ],
+
 ];

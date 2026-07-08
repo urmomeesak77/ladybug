@@ -9,6 +9,8 @@ export type AuthContextValue = {
   register: (input: RegisterInput) => Promise<AuthResult>;
   login: (input: LoginInput) => Promise<AuthResult>;
   logout: () => Promise<void>;
+  // Re-probe /api/user so server-side changes (e.g. emailVerifiedAt) propagate (008).
+  refresh: () => Promise<void>;
 };
 
 // The provider (components/AuthProvider) supplies the value; consumers read it via the

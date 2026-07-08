@@ -20,6 +20,7 @@ const rawUser = {
   id: 7,
   name: 'Ada Lovelace',
   email: 'ada@example.com',
+  email_verified_at: null,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-02T00:00:00Z',
 };
@@ -41,9 +42,16 @@ describe('mapUser', () => {
       id: 7,
       name: 'Ada Lovelace',
       email: 'ada@example.com',
+      emailVerifiedAt: null,
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-02T00:00:00Z',
     });
+  });
+
+  it('carries a verified email timestamp through as emailVerifiedAt', () => {
+    const verified = { ...rawUser, email_verified_at: '2026-07-01T12:00:00Z' };
+
+    expect(AuthApi.mapUser(verified).emailVerifiedAt).toBe('2026-07-01T12:00:00Z');
   });
 });
 
@@ -196,6 +204,123 @@ describe('logout', () => {
     }));
 
     expect(await AuthApi.logout()).toEqual({ ok: false });
+  });
+});
+
+describe('verifyEmail', () => {
+  const input = { hash: 'abc123', expires: '1767225600', signature: 'deadbeef' };
+
+  it('GETs the signed verify URL with credentials included', async () => {
+    const mock = stubFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: rawUser, meta: { already_verified: false } }),
+    });
+
+    await AuthApi.verifyEmail(input);
+
+    const [url, init] = mock.mock.calls[0] as FetchArgs;
+    expect(url).toMatch(/\/api\/email\/verify\/abc123\?expires=1767225600&signature=deadbeef$/);
+    expect(init.credentials).toBe('include');
+    expect((init.headers as Record<string, string>).Accept).toBe('application/json');
+  });
+
+  it('reports a fresh verification on 200 with already_verified false', async () => {
+    const verified = { ...rawUser, email_verified_at: '2026-07-07T10:00:00Z' };
+    stubFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: verified, meta: { already_verified: false } }),
+    });
+
+    const result = await AuthApi.verifyEmail(input);
+
+    expect(result).toEqual({ ok: true, user: AuthApi.mapUser(verified), alreadyVerified: false });
+  });
+
+  it('reports an idempotent re-use on 200 with already_verified true', async () => {
+    const verified = { ...rawUser, email_verified_at: '2026-07-01T12:00:00Z' };
+    stubFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: verified, meta: { already_verified: true } }),
+    });
+
+    const result = await AuthApi.verifyEmail(input);
+
+    expect(result).toEqual({ ok: true, user: AuthApi.mapUser(verified), alreadyVerified: true });
+  });
+
+  it('maps a 403 (tampered/expired/mismatched link) to an invalid result', async () => {
+    stubFetch({ ok: false, status: 403, json: async () => ({ message: 'Invalid signature.' }) });
+
+    expect(await AuthApi.verifyEmail(input)).toEqual({ ok: false, kind: 'invalid' });
+  });
+
+  it('maps a 429 to a rate-limited result', async () => {
+    stubFetch({ ok: false, status: 429, json: async () => ({ message: 'Too Many Attempts.' }) });
+
+    expect(await AuthApi.verifyEmail(input)).toEqual({ ok: false, kind: 'rate-limited' });
+  });
+
+  it('maps any other failure to a network result', async () => {
+    stubFetch({ ok: false, status: 500, json: async () => ({}) });
+
+    expect(await AuthApi.verifyEmail(input)).toEqual({ ok: false, kind: 'network' });
+  });
+
+  it('maps a thrown fetch to a network result', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }));
+
+    expect(await AuthApi.verifyEmail(input)).toEqual({ ok: false, kind: 'network' });
+  });
+});
+
+describe('resendVerification', () => {
+  it('POSTs through the CSRF-aware path with credentials included', async () => {
+    withXsrfCookie();
+    const mock = stubFetch({ ok: true, status: 200, json: async () => ({ message: 'Verification link sent.' }) });
+
+    const result = await AuthApi.resendVerification();
+
+    const [url, init] = mock.mock.calls[0] as FetchArgs;
+    expect(url).toMatch(/\/api\/email\/verification-notification$/);
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('include');
+    expect((init.headers as Record<string, string>)['X-XSRF-TOKEN']).toBe('tok+123');
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('maps a 409 to an already-verified result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 409, json: async () => ({ message: 'Email already verified.' }) });
+
+    expect(await AuthApi.resendVerification()).toEqual({ ok: false, kind: 'already-verified' });
+  });
+
+  it('maps a 429 to a rate-limited result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 429, json: async () => ({ message: 'Too Many Attempts.' }) });
+
+    expect(await AuthApi.resendVerification()).toEqual({ ok: false, kind: 'rate-limited' });
+  });
+
+  it('maps any other failure to a network result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 500, json: async () => ({}) });
+
+    expect(await AuthApi.resendVerification()).toEqual({ ok: false, kind: 'network' });
+  });
+
+  it('maps a thrown fetch to a network result', async () => {
+    withXsrfCookie();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }));
+
+    expect(await AuthApi.resendVerification()).toEqual({ ok: false, kind: 'network' });
   });
 });
 

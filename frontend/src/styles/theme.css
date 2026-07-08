@@ -290,8 +290,6 @@ main {
 
 .feed-state--error {
   color: var(--color-text);
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-md);
 }
 
 /* "Load more" page-break control, styled as an accent button (it is a router link). */
@@ -400,6 +398,7 @@ main {
 
 /* Prototype buttons: full-width, outlined, neutral — no filled accent. */
 .auth-form button[type='submit'],
+.account__resend,
 .account__logout {
   width: 100%;
   min-height: 2.75rem;
@@ -412,9 +411,15 @@ main {
   cursor: pointer;
 }
 
-.auth-form button[type='submit']:disabled {
+.auth-form button[type='submit']:disabled,
+.account__resend:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+/* Stack the account actions with the form rhythm's 20px gap. */
+.account__resend {
+  margin-bottom: 20px;
 }
 
 /* Account profile: a simple label/value grid. */
@@ -497,4 +502,58 @@ main {
   border: 1px solid var(--color-control-border);
   border-radius: 10px;
   cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ *
+ * Email verification (008): notice + link-landing pages. Same column *
+ * as the auth forms; every color is a theme variable, so both light  *
+ * and dark schemes are covered. Outcomes are stated in text inside a *
+ * bordered status box — never signalled by color alone (IV/FR-008).  *
+ * ------------------------------------------------------------------ */
+.verify {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 5px;
+}
+
+.verify h1 {
+  font-size: 1.17rem; /* Matches the auth headings' prototype scale. */
+  border-bottom: 1px solid var(--color-control-border);
+  padding: 10px 0;
+  margin-bottom: var(--space-lg);
+}
+
+.verify__status {
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+  color: var(--color-text);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+}
+
+.verify__notice {
+  margin-bottom: var(--space-md);
+  line-height: 1.5;
+}
+
+.verify a {
+  color: var(--color-text);
+}
+
+/* Same outlined look and touch-target size as the auth form buttons. */
+.verify__resend {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 8px;
+  font: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-control-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.verify__resend:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }

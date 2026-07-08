@@ -49,9 +49,17 @@ function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('anonymous');
   }, []);
 
+  // Re-run the backend probe on demand: after verifying an email the stored user's
+  // emailVerifiedAt is stale, and the server is the only authority on it (008).
+  const refresh = useCallback(async (): Promise<void> => {
+    const current = await AuthApi.fetchCurrentUser();
+    setUser(current);
+    setStatus(current ? 'authenticated' : 'anonymous');
+  }, []);
+
   const value = useMemo(
-    () => ({ status, user, register, login, logout }),
-    [status, user, register, login, logout],
+    () => ({ status, user, register, login, logout, refresh }),
+    [status, user, register, login, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

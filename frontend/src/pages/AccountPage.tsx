@@ -1,17 +1,32 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../hooks/useAuth';
+import { useNotice } from '../hooks/useNotice';
+import { AuthApi } from '../lib/authApi';
+import { AuthModel } from '../lib/authModel';
 
-// The logged-in user's profile (name + email) plus a Log out control. RequireAuth gates
-// the route, so a user is always present by the time this renders; the null guard only
-// satisfies the type narrowing.
+// The logged-in user's profile (name + email + verification status) plus a Log out
+// control. Verification status is words in the details list — never color alone
+// (FR-008, Principle IV) — and only an unverified account gets the resend action.
+// RequireAuth gates the route, so a user is always present by the time this
+// renders; the null guard only satisfies the type narrowing.
 function AccountPage() {
   const { user, logout } = useAuth();
+  const { show } = useNotice();
   const navigate = useNavigate();
+  const [resending, setResending] = useState(false);
 
   async function handleLogout(): Promise<void> {
     await logout();
     navigate('/');
+  }
+
+  async function handleResend(): Promise<void> {
+    setResending(true);
+    const result = await AuthApi.resendVerification();
+    setResending(false);
+    show({ message: AuthModel.resendFeedback(result) });
   }
 
   if (!user) {
@@ -26,7 +41,21 @@ function AccountPage() {
         <dd>{user.name}</dd>
         <dt>Email</dt>
         <dd>{user.email}</dd>
+        <dt>Email verification</dt>
+        <dd>{user.emailVerifiedAt === null ? 'Not verified' : 'Verified'}</dd>
       </dl>
+      {user.emailVerifiedAt === null
+        ? (
+          <button
+            type="button"
+            className="account__resend"
+            disabled={resending}
+            onClick={() => void handleResend()}
+          >
+            Resend verification e-mail
+          </button>
+        )
+        : null}
       <button type="button" className="account__logout" onClick={() => void handleLogout()}>
         Log out
       </button>

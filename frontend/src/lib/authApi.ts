@@ -5,6 +5,8 @@ export type AuthUser = {
   id: number;
   name: string;
   email: string;
+  // null until the account's email is verified (008).
+  emailVerifiedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -27,10 +29,26 @@ export type RegisterInput = {
 
 export type LoginInput = { email: string; password: string };
 
+// The components of a verification link, forwarded verbatim to the API (008).
+export type VerifyEmailInput = { hash: string; expires: string; signature: string };
+
+export type VerifyEmailResult =
+  | { ok: true; user: AuthUser; alreadyVerified: boolean }
+  | { ok: false; kind: 'invalid' }
+  | { ok: false; kind: 'rate-limited' }
+  | { ok: false; kind: 'network' };
+
+export type ResendResult =
+  | { ok: true }
+  | { ok: false; kind: 'already-verified' }
+  | { ok: false; kind: 'rate-limited' }
+  | { ok: false; kind: 'network' };
+
 type RawUser = {
   id: number;
   name: string;
   email: string;
+  email_verified_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -42,6 +60,7 @@ export class AuthApi {
       id: raw.id,
       name: raw.name,
       email: raw.email,
+      emailVerifiedAt: raw.email_verified_at,
       createdAt: raw.created_at,
       updatedAt: raw.updated_at,
     };
@@ -81,6 +100,54 @@ export class AuthApi {
       return { ok: response.ok };
     } catch {
       return { ok: false };
+    }
+  }
+
+  // Fulfill a verification link (008): the signature was computed server-side over the
+  // relative API URL, so the components pass through untouched. 403 covers tampered,
+  // expired, and cross-account links alike — the server does not distinguish (FR-004).
+  static async verifyEmail(input: VerifyEmailInput): Promise<VerifyEmailResult> {
+    const query = new URLSearchParams({ expires: input.expires, signature: input.signature });
+    try {
+      const response = await fetch(
+        `${Api.base()}/api/email/verify/${encodeURIComponent(input.hash)}?${query.toString()}`,
+        { credentials: 'include', headers: { Accept: 'application/json' } },
+      );
+      if (response.status === 200) {
+        const body = (await response.json()) as { data?: RawUser; meta?: { already_verified?: boolean } };
+        if (body.data) {
+          return { ok: true, user: AuthApi.mapUser(body.data), alreadyVerified: body.meta?.already_verified === true };
+        }
+        return { ok: false, kind: 'network' };
+      }
+      if (response.status === 403) {
+        return { ok: false, kind: 'invalid' };
+      }
+      if (response.status === 429) {
+        return { ok: false, kind: 'rate-limited' };
+      }
+      return { ok: false, kind: 'network' };
+    } catch {
+      return { ok: false, kind: 'network' };
+    }
+  }
+
+  // Request a fresh verification message for the signed-in user (US2, FR-006).
+  static async resendVerification(): Promise<ResendResult> {
+    try {
+      const response = await AuthApi.postJson('/api/email/verification-notification', {});
+      if (response.status === 200) {
+        return { ok: true };
+      }
+      if (response.status === 409) {
+        return { ok: false, kind: 'already-verified' };
+      }
+      if (response.status === 429) {
+        return { ok: false, kind: 'rate-limited' };
+      }
+      return { ok: false, kind: 'network' };
+    } catch {
+      return { ok: false, kind: 'network' };
     }
   }
 

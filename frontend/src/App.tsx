@@ -13,6 +13,8 @@ import NotFoundPage from './pages/NotFoundPage';
 import PostPage from './pages/PostPage';
 import RegisterPage from './pages/RegisterPage';
 import UploadPage from './pages/UploadPage';
+import VerifyEmailNoticePage from './pages/VerifyEmailNoticePage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
 
 function App() {
   useTheme();
@@ -29,6 +31,8 @@ function App() {
               <Route path="/register" element={<RequireAnon><RegisterPage /></RequireAnon>} />
               <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
               <Route path="/upload" element={<RequireAuth><UploadPage /></RequireAuth>} />
+              <Route path="/verify-email" element={<RequireAuth><VerifyEmailNoticePage /></RequireAuth>} />
+              <Route path="/verify-email/:hash" element={<RequireAuth><VerifyEmailPage /></RequireAuth>} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </PageLayout>

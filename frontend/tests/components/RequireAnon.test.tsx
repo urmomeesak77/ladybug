@@ -10,24 +10,32 @@ import type { AuthStatus } from '../../src/lib/authModel';
 
 afterEach(cleanup);
 
-function renderGate(status: AuthStatus) {
-  const value: AuthContextValue = {
+function contextValue(status: AuthStatus): AuthContextValue {
+  return {
     status,
     user: null,
     register: vi.fn(),
     login: vi.fn(),
     logout: vi.fn(),
+    refresh: vi.fn(),
   };
-  render(
+}
+
+function gateTree(status: AuthStatus) {
+  return (
     <MemoryRouter initialEntries={['/login']}>
-      <AuthContext.Provider value={value}>
+      <AuthContext.Provider value={contextValue(status)}>
         <Routes>
           <Route path="/" element={<p>home feed</p>} />
           <Route path="/login" element={<RequireAnon><p>login form</p></RequireAnon>} />
         </Routes>
       </AuthContext.Provider>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+}
+
+function renderGate(status: AuthStatus) {
+  return render(gateTree(status));
 }
 
 describe('RequireAnon', () => {
@@ -48,5 +56,19 @@ describe('RequireAnon', () => {
     renderGate('authenticated');
 
     expect(screen.getByText('home feed')).toBeTruthy();
+  });
+
+  it('does not hijack an in-page authentication — the page owns that navigation', () => {
+    // When login/register succeeds ON this page, the page navigates itself (e.g.
+    // register → /verify-email, login → the guard-blocked location). A competing
+    // guard redirect races that navigation and can win (seen live in e2e), so once
+    // the form was shown to an anonymous visitor the guard must stay out of it.
+    const { rerender } = renderGate('anonymous');
+    expect(screen.getByText('login form')).toBeTruthy();
+
+    rerender(gateTree('authenticated'));
+
+    expect(screen.queryByText('home feed')).toBeNull();
+    expect(screen.getByText('login form')).toBeTruthy();
   });
 });

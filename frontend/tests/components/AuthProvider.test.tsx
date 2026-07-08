@@ -16,17 +16,19 @@ const ada: AuthUser = {
   id: 1,
   name: 'Ada',
   email: 'ada@example.com',
+  emailVerifiedAt: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
 
 // Exposes the context so the provider's state transitions are observable from the DOM.
 function Probe() {
-  const { status, user, login, register, logout } = useAuth();
+  const { status, user, login, register, logout, refresh } = useAuth();
   return (
     <div>
       <output data-testid="status">{status}</output>
       <output data-testid="name">{user?.name ?? ''}</output>
+      <output data-testid="verified">{user?.emailVerifiedAt ?? ''}</output>
       <button onClick={() => void login({ email: 'ada@example.com', password: 'pw' })}>do-login</button>
       <button
         onClick={() => void register({
@@ -39,6 +41,7 @@ function Probe() {
         do-register
       </button>
       <button onClick={() => void logout()}>do-logout</button>
+      <button onClick={() => void refresh()}>do-refresh</button>
     </div>
   );
 }
@@ -103,6 +106,41 @@ describe('AuthProvider', () => {
     fireEvent.click(screen.getByText('do-register'));
 
     await expectStatus('authenticated');
+  });
+
+  it('refresh() re-probes the session and updates emailVerifiedAt', async () => {
+    const probe = vi.spyOn(AuthApi, 'fetchCurrentUser')
+      .mockResolvedValueOnce(ada)
+      .mockResolvedValueOnce({ ...ada, emailVerifiedAt: '2026-07-07T10:00:00Z' });
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+    await expectStatus('authenticated');
+    expect(screen.getByTestId('verified').textContent).toBe('');
+
+    fireEvent.click(screen.getByText('do-refresh'));
+
+    await waitFor(() => expect(screen.getByTestId('verified').textContent).toBe('2026-07-07T10:00:00Z'));
+    expect(probe).toHaveBeenCalledTimes(2);
+  });
+
+  it('refresh() drops to anonymous when the session has expired', async () => {
+    vi.spyOn(AuthApi, 'fetchCurrentUser')
+      .mockResolvedValueOnce(ada)
+      .mockResolvedValueOnce(null);
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+    await expectStatus('authenticated');
+
+    fireEvent.click(screen.getByText('do-refresh'));
+
+    await expectStatus('anonymous');
+    expect(screen.getByTestId('name').textContent).toBe('');
   });
 
   it('clears the user on logout', async () => {

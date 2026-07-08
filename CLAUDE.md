@@ -197,5 +197,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/007-auth-ui/plan.md` (feature: Authentication (Full-Stack — Auth API + Login/Register/Account UI)).
+`specs/008-register-email-verification/plan.md` (feature: Registration Email Verification).
 <!-- SPECKIT END -->

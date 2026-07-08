@@ -16,7 +16,8 @@ async function register(page: import('@playwright/test').Page, email: string): P
   await page.getByLabel('Password', { exact: true }).fill('Password1');
   await page.getByLabel('Re-type password').fill('Password1');
   await page.getByRole('button', { name: 'Register' }).click();
-  await expect(page.getByText('Welcome, E2E Uploader! Your account is ready.')).toBeVisible();
+  await expect(page.getByText('Welcome, E2E Uploader! Check your inbox to verify your e-mail.'))
+    .toBeVisible({ timeout: 25000 });
   await page.getByRole('button', { name: 'Ok' }).click();
 }
 
@@ -29,7 +30,9 @@ const PNG_1X1 = Buffer.from(
 test.describe('Upload', () => {
   test('a logged-in user uploads an image and sees its permalink', async ({ page }) => {
     await register(page, uniqueEmail());
-    await expect(page).toHaveURL('/');
+    // Registration lands on the verification notice (008); uploading does not
+    // require a verified email (FR-009), so head straight to /upload.
+    await expect(page).toHaveURL('/verify-email');
 
     await page.goto('/upload');
     await page.getByLabel('Image', { exact: true }).check();

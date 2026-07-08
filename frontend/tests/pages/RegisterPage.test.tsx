@@ -31,6 +31,7 @@ function renderRegister(registerResult: AuthResult) {
     register,
     login: vi.fn(),
     logout: vi.fn(),
+    refresh: vi.fn(),
   };
   render(
     <MemoryRouter initialEntries={['/register']}>
@@ -58,6 +59,7 @@ const okResult: AuthResult = {
     id: 1,
     name: 'Ada',
     email: 'ada@example.com',
+    emailVerifiedAt: null,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   },
@@ -95,15 +97,17 @@ describe('RegisterPage', () => {
     expect(register).not.toHaveBeenCalled();
   });
 
-  it('welcomes the user in a dialog and navigates home on success', async () => {
+  it('welcomes the user in a dialog and navigates to the verification notice on success', async () => {
     const register = renderRegister(okResult);
 
     fillForm();
     fireEvent.click(screen.getByRole('button', { name: 'Register' }));
 
-    expect(await screen.findByText('Welcome, Ada! Your account is ready.')).toBeTruthy();
+    // FR-007: after registering, the user is told to check their email — the
+    // dialog mentions it and the page moves to the /verify-email notice.
+    expect(await screen.findByText('Welcome, Ada! Check your inbox to verify your e-mail.')).toBeTruthy();
     expect(document.querySelector('dialog')).not.toBeNull();
-    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/'));
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/verify-email'));
     expect(register).toHaveBeenCalledWith({
       name: 'Ada',
       email: 'ada@example.com',
