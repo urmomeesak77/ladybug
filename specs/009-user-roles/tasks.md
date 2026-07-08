@@ -28,7 +28,7 @@ description: "Task list for feature implementation: User Roles (Backbone)"
 
 **Purpose**: Confirm the workspace is ready. This feature adds **zero** dependencies (Principle I) — no `npm install` / `composer require`.
 
-- [ ] T001 Confirm no new dependencies are added (no edits to `backend/composer.json` or `frontend/package.json` require blocks) and ensure the `backend/app/Enums/` namespace directory exists for the new enum.
+- [X] T001 Confirm no new dependencies are added (no edits to `backend/composer.json` or `frontend/package.json` require blocks) and ensure the `backend/app/Enums/` namespace directory exists for the new enum.
 
 ---
 
@@ -38,8 +38,8 @@ description: "Task list for feature implementation: User Roles (Backbone)"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 [P] Create the backend enum `App\Enums\Role` in `backend/app/Enums/Role.php`: `enum Role: string` with cases `Guest='guest'`, `Member='member'`, `Admin='admin'`, `Superuser='superuser'`; methods `rank(): int` (0/1/2/3), `outranks(self $other): bool` (`rank() > $other->rank()`, equal ⇒ false), `static assignable(): array` (member/admin/superuser only, no guest), `static tryFromAssignable(string $value): ?self` (rejects `guest` and out-of-set). Use small `match` expressions, no closures; `declare(strict_types=1)`, PSR-12, methods <30 lines (per contracts/role.md).
-- [ ] T003 [P] Create the frontend mirror `Role` class in `frontend/src/lib/role.ts`: export `type RoleName = 'guest' | 'member' | 'admin' | 'superuser'` and a `static`-method class `Role` with `readonly ORDER: readonly RoleName[]` (`['guest','member','admin','superuser']`), `rank(role): number`, `outranks(a, b): boolean` (equal ⇒ false), `isAssignable(role): boolean` (false for guest). Switch/lookup only, no closures; 2-space, semicolons (per contracts/frontend.md).
+- [X] T002 [P] Create the backend enum `App\Enums\Role` in `backend/app/Enums/Role.php`: `enum Role: string` with cases `Guest='guest'`, `Member='member'`, `Admin='admin'`, `Superuser='superuser'`; methods `rank(): int` (0/1/2/3), `outranks(self $other): bool` (`rank() > $other->rank()`, equal ⇒ false), `static assignable(): array` (member/admin/superuser only, no guest), `static tryFromAssignable(string $value): ?self` (rejects `guest` and out-of-set). Use small `match` expressions, no closures; `declare(strict_types=1)`, PSR-12, methods <30 lines (per contracts/role.md).
+- [X] T003 [P] Create the frontend mirror `Role` class in `frontend/src/lib/role.ts`: export `type RoleName = 'guest' | 'member' | 'admin' | 'superuser'` and a `static`-method class `Role` with `readonly ORDER: readonly RoleName[]` (`['guest','member','admin','superuser']`), `rank(role): number`, `outranks(a, b): boolean` (equal ⇒ false), `isAssignable(role): boolean` (false for guest). Switch/lookup only, no closures; 2-space, semicolons (per contracts/frontend.md).
 
 **Checkpoint**: The authoritative role vocabulary exists on both stacks — user stories can now proceed.
 
@@ -96,8 +96,8 @@ description: "Task list for feature implementation: User Roles (Backbone)"
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T015 [P] [US3] Create `backend/tests/Unit/Enums/RoleTest.php`: assert `rank()` is 0/1/2/3; the full 16-pair `outranks` matrix incl. equal-rank ⇒ `false` (SC-004); `assignable()` is exactly {Member, Admin, Superuser} (no Guest); `tryFromAssignable('guest')` and `('nope')` ⇒ `null`, `('admin')` ⇒ `Role::Admin`.
-- [ ] T016 [P] [US3] Create `frontend/tests/lib/role.test.ts`: mirror the 16-pair `outranks` matrix, the `rank()` values, `ORDER`, and `isAssignable('guest') === false` / `true` for member/admin/superuser.
+- [X] T015 [P] [US3] Create `backend/tests/Unit/Enums/RoleTest.php`: assert `rank()` is 0/1/2/3; the full 16-pair `outranks` matrix incl. equal-rank ⇒ `false` (SC-004); `assignable()` is exactly {Member, Admin, Superuser} (no Guest); `tryFromAssignable('guest')` and `('nope')` ⇒ `null`, `('admin')` ⇒ `Role::Admin`.
+- [X] T016 [P] [US3] Create `frontend/tests/lib/role.test.ts`: mirror the 16-pair `outranks` matrix, the `rank()` values, `ORDER`, and `isAssignable('guest') === false` / `true` for member/admin/superuser.
 
 **Checkpoint**: The "outranks" primitive is exhaustively verified identically on both stacks.
 
