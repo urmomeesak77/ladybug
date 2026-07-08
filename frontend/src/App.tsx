@@ -5,6 +5,7 @@ import NoticeProvider from './components/NoticeProvider';
 import PageLayout from './components/PageLayout';
 import RequireAnon from './components/RequireAnon';
 import RequireAuth from './components/RequireAuth';
+import RequireVerified from './components/RequireVerified';
 import { useTheme } from './hooks/useTheme';
 import AccountPage from './pages/AccountPage';
 import HomePage from './pages/HomePage';
@@ -30,7 +31,7 @@ function App() {
               <Route path="/login" element={<RequireAnon><LoginPage /></RequireAnon>} />
               <Route path="/register" element={<RequireAnon><RegisterPage /></RequireAnon>} />
               <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
-              <Route path="/upload" element={<RequireAuth><UploadPage /></RequireAuth>} />
+              <Route path="/upload" element={<RequireAuth><RequireVerified><UploadPage /></RequireVerified></RequireAuth>} />
               <Route path="/verify-email" element={<RequireAuth><VerifyEmailNoticePage /></RequireAuth>} />
               {/* Deliberately unguarded: the emailed link must verify even in a
                   logged-out browser — the signed URL itself proves inbox control. */}
