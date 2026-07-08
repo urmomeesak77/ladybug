@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\VerifyEmailRequest;
 use App\Http\Resources\UserResource;
+use App\Services\UserService;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,11 +15,21 @@ class EmailVerificationController extends Controller {
     /**
      * Fulfill a verification link. Signature/expiry are enforced by the
      * signed:relative middleware and account binding by VerifyEmailRequest, so
-     * only the state transition lives here. Idempotent: an already-verified
-     * account is reported as such, never an error (FR-005).
+     * only account resolution and the state transition live here. The route is
+     * session-free: an anonymous click resolves the account from the link's
+     * own email digest. Idempotent: an already-verified account is reported as
+     * such, never an error (FR-005).
      */
-    public function verify(VerifyEmailRequest $request): JsonResponse {
-        $user = $request->user();
+    public function verify(VerifyEmailRequest $request, UserService $users): JsonResponse {
+        $user = $request->user('sanctum')
+            ?? $users->findByEmailDigest((string) $request->route('hash'));
+
+        if ($user === null) {
+            // Validly signed but pointing at no account (deleted, or address
+            // changed since the mail went out): dead link, same as any other (FR-004).
+            abort(403);
+        }
+
         $alreadyVerified = $user->hasVerifiedEmail();
 
         if (! $alreadyVerified && $user->markEmailAsVerified()) {

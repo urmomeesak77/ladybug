@@ -32,6 +32,19 @@ final class UserTest extends TestCase {
         $this->assertSame('datetime', $casts['email_verified_at']);
     }
 
+    public function test_setting_the_email_maintains_its_sha1_digest(): void {
+        $user = User::factory()->create(['email' => 'ada@example.com']);
+
+        // The digest column is what lets a session-free verification link find
+        // its account (the link's {hash} segment is sha1 of the address).
+        $this->assertSame(sha1('ada@example.com'), $user->fresh()->email_sha1);
+
+        $user->email = 'countess@example.com';
+        $user->save();
+
+        $this->assertSame(sha1('countess@example.com'), $user->fresh()->email_sha1);
+    }
+
     public function test_hash_can_be_set_and_read(): void {
         $user = User::factory()->create(['hash' => 'usr0000001']);
 

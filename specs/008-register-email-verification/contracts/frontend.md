@@ -7,7 +7,7 @@
 | Route | Guard | Page | Purpose |
 |-------|-------|------|---------|
 | `/verify-email` | `RequireAuth` | `VerifyEmailNoticePage` (new) | Post-registration notice (FR-007): "check your inbox at {email}" + resend button. |
-| `/verify-email/:hash` | `RequireAuth` | `VerifyEmailPage` (new) | Link landing: forwards `:hash` (sha1 of the user's email — no ids in URLs) + `?expires&signature` to the API; renders the outcome. |
+| `/verify-email/:hash` | *(none — amended 2026-07-08)* | `VerifyEmailPage` (new) | Link landing: forwards `:hash` (sha1 of the user's email — no ids in URLs) + `?expires&signature` to the API; renders the outcome. Deliberately unguarded: the signed link verifies even in a logged-out browser. |
 
 Both are real, refresh-safe URLs (FR-010): the landing page re-calls the
 idempotent API on refresh and reproduces the same view; history entries behave
@@ -35,11 +35,10 @@ On mount, parses `:hash` + `expires`/`signature` query params and calls
 | `verifying` | request in flight | progress text (not color-only) |
 | `confirmed` | 200, `already_verified: false` | success message + link onward (Home/account); auth context `refresh()`ed so `emailVerifiedAt` updates everywhere |
 | `already` | 200, `already_verified: true` | "already verified" info, no error (FR-005) |
-| `failed` | 403 / malformed params | "link invalid or expired" + resend button (FR-004); rate-limit and network failures get their own retryable message |
+| `failed` | 403 / malformed params | "link invalid or expired" (FR-004) + resend button when signed in, or a login link when signed out (resend needs a session); rate-limit and network failures get their own retryable message |
 
-Anonymous visitors never reach the page: `RequireAuth` bounces to `/login`
-carrying the location, and login returns here — the link survives sign-in
-(spec scenario 4).
+Anonymous visitors use the page directly (amended 2026-07-08): the link
+verifies session-free, so no login round-trip is involved (spec scenario 4).
 
 ### Edits to existing pages/components
 

@@ -35,13 +35,13 @@ const verifiedAda: AuthUser = { ...ada, emailVerifiedAt: '2026-07-07T10:00:00Z' 
 
 const linkUrl = '/verify-email/abc123?expires=1767225600&signature=deadbeef';
 
-function landingTree(initialEntry: string, refresh: () => Promise<void>) {
+function landingTree(initialEntry: string, refresh: () => Promise<void>, anonymous = false) {
   return (
     <MemoryRouter initialEntries={[initialEntry]}>
       <AuthContext.Provider
         value={{
-          status: 'authenticated',
-          user: ada,
+          status: anonymous ? 'anonymous' : 'authenticated',
+          user: anonymous ? null : ada,
           register: vi.fn(),
           login: vi.fn(),
           logout: vi.fn(),
@@ -58,9 +58,9 @@ function landingTree(initialEntry: string, refresh: () => Promise<void>) {
   );
 }
 
-function renderLanding(initialEntry = linkUrl) {
+function renderLanding(initialEntry = linkUrl, anonymous = false) {
   const refresh = vi.fn().mockResolvedValue(undefined);
-  render(landingTree(initialEntry, refresh));
+  render(landingTree(initialEntry, refresh, anonymous));
   return refresh;
 }
 
@@ -119,6 +119,29 @@ describe('VerifyEmailPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Resend verification e-mail' }));
 
     expect(await screen.findByText('Verification link sent. Check your inbox.')).toBeTruthy();
+  });
+
+  it('verifies a signed-out visitor and shows the confirmation (session-free link)', async () => {
+    vi.spyOn(AuthApi, 'verifyEmail')
+      .mockResolvedValue({ ok: true, user: verifiedAda, alreadyVerified: false });
+
+    renderLanding(linkUrl, true);
+
+    // The signed link alone proves inbox control; no login round-trip required.
+    expect(await screen.findByText(/your e-mail is verified/i)).toBeTruthy();
+  });
+
+  it('offers a login link instead of resend when a signed-out visitor hits a dead link', async () => {
+    vi.spyOn(AuthApi, 'verifyEmail').mockResolvedValue({ ok: false, kind: 'invalid' });
+
+    renderLanding(linkUrl, true);
+    await screen.findByText(/invalid or expired/i);
+
+    // Resend needs a session (the API refuses anonymous resends), so the page
+    // points a signed-out visitor at login instead of a button doomed to fail.
+    expect(screen.queryByRole('button', { name: 'Resend verification e-mail' })).toBeNull();
+    const login = screen.getByRole('link', { name: /log in/i });
+    expect(login.getAttribute('href')).toBe('/login');
   });
 
   it('disables the resend button and shows a busy spinner while the resend runs', async () => {

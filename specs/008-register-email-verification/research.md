@@ -86,6 +86,13 @@ user, so `hash_equals(sha1(currentUser.email), {hash})` alone binds the link to
 the account — a different signed-in user fails the digest check (403), which is
 exactly the cross-account edge case in the spec. `{hash}` reveals nothing: it
 is a one-way digest of the recipient's own address, delivered to that address.
+
+**Amendment (2026-07-08)**: the owner requires the link to verify in a
+logged-out browser too, so the `auth:sanctum` gate is gone. The URL shape is
+unchanged; the account is now resolved from the digest itself via an indexed
+`users.email_sha1` column (kept in step by the `User` email mutator; computed
+in PHP because SQLite — the test database — has no `sha1()` SQL function). A
+session, when present, still only adds the cross-account refusal above.
 Cost: the stock `EmailVerificationRequest` (hard-wired to `route('id')`) is
 replaced by an in-house `VerifyEmailRequest` (~15 lines: authorize via the
 digest comparison; the controller marks verification with
@@ -189,6 +196,11 @@ verifies — the link is never lost.
 works for any future protected route, and is the idiomatic react-router
 pattern. `RequireAnon`'s redirect-authed-to-`/` behavior is unchanged (login
 page itself was never the destination).
+
+**Amendment (2026-07-08)**: the verification landing page is no longer behind
+`RequireAuth` — the link verifies session-free (see the D3 amendment) — so
+scenario 4 no longer relies on this return-to path. The mechanism itself stays:
+it still serves every other guarded route (e.g. `/account`, `/upload`).
 
 **Alternatives considered**: a `?next=` query param — visible, shareable, and
 needs open-redirect guarding. Router state avoids all three. Rejected.

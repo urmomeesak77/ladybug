@@ -38,6 +38,17 @@ class User extends Authenticatable implements MustVerifyEmail {
     ];
 
     /**
+     * Keep the sha1 digest of the address in step with the address itself. The
+     * digest is the only account handle a verification link carries (no ids in
+     * URLs — 008 research D3), so it must be resolvable back to the account
+     * even without a session.
+     */
+    public function setEmailAttribute(string $value): void {
+        $this->attributes['email'] = $value;
+        $this->attributes['email_sha1'] = sha1($value);
+    }
+
+    /**
      * Get the posts owned by the user.
      */
     public function posts(): HasMany {

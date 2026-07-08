@@ -70,8 +70,8 @@ function LoginPage() {
     const result = await login(values);
     setSubmitting(false);
     if (result.ok) {
-      // Return to the location the auth guard blocked, if any (D9) — e.g. a
-      // verification link opened while signed out completes after login.
+      // Return to the location the auth guard blocked, if any (D9) — e.g. an
+      // account page opened while signed out is reached after login.
       const from = (location.state as { from?: Location } | null)?.from;
       navigate(from ?? '/');
       return;

@@ -32,7 +32,9 @@ function App() {
               <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
               <Route path="/upload" element={<RequireAuth><UploadPage /></RequireAuth>} />
               <Route path="/verify-email" element={<RequireAuth><VerifyEmailNoticePage /></RequireAuth>} />
-              <Route path="/verify-email/:hash" element={<RequireAuth><VerifyEmailPage /></RequireAuth>} />
+              {/* Deliberately unguarded: the emailed link must verify even in a
+                  logged-out browser — the signed URL itself proves inbox control. */}
+              <Route path="/verify-email/:hash" element={<VerifyEmailPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </PageLayout>

@@ -13,8 +13,8 @@ function RequireAuth({ children }: { children: ReactNode }) {
     return null;
   }
   if (status === 'anonymous') {
-    // Carry the blocked location in router state so login can return to it — a
-    // verification link opened while signed out survives the sign-in (D9).
+    // Carry the blocked location in router state so login can return to it
+    // after the sign-in (D9).
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
   return <>{children}</>;

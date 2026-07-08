@@ -122,13 +122,52 @@ class EmailVerificationControllerTest extends TestCase {
         $this->assertNull($other->fresh()->email_verified_at);
     }
 
-    public function test_an_anonymous_request_is_rejected(): void {
+    public function test_an_anonymous_request_with_a_valid_link_verifies_the_account(): void {
+        Event::fake([Verified::class]);
         $user = User::factory()->unverified()->create();
+
+        // No session at all: possession of the signed link alone proves control
+        // of the inbox, so verification must not demand a login first.
+        $response = $this->getJson($this->verificationUrl($user->email));
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.already_verified', false);
+        $this->assertNotNull($user->fresh()->email_verified_at);
+        Event::assertDispatched(Verified::class);
+    }
+
+    public function test_an_anonymous_reuse_of_the_link_is_an_idempotent_no_op(): void {
+        Event::fake([Verified::class]);
+        $user = User::factory()->create(['email_verified_at' => '2026-07-01 12:00:00']);
 
         $response = $this->getJson($this->verificationUrl($user->email));
 
-        $response->assertStatus(401);
+        $response->assertOk();
+        $response->assertJsonPath('meta.already_verified', true);
+        $this->assertSame('2026-07-01 12:00:00', $user->fresh()->email_verified_at->format('Y-m-d H:i:s'));
+        Event::assertNotDispatched(Verified::class);
+    }
+
+    public function test_an_anonymous_request_with_a_tampered_signature_is_rejected(): void {
+        $user = User::factory()->unverified()->create();
+        $url = (string) preg_replace(
+            '/signature=\w+/',
+            'signature=' . str_repeat('0', 64),
+            $this->verificationUrl($user->email),
+        );
+
+        $response = $this->getJson($url);
+
+        $response->assertForbidden();
         $this->assertNull($user->fresh()->email_verified_at);
+    }
+
+    public function test_an_anonymous_request_whose_digest_matches_no_account_is_rejected(): void {
+        // Validly signed, but no user carries this address (e.g. the account was
+        // deleted after the mail went out): same 403 as any dead link (FR-004).
+        $response = $this->getJson($this->verificationUrl('ghost@example.com'));
+
+        $response->assertForbidden();
     }
 
     public function test_resend_dispatches_a_fresh_notification_to_an_unverified_user(): void {

@@ -63,8 +63,9 @@ Validation guide for the implemented feature. Contracts:
 ## Scenario 4 — Link while signed out (US1 scenario 4)
 
 1. Copy a valid link, open it in a private window (signed out).
-2. **Expect**: redirect to `/login`; after signing in as that user you return
-   to the link URL and verification completes.
+2. **Expect**: the verification completes right there — no login round-trip
+   (amended 2026-07-08). The visitor stays signed out; a dead link offers a
+   login link instead of the (session-only) resend button.
 
 ## Scenario 5 — Account page status (US3)
 

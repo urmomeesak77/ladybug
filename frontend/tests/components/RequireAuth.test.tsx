@@ -32,10 +32,6 @@ function renderGate(status: AuthStatus, initialEntry = '/account') {
         <Routes>
           <Route path="/login" element={<><p>login form</p><FromProbe /></>} />
           <Route path="/account" element={<RequireAuth><p>account details</p></RequireAuth>} />
-          <Route
-            path="/verify-email/:hash"
-            element={<RequireAuth><p>link landing</p></RequireAuth>}
-          />
         </Routes>
       </AuthContext.Provider>
     </MemoryRouter>,
@@ -63,12 +59,11 @@ describe('RequireAuth', () => {
   });
 
   it('passes the blocked location to the login page so login can return there', () => {
-    // A verification link opened while signed out must survive the sign-in
-    // round-trip (spec scenario 4, research D9).
-    renderGate('anonymous', '/verify-email/abc123?expires=1767225600&signature=deadbeef');
+    // The blocked URL — query string included — must survive the sign-in
+    // round-trip (research D9).
+    renderGate('anonymous', '/account?tab=uploads');
 
     expect(screen.getByText('login form')).toBeTruthy();
-    expect(screen.getByTestId('from').textContent)
-      .toBe('/verify-email/abc123?expires=1767225600&signature=deadbeef');
+    expect(screen.getByTestId('from').textContent).toBe('/account?tab=uploads');
   });
 });

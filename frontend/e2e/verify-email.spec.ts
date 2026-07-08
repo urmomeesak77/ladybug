@@ -81,7 +81,7 @@ test.describe('Email verification', () => {
     await expect(page.getByText('Your e-mail is verified.')).toBeVisible();
   });
 
-  test('a link opened while signed out survives the login round-trip', async ({ page }) => {
+  test('a link opened while signed out verifies without logging in', async ({ page }) => {
     const email = uniqueEmail();
     await register(page, email);
     await expect(page).toHaveURL('/verify-email');
@@ -91,15 +91,13 @@ test.describe('Email verification', () => {
     await page.getByRole('button', { name: 'Log out' }).click();
     await expect(page.getByRole('link', { name: 'Login' })).toBeVisible();
 
-    // Anonymous visit bounces to login; signing in returns to the link, which
-    // then verifies the account (spec scenario 4, research D9).
+    // The signed link alone proves control of the inbox, so it verifies right
+    // there — no login round-trip (spec scenario 4).
     await page.goto(link);
-    await expect(page).toHaveURL('/login');
-    await page.getByLabel('E-mail').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill('Password1');
-    await page.getByRole('button', { name: 'Login' }).click();
-
-    await expect(page.getByText('Your e-mail is verified.')).toBeVisible();
     await expect(page).toHaveURL(link);
+    await expect(page.getByText('Your e-mail is verified.')).toBeVisible();
+
+    // The verification did not smuggle in a session: the visitor stays signed out.
+    await expect(page.getByRole('link', { name: 'Login' })).toBeVisible();
   });
 });

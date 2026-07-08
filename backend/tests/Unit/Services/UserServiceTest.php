@@ -46,6 +46,19 @@ class UserServiceTest extends TestCase {
         $this->assertNotSame($first->hash, $second->hash);
     }
 
+    public function test_it_finds_a_user_by_the_sha1_digest_of_their_email(): void {
+        $service = new UserService();
+        $created = $service->create($this->data(['email' => 'ada@example.com']));
+
+        $found = $service->findByEmailDigest(sha1('ada@example.com'));
+
+        $this->assertTrue($created->is($found));
+    }
+
+    public function test_it_returns_null_for_a_digest_matching_no_user(): void {
+        $this->assertNull((new UserService())->findByEmailDigest(sha1('ghost@example.com')));
+    }
+
     public function test_a_duplicate_email_violates_the_unique_constraint(): void {
         $service = new UserService();
         $service->create($this->data());

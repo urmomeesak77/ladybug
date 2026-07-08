@@ -2,8 +2,9 @@
 
 **Feature**: 008-register-email-verification | **Date**: 2026-07-07
 
-No new tables and no migrations. The feature is a state machine over one
-existing column plus an ephemeral, never-persisted link artifact.
+No new tables. The feature is a state machine over one existing column plus an
+ephemeral, never-persisted link artifact. *(Amended 2026-07-08: one added
+column, `email_sha1`, so links verify session-free — see below.)*
 
 ## User account (existing `users` table — extended behaviorally)
 
@@ -11,11 +12,13 @@ existing column plus an ephemeral, never-persisted link artifact.
 |-------|------|-------|
 | `id` | bigint PK | Internal only — **never appears in the verification link** (owner requirement, research D3). |
 | `email` | string, unique | The address being proven; named on the notice page. |
+| `email_sha1` | string(40), indexed | *(Added 2026-07-08, D3 amendment.)* `sha1(email)`, maintained by the model's email mutator + backfilled by migration. Lets a session-free link click resolve its account from the digest the link already carries. |
 | `email_verified_at` | nullable timestamp | **The verification record.** `NULL` = unverified; a timestamp = verified at that moment. Already present since the 001 migration; `datetime` cast already on the model. |
 
 **Model change**: `User implements MustVerifyEmail` — enables
 `hasVerifiedEmail()`, `markEmailAsVerified()`,
-`sendEmailVerificationNotification()`. No attribute changes.
+`sendEmailVerificationNotification()`. *(2026-07-08: plus the
+`setEmailAttribute` mutator keeping `email_sha1` in step.)*
 
 ### Verification state machine
 

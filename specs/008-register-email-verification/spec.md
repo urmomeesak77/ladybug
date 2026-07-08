@@ -51,8 +51,10 @@ status changes from unverified to verified and the user sees a confirmation.
    again, **Then** nothing changes and they are informed their account is
    already verified (no error, no duplicate effect).
 4. **Given** a user who opens their verification link in a browser where they
-   are not signed in, **When** they sign in with that account, **Then** the
-   verification completes rather than being lost.
+   are not signed in, **When** the link is valid, **Then** the verification
+   completes right there — possession of the emailed link proves control of
+   the inbox, and no sign-in is required. *(Amended 2026-07-08: previously the
+   link bounced through login first; the owner requires it to work signed out.)*
 
 ---
 

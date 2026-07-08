@@ -36,6 +36,15 @@ class UserService {
     }
 
     /**
+     * Resolve the account a verification link points at: the link's {hash}
+     * segment is sha1 of the recipient's email, mirrored in the indexed
+     * email_sha1 column so no session is needed to find the account.
+     */
+    public function findByEmailDigest(string $digest): ?User {
+        return User::where('email_sha1', $digest)->first();
+    }
+
+    /**
      * @param  array{name: string, email: string, password: string}  $data
      */
     private function persist(array $data): User {

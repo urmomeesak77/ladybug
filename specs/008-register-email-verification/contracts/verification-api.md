@@ -12,12 +12,14 @@ Fulfills a verification link. Route name **`verification.verify`** (the
 against this name).
 
 `{hash}` is `sha1` of the recipient's email — **no user id or public code
-appears in the URL** (owner requirement, research D3). The account is
-identified by the authenticated session; the digest binds the link to it via
-the in-house `VerifyEmailRequest` (`hash_equals` against the signed-in user's
-email digest).
+appears in the URL** (owner requirement, research D3). Session-free since
+2026-07-08 (D3 amendment): anonymous requests resolve the account from the
+digest itself (indexed `users.email_sha1`); when a session IS present, the
+digest must be the signed-in user's own (`VerifyEmailRequest`, `hash_equals`)
+— a different signed-in account is refused.
 
-**Middleware**: `auth:sanctum`, `signed:relative`, `throttle:6,1`
+**Middleware**: `signed:relative`, `throttle:6,1` (per user when signed in,
+per IP otherwise)
 
 **Query**: `expires` (unix ts), `signature` (hex HMAC) — produced by the
 notification; the SPA forwards them verbatim from the email link.
@@ -25,9 +27,8 @@ notification; the SPA forwards them verbatim from the email link.
 | Status | When | Body |
 |--------|------|------|
 | `200` | Link valid; account was unverified and is now verified — or was already verified (idempotent, FR-005) | `{ "data": <user>, "meta": { "already_verified": false \| true } }` — `<user>` is the standard `UserResource` payload with fresh `email_verified_at` |
-| `401` | No authenticated session (SPA normally prevents this via `RequireAuth` + login return-to) | Laravel default `{ "message": "Unauthenticated." }` |
-| `403` | Signature invalid or expired (`signed:relative`), **or** `{hash}` doesn't match the authenticated user's email digest (`VerifyEmailRequest` — covers cross-account use) | `{ "message": ... }` — account state unchanged (FR-004, SC-003) |
-| `429` | More than 6 hits/min per user | Laravel default throttle body + `Retry-After` |
+| `403` | Signature invalid or expired (`signed:relative`), the digest doesn't match the authenticated user's email (`VerifyEmailRequest` — covers cross-account use), **or** the digest matches no account (deleted / address changed) | `{ "message": ... }` — account state unchanged (FR-004, SC-003) |
+| `429` | More than 6 hits/min | Laravel default throttle body + `Retry-After` |
 
 ## POST `/api/email/verification-notification`
 
