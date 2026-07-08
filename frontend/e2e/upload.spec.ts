@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test';
 
+import { MailLog } from './helpers/mailLog';
+
 // End-to-end coverage of the upload feature (008) against the ISOLATED e2e stack (run via
-// scripts\e2e.ps1): a registered, logged-in user uploads an image and lands on the new
-// meme's permalink with the image rendered. Users + posts are written to the throwaway
-// ladybug_e2e DB and its disposable media tree, never the live dev stack.
+// scripts\e2e.ps1): a registered, verified, logged-in user uploads an image and lands on
+// the new meme's permalink with the image rendered. Users + posts are written to the
+// throwaway ladybug_e2e DB and its disposable media tree, never the live dev stack.
 
 function uniqueEmail(): string {
   return `e2e+${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;
@@ -29,10 +31,16 @@ const PNG_1X1 = Buffer.from(
 
 test.describe('Upload', () => {
   test('a logged-in user uploads an image and sees its permalink', async ({ page }) => {
-    await register(page, uniqueEmail());
-    // Registration lands on the verification notice (008); uploading does not
-    // require a verified email (FR-009), so head straight to /upload.
+    const email = uniqueEmail();
+    await register(page, email);
+    // Registration lands on the verification notice (008); uploading is gated on a
+    // verified e-mail (verified-upload-gate), so open the e-mailed link first — an
+    // unverified user is redirected off /upload back to /verify-email.
     await expect(page).toHaveURL('/verify-email');
+    const link = MailLog.latestVerificationLink(email);
+    expect(link).not.toBeNull();
+    await page.goto(link ?? '');
+    await expect(page.getByText('Your e-mail is verified.')).toBeVisible();
 
     await page.goto('/upload');
     await page.getByLabel('Image', { exact: true }).check();
