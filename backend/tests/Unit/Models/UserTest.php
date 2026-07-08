@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Models;
 
+use App\Enums\Role;
 use App\Models\Trashpost;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -49,6 +50,42 @@ final class UserTest extends TestCase {
         $user = User::factory()->create(['hash' => 'usr0000001']);
 
         $this->assertSame('usr0000001', $user->fresh()->hash);
+    }
+
+    public function test_a_new_user_defaults_to_the_member_role(): void {
+        // The default attribute pins brand-new accounts to member before any
+        // save (FR-004) — no request body or factory state is involved.
+        $this->assertSame(Role::Member, (new User())->role);
+    }
+
+    public function test_a_created_user_defaults_to_the_member_role(): void {
+        $user = User::factory()->create();
+
+        $this->assertSame(Role::Member, $user->fresh()->role);
+    }
+
+    public function test_role_is_cast_to_the_role_enum(): void {
+        $user = User::factory()->create();
+
+        $this->assertInstanceOf(Role::class, $user->role);
+        $this->assertInstanceOf(Role::class, $user->fresh()->role);
+    }
+
+    public function test_role_is_not_mass_assignable(): void {
+        // Privilege-escalation guard (Principle VI): a request body key of `role`
+        // is silently discarded, so the account keeps its member default.
+        $user = new User();
+        $user->fill(['role' => 'superuser']);
+
+        $this->assertSame(Role::Member, $user->role);
+    }
+
+    public function test_an_unverified_user_still_defaults_to_the_member_role(): void {
+        // Role is independent of e-mail verification (FR-011).
+        $user = User::factory()->unverified()->create();
+
+        $this->assertNull($user->email_verified_at);
+        $this->assertSame(Role::Member, $user->fresh()->role);
     }
 
     public function test_posts_returns_the_users_trashposts(): void {

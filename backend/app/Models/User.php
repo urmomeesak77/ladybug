@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -25,6 +26,17 @@ class User extends Authenticatable implements MustVerifyEmail {
         'name',
         'email',
         'password',
+    ];
+
+    /**
+     * The model's default attribute values. Pins every new account to member
+     * (FR-004) — `role` is deliberately absent from $fillable so no request body
+     * can set or escalate it (privilege-escalation guard, Principle VI).
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'role' => Role::Member->value,
     ];
 
     /**
@@ -64,6 +76,7 @@ class User extends Authenticatable implements MustVerifyEmail {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'role' => Role::class,
         ];
     }
 }

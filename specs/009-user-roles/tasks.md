@@ -53,13 +53,13 @@ description: "Task list for feature implementation: User Roles (Backbone)"
 
 ### Tests for User Story 1 ⚠️ (write first, ensure they FAIL)
 
-- [ ] T004 [P] [US1] Create `backend/tests/Unit/Models/UserTest.php`: a newly built/created user has `role === Role::Member` (FR-004, SC-002); mass-assigning `['role' => 'superuser']` does **not** set it (non-fillable, Principle VI); the `role` attribute is cast to a `Role` instance; an `unverified()` user still has `role === Role::Member` (role is independent of e-mail verification — FR-011).
+- [X] T004 [P] [US1] Create `backend/tests/Unit/Models/UserTest.php`: a newly built/created user has `role === Role::Member` (FR-004, SC-002); mass-assigning `['role' => 'superuser']` does **not** set it (non-fillable, Principle VI); the `role` attribute is cast to a `Role` instance; an `unverified()` user still has `role === Role::Member` (role is independent of e-mail verification — FR-011).
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Create migration `backend/database/migrations/2026_07_08_000001_add_role_to_users_table.php`: add `string('role')->default('member')` `NOT NULL` after `password` (defaults new rows + backfills legacy rows in one DDL — FR-004/FR-010); reversible `down()` drops the column. Plain string, no MySQL `ENUM`/`CHECK` (portable to SQLite `:memory:` — research D3).
-- [ ] T006 [US1] Edit `backend/app/Models/User.php`: cast `'role' => Role::class` in `casts()`; add default attribute `role => Role::Member->value`; keep `role` **out of** `$fillable` (privilege-escalation guard, Principle VI / research D5).
-- [ ] T007 [US1] Edit `backend/database/factories/UserFactory.php`: default `role => Role::Member->value`; add `admin()` and `superuser()` states (used here and by US2/US3/US4 tests). Leave `unverified()`/other states untouched (role is independent of verification — FR-011).
+- [X] T005 [US1] Create migration `backend/database/migrations/2026_07_08_000001_add_role_to_users_table.php`: add `string('role')->default('member')` `NOT NULL` after `password` (defaults new rows + backfills legacy rows in one DDL — FR-004/FR-010); reversible `down()` drops the column. Plain string, no MySQL `ENUM`/`CHECK` (portable to SQLite `:memory:` — research D3).
+- [X] T006 [US1] Edit `backend/app/Models/User.php`: cast `'role' => Role::class` in `casts()`; add default attribute `role => Role::Member->value`; keep `role` **out of** `$fillable` (privilege-escalation guard, Principle VI / research D5).
+- [X] T007 [US1] Edit `backend/database/factories/UserFactory.php`: default `role => Role::Member->value`; add `admin()` and `superuser()` states (used here and by US2/US3/US4 tests). Leave `unverified()`/other states untouched (role is independent of verification — FR-011).
 
 **Checkpoint**: US1 fully functional — `php artisan test --filter=UserTest` passes; migration applies cleanly.
 
