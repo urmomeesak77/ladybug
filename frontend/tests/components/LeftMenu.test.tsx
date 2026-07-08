@@ -10,10 +10,13 @@ import type { AuthUser } from '../../src/lib/authApi';
 
 afterEach(cleanup);
 
+// Verified on purpose: the authenticated-menu assertions below include Upload,
+// which only verified users get.
 const user: AuthUser = {
   id: 1,
   name: 'Ada',
   email: 'ada@example.com',
+  emailVerifiedAt: '2026-01-01T00:00:00Z',
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
@@ -73,6 +76,17 @@ describe('LeftMenu', () => {
     expect(screen.getByRole('link', { name: 'Account' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Login/register' })).toBeNull();
+  });
+
+  it('hides the Upload entry for an unverified user', () => {
+    const unverified = { ...user, emailVerifiedAt: null };
+    renderMenu(authValue({ status: 'authenticated', user: unverified }));
+
+    expect(screen.queryByRole('link', { name: 'Upload' })).toBeNull();
+    // The rest of the authenticated menu is untouched.
+    expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Account' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy();
   });
 
   it('logs out and navigates home', async () => {

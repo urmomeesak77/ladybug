@@ -66,7 +66,9 @@ function AnonymousLinks() {
   );
 }
 
-function AuthenticatedLinks({ onLogout }: { onLogout: () => void }) {
+// Upload is verified-only (the API rejects unverified posts with 403); hiding the
+// entry keeps the menu honest about what the user can actually do right now.
+function AuthenticatedLinks({ showUpload, onLogout }: { showUpload: boolean; onLogout: () => void }) {
   return (
     <>
       <li>
@@ -75,12 +77,14 @@ function AuthenticatedLinks({ onLogout }: { onLogout: () => void }) {
           Home
         </NavLink>
       </li>
-      <li>
-        <NavLink to="/upload">
-          <MenuIcon glyph="upload" />
-          Upload
-        </NavLink>
-      </li>
+      {showUpload ? (
+        <li>
+          <NavLink to="/upload">
+            <MenuIcon glyph="upload" />
+            Upload
+          </NavLink>
+        </li>
+      ) : null}
       <li>
         <NavLink to="/account">
           <MenuIcon glyph="person" />
@@ -115,7 +119,7 @@ function LeftMenu() {
     <nav id="left-menu" aria-label="Primary">
       <ul>
         {isAuthenticated ? (
-          <AuthenticatedLinks onLogout={() => void handleLogout()} />
+          <AuthenticatedLinks showUpload={user.emailVerifiedAt !== null} onLogout={() => void handleLogout()} />
         ) : (
           <AnonymousLinks />
         )}
