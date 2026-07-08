@@ -34,7 +34,7 @@
 - Produces: `POST /api/posts` returns 403 (`{"message": "Your email address is not verified."}`) for authenticated users whose `email_verified_at` is null; behavior for verified users is unchanged.
 - Consumes: `User` implements `MustVerifyEmail` (already true); `User::factory()->unverified()` (exists).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `backend/tests/Feature/Http/Controllers/CreatePostTest.php`, add alongside the existing tests (match the file's existing payload style — reuse the same valid YouTube payload an existing happy-path test posts, so the 403 is unambiguously the verification gate and not validation):
 
@@ -53,12 +53,12 @@ public function test_unverified_user_cannot_create_post(): void
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `docker run --rm -v "${PWD}/backend:/app" ladybug-php php artisan test --filter=test_unverified_user_cannot_create_post`
 Expected: FAIL — 201 (or 422) received instead of 403; a post row may exist.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `backend/routes/api.php`, add `verified` to the store route's middleware and extend the comment's *why*:
 
@@ -72,12 +72,12 @@ Route::post('/posts', [TrashpostsApiController::class, 'store'])
     ->name('api.posts.store');
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `docker run --rm -v "${PWD}/backend:/app" ladybug-php php artisan test`
 Expected: PASS — the new test and the whole existing suite (existing upload tests use `User::factory()->create()`, which is verified by default).
 
-- [ ] **Step 5: Lint + commit + push**
+- [x] **Step 5: Lint + commit + push**
 
 Run: `docker run --rm -v "${PWD}/backend:/app" ladybug-php vendor/bin/pint --test` — expected exit 0.
 
@@ -100,7 +100,7 @@ git push
 - Consumes: `useAuth()` (`user.emailVerifiedAt: string | null`), `Navigate` from react-router-dom.
 - Produces: `<RequireVerified>{children}</RequireVerified>` — renders children for a verified user; replace-redirects an unverified user to `/verify-email`. Must sit INSIDE `RequireAuth` (it assumes the session is resolved and authenticated).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `frontend/tests/components/RequireVerified.test.tsx`, mirroring `tests/components/RequireAuth.test.tsx`'s harness (AuthContext provider + MemoryRouter + a route for `/verify-email` asserting the redirect landed). Cases:
 
@@ -108,12 +108,12 @@ Create `frontend/tests/components/RequireVerified.test.tsx`, mirroring `tests/co
 2. unverified user (`emailVerifiedAt: null`) → the `/verify-email` route's marker renders, children do not;
 3. `user === null` (defensive: mounted outside RequireAuth) → renders nothing.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/components/RequireVerified.test.tsx`
 Expected: FAIL — module `../../src/components/RequireVerified` does not exist.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `frontend/src/components/RequireVerified.tsx` in `RequireAuth`'s style:
 
@@ -147,12 +147,12 @@ In `frontend/src/App.tsx`, import it and wrap the upload route:
 <Route path="/upload" element={<RequireAuth><RequireVerified><UploadPage /></RequireVerified></RequireAuth>} />
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run tests/components/RequireVerified.test.tsx tests/components/RequireAuth.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Commit + push**
+- [x] **Step 5: Commit + push**
 
 ```bash
 git add frontend/src/components/RequireVerified.tsx frontend/src/App.tsx frontend/tests/components/RequireVerified.test.tsx
@@ -171,7 +171,7 @@ git push
 **Interfaces:**
 - Produces: `AuthenticatedLinks({ showUpload, onLogout })` — the Upload `<li>` renders only when `showUpload` is true. `LeftMenu` computes `showUpload` from `user.emailVerifiedAt !== null`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `frontend/tests/components/LeftMenu.test.tsx`, the shared `user` fixture must be verified (`emailVerifiedAt` non-null) so existing assertions ("offers Home, Upload, Account and Log out") stay meaningful; adjust the fixture if it currently has `emailVerifiedAt: null`. Add:
 
@@ -186,12 +186,12 @@ it('hides the Upload entry for an unverified user', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/components/LeftMenu.test.tsx`
 Expected: the new test FAILS — the Upload link renders for the unverified user.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `frontend/src/components/LeftMenu.tsx`:
 
@@ -209,12 +209,12 @@ Wrap the Upload `<li>` in `{showUpload ? (…) : null}`. In `LeftMenu`, pass the
 
 (`isAuthenticated` already guarantees `user !== null` on this branch; if TypeScript cannot see that through the ternary, narrow with the existing `isAuthenticated && user !== null` pattern rather than `user!`.)
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run tests/components/LeftMenu.test.tsx`
 Expected: PASS (new + existing tests).
 
-- [ ] **Step 5: Commit + push**
+- [x] **Step 5: Commit + push**
 
 ```bash
 git add frontend/src/components/LeftMenu.tsx frontend/tests/components/LeftMenu.test.tsx
@@ -234,7 +234,7 @@ git push
 **Interfaces:**
 - Produces: `UploadResult` gains `{ ok: false; kind: 'unverified' }`; `UploadApi.interpret` returns it for status 403; `useUploadForm` renders it as the form error "Verify your e-mail address before posting.".
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `frontend/tests/lib/uploadApi.test.ts` (match the file's existing fetch-stub style for 401/422):
 
@@ -251,12 +251,12 @@ it('shows the verification message when the API says unverified', async () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `npx vitest run tests/lib/uploadApi.test.ts tests/hooks/useUploadForm.test.tsx`
 Expected: FAIL — 403 currently maps to `kind: 'network'`, so the message is the generic one (and TypeScript rejects the `'unverified'` literal until the union grows).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `frontend/src/lib/uploadApi.ts` — extend the union and `interpret`:
 
@@ -293,12 +293,12 @@ In `interpret`, after the 401 branch:
     setFormError('Something went wrong. Please try again.');
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run tests/lib/uploadApi.test.ts tests/hooks/useUploadForm.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Commit + push**
+- [x] **Step 5: Commit + push**
 
 ```bash
 git add frontend/src/lib/uploadApi.ts frontend/src/hooks/useUploadForm.ts frontend/tests/lib/uploadApi.test.ts frontend/tests/hooks/useUploadForm.test.tsx
@@ -312,19 +312,19 @@ git push
 
 **Files:** none (verification only).
 
-- [ ] **Step 1: Backend gates**
+- [x] **Step 1: Backend gates**
 
 Run: `docker run --rm -v "${PWD}/backend:/app" ladybug-php vendor/bin/pint --test`
 Run: `docker run --rm -v "${PWD}/backend:/app" ladybug-php php artisan test --coverage`
 Expected: Pint clean; all tests PASS; line coverage ≥ 90%.
 
-- [ ] **Step 2: Frontend gates**
+- [x] **Step 2: Frontend gates**
 
 From `frontend/`:
 Run: `npm run lint` — expected exit 0.
 Run: `npx vitest run --coverage --coverage.thresholds.lines=90` — expected all PASS, lines ≥ 90%.
 
-- [ ] **Step 3: Verify in the running app**
+- [x] **Step 3: Verify in the running app**
 
 With the compose stack up (`docker compose ps`; remember `docker compose restart backend` after PHP edits — opcache — and `docker compose restart frontend` if Vite serves stale UI):
 
@@ -334,6 +334,6 @@ With the compose stack up (`docker compose ps`; remember `docker compose restart
 3. Verify the account via the e-mailed link (dev mailbox) → Upload entry appears without a reload; uploading a meme succeeds end-to-end.
 4. Confirm browsing/login as an unverified user is unaffected (home feed, `/account`).
 
-- [ ] **Step 4: Dispatch commit-quality-verifier**
+- [x] **Step 4: Dispatch commit-quality-verifier**
 
 Per project convention, dispatch the `commit-quality-verifier` agent on the latest commits; address any FAIL findings before calling the feature done.
