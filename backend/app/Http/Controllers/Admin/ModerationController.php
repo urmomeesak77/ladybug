@@ -44,4 +44,19 @@ class ModerationController extends Controller {
     public function deactivate(string $hash): JsonResource {
         return new AdminTrashpostResource($this->service->deactivate($hash));
     }
+
+    /**
+     * DELETE /api/admin/posts/{hash} — soft-delete the meme (retained, hidden from public
+     * views) and return the updated row (`deleted: true`). The client confirms first (FR-016).
+     */
+    public function destroy(string $hash): JsonResource {
+        return new AdminTrashpostResource($this->service->delete($hash));
+    }
+
+    /**
+     * POST /api/admin/posts/{hash}/restore — undelete the meme; returns the updated row.
+     */
+    public function restore(string $hash): JsonResource {
+        return new AdminTrashpostResource($this->service->restore($hash));
+    }
 }

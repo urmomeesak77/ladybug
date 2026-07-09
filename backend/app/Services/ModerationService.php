@@ -59,6 +59,32 @@ class ModerationService {
     }
 
     /**
+     * Soft-delete a meme: it stays in the table (and its media on disk) but drops out of
+     * every public view. Idempotent — an already-trashed meme keeps its original
+     * `deleted_at`, so repeated/concurrent deletes converge without churn.
+     */
+    public function delete(string $hash): Trashpost {
+        $post = $this->find($hash);
+        if (!$post->trashed()) {
+            $post->delete();
+        }
+
+        return $post;
+    }
+
+    /**
+     * Undelete a soft-deleted meme. Idempotent: a live meme stays live.
+     */
+    public function restore(string $hash): Trashpost {
+        $post = $this->find($hash);
+        if ($post->trashed()) {
+            $post->restore();
+        }
+
+        return $post;
+    }
+
+    /**
      * Resolve a meme by its public hash, including soft-deleted ones so a trashed meme is
      * still reachable for a state change (contract lookup semantics). Missing → 404.
      */

@@ -36,20 +36,28 @@ export class ModerationApi {
   }
 
   static activate(hash: string): Promise<ModerationActionResult> {
-    return ModerationApi.act(`/api/admin/posts/${encodeURIComponent(hash)}/activate`);
+    return ModerationApi.act('POST', `/api/admin/posts/${encodeURIComponent(hash)}/activate`);
   }
 
   static deactivate(hash: string): Promise<ModerationActionResult> {
-    return ModerationApi.act(`/api/admin/posts/${encodeURIComponent(hash)}/deactivate`);
+    return ModerationApi.act('POST', `/api/admin/posts/${encodeURIComponent(hash)}/deactivate`);
   }
 
-  // The shared POST-an-action plumbing: send the unsafe request with the CSRF header and,
-  // on a 2xx, parse the single updated row. Any non-2xx or network failure is `ok: false`,
-  // so the caller leaves the row as it was.
-  private static async act(path: string): Promise<ModerationActionResult> {
+  static remove(hash: string): Promise<ModerationActionResult> {
+    return ModerationApi.act('DELETE', `/api/admin/posts/${encodeURIComponent(hash)}`);
+  }
+
+  static restore(hash: string): Promise<ModerationActionResult> {
+    return ModerationApi.act('POST', `/api/admin/posts/${encodeURIComponent(hash)}/restore`);
+  }
+
+  // The shared act-on-a-meme plumbing: send the unsafe request with the CSRF header and, on
+  // a 2xx, parse the single updated row. Any non-2xx or network failure is `ok: false`, so
+  // the caller leaves the row as it was.
+  private static async act(method: string, path: string): Promise<ModerationActionResult> {
     try {
       const response = await fetch(`${Api.base()}${path}`, {
-        method: 'POST',
+        method,
         credentials: 'include',
         headers: { Accept: 'application/json', 'X-XSRF-TOKEN': Csrf.token() },
       });

@@ -170,17 +170,17 @@ deleted and it reappears; Delete confirms, Restore does not.
 
 ### Tests for User Story 4 ⚠️ (write first, must fail)
 
-- [ ] T048 [P] [US4] Add delete/restore cases to `backend/tests/Unit/Services/ModerationServiceTest.php` — Delete soft-deletes (`deleted_at` set, row retained), Restore clears it; both idempotent; `withTrashed` lookup finds a soft-deleted meme to restore.
-- [ ] T049 [US4] Add delete/restore feature cases to `backend/tests/Feature/Http/Controllers/Admin/ModerationControllerTest.php` — `DELETE /posts/{hash}` → 200 `deleted:true`, `POST /posts/{hash}/restore` → 200 `deleted:false`; unknown hash → 404; a soft-deleted meme is absent from the public feed/show routes (US4 acceptance #3).
-- [ ] T050 [P] [US4] Add delete/restore to `frontend/tests/unit/lib/moderationApi.test.ts` and the apply-in-place cases in `frontend/tests/unit/hooks/useModeration.test.tsx`.
-- [ ] T051 [P] [US4] Extend `frontend/tests/unit/components/moderation/ModerationActions.test.tsx` — Delete shows an inline Confirm/Cancel before applying (FR-016); Restore applies on a single click; Delete offered when not deleted, Restore when deleted; action clicks never navigate the row.
+- [X] T048 [P] [US4] Add delete/restore cases to `backend/tests/Unit/Services/ModerationServiceTest.php` — Delete soft-deletes (`deleted_at` set, row retained), Restore clears it; both idempotent; `withTrashed` lookup finds a soft-deleted meme to restore.
+- [X] T049 [US4] Add delete/restore feature cases to `backend/tests/Feature/Http/Controllers/Admin/ModerationControllerTest.php` — `DELETE /posts/{hash}` → 200 `deleted:true`, `POST /posts/{hash}/restore` → 200 `deleted:false`; unknown hash → 404; a soft-deleted meme is absent from the public feed/show routes (US4 acceptance #3).
+- [X] T050 [P] [US4] Add delete/restore to `frontend/tests/unit/lib/moderationApi.test.ts` and the apply-in-place cases in `frontend/tests/unit/hooks/useModeration.test.tsx`.
+- [X] T051 [P] [US4] Extend `frontend/tests/unit/components/moderation/ModerationActions.test.tsx` — Delete shows an inline Confirm/Cancel before applying (FR-016); Restore applies on a single click; Delete offered when not deleted, Restore when deleted; action clicks never navigate the row.
 
 ### Implementation for User Story 4
 
-- [ ] T052 [US4] Add `delete`/`restore` to `backend/app/Services/ModerationService.php` — `$post->delete()` / `$post->restore()` via `withTrashed()->where('hash', ...)`.
-- [ ] T053 [US4] Add `destroy`/`restore` actions + routes (`DELETE /posts/{hash}`, `POST /posts/{hash}/restore`) in `backend/app/Http/Controllers/Admin/ModerationController.php` and `backend/routes/api.php`; return the updated row.
-- [ ] T054 [P] [US4] Add `delete`/`restore` to `frontend/src/lib/moderationApi.ts`.
-- [ ] T055 [US4] Extend `frontend/src/components/moderation/ModerationActions.tsx` with the Delete inline two-step confirm + single-click Restore, presented per the row's deleted state.
+- [X] T052 [US4] Add `delete`/`restore` to `backend/app/Services/ModerationService.php` — `$post->delete()` / `$post->restore()` via `withTrashed()->where('hash', ...)`.
+- [X] T053 [US4] Add `destroy`/`restore` actions + routes (`DELETE /posts/{hash}`, `POST /posts/{hash}/restore`) in `backend/app/Http/Controllers/Admin/ModerationController.php` and `backend/routes/api.php`; return the updated row.
+- [X] T054 [P] [US4] Add `delete`/`restore` to `frontend/src/lib/moderationApi.ts`.
+- [X] T055 [US4] Extend `frontend/src/components/moderation/ModerationActions.tsx` with the Delete inline two-step confirm + single-click Restore, presented per the row's deleted state.
 
 **Checkpoint**: Full reversible moderation — Activate↔Deactivate and Delete↔Restore — works
 from the table, and soft-deleted memes are correctly hidden from public views.

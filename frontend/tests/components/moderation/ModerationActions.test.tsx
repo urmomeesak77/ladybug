@@ -101,3 +101,66 @@ describe('ModerationActions activation control', () => {
     expect(onApply).not.toHaveBeenCalled();
   });
 });
+
+describe('ModerationActions delete/restore control', () => {
+  it('offers Delete for a live meme and Restore for a deleted one (exactly one)', () => {
+    renderInRow(inactive, () => {});
+    expect(screen.getByRole('button', { name: /^delete$/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^restore$/i })).toBeNull();
+    cleanup();
+
+    renderInRow({ ...inactive, deleted: true }, () => {});
+    expect(screen.getByRole('button', { name: /^restore$/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^delete$/i })).toBeNull();
+  });
+
+  it('requires an inline confirm before it deletes (FR-016)', async () => {
+    const updated = { ...inactive, deleted: true };
+    vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: true, row: updated });
+    const onApply = vi.fn();
+
+    renderInRow(inactive, onApply);
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    // Not sent yet — the inline confirmation must be answered first.
+    expect(ModerationApi.remove).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+
+    await waitFor(() => expect(onApply).toHaveBeenCalledWith(updated));
+    expect(ModerationApi.remove).toHaveBeenCalledWith('Ab3-_9xQ12');
+  });
+
+  it('cancels a pending delete without sending it, returning to the Delete affordance', () => {
+    vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: false });
+
+    renderInRow(inactive, () => {});
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+    expect(ModerationApi.remove).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /^delete$/i })).toBeTruthy();
+  });
+
+  it('restores on a single click (no confirmation)', async () => {
+    const updated = { ...inactive, deleted: false };
+    vi.spyOn(ModerationApi, 'restore').mockResolvedValue({ ok: true, row: updated });
+    const onApply = vi.fn();
+
+    renderInRow({ ...inactive, deleted: true }, onApply);
+    fireEvent.click(screen.getByRole('button', { name: /^restore$/i }));
+
+    await waitFor(() => expect(onApply).toHaveBeenCalledWith(updated));
+    expect(ModerationApi.restore).toHaveBeenCalledWith('Ab3-_9xQ12');
+  });
+
+  it('does not navigate the row when Delete then Confirm is clicked (FR-018)', () => {
+    vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: false });
+    const onRowClick = vi.fn();
+
+    renderInRow(inactive, () => {}, onRowClick);
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+});

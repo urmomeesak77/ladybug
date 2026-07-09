@@ -91,6 +91,17 @@ describe('useModeration', () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it('applyRow also carries a deleted-state change in place', async () => {
+    vi.spyOn(ModerationApi, 'fetchPage').mockResolvedValue({ ok: true, data: [row], meta });
+
+    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/memes') });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.applyRow({ ...row, deleted: true }));
+
+    expect(result.current.rows[0].deleted).toBe(true);
+  });
+
   it('drops a response that resolves after the hook unmounts', async () => {
     let resolveFetch: (result: { ok: true; data: ModerationRow[]; meta: typeof meta }) => void = () => undefined;
     const pending = new Promise<{ ok: true; data: ModerationRow[]; meta: typeof meta }>((resolve) => {

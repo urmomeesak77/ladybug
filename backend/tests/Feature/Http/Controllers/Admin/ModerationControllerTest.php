@@ -123,4 +123,46 @@ final class ModerationControllerTest extends TestCase {
             ->assertOk()
             ->assertJsonPath('data.activated', true);
     }
+
+    public function test_destroy_soft_deletes_and_returns_the_updated_row(): void {
+        $post = Trashpost::factory()->create();
+
+        $response = $this->actingAs($this->admin())->deleteJson("/api/admin/posts/{$post->hash}");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.hash', $post->hash);
+        $response->assertJsonPath('data.deleted', true);
+    }
+
+    public function test_restore_returns_the_updated_row(): void {
+        $post = Trashpost::factory()->deleted()->create();
+
+        $response = $this->actingAs($this->admin())->postJson("/api/admin/posts/{$post->hash}/restore");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.hash', $post->hash);
+        $response->assertJsonPath('data.deleted', false);
+    }
+
+    public function test_destroy_on_an_unknown_hash_is_404(): void {
+        $this->actingAs($this->admin())
+            ->deleteJson('/api/admin/posts/Nonexist99')
+            ->assertNotFound();
+    }
+
+    public function test_restore_on_an_unknown_hash_is_404(): void {
+        $this->actingAs($this->admin())
+            ->postJson('/api/admin/posts/Nonexist99/restore')
+            ->assertNotFound();
+    }
+
+    public function test_a_soft_deleted_meme_disappears_from_the_public_views(): void {
+        // US4 acceptance #3: soft-deleted memes are retained but gone from public surfaces.
+        $post = Trashpost::factory()->visible()->create();
+
+        $this->actingAs($this->admin())->deleteJson("/api/admin/posts/{$post->hash}")->assertOk();
+
+        $this->getJson('/api/posts')->assertOk()->assertJsonMissing(['hash' => $post->hash]);
+        $this->getJson("/api/posts/{$post->hash}")->assertNotFound();
+    }
 }

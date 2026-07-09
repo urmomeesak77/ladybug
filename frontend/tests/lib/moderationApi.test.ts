@@ -115,3 +115,55 @@ describe('ModerationApi.activate / deactivate', () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe('ModerationApi.remove / restore', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('DELETEs the meme (CSRF header) and returns the updated row', async () => {
+    const updated = { ...page.data[0], deleted: true };
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: updated }) }));
+
+    const result = await ModerationApi.remove('Ab3-_9xQ12');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/posts\/Ab3-_9xQ12$/),
+      expect.objectContaining({
+        method: 'DELETE',
+        credentials: 'include',
+        headers: expect.objectContaining({ 'X-XSRF-TOKEN': expect.anything() }),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.row.deleted).toBe(true);
+    }
+  });
+
+  it('POSTs restore and returns the updated row', async () => {
+    const updated = { ...page.data[0], deleted: false };
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: updated }) }));
+
+    const result = await ModerationApi.restore('Ab3-_9xQ12');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/posts\/Ab3-_9xQ12\/restore$/),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.row.deleted).toBe(false);
+    }
+  });
+
+  it('reports failure when the action request rejects (offline)', async () => {
+    stubFetch(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+
+    const result = await ModerationApi.remove('Ab3-_9xQ12');
+
+    expect(result.ok).toBe(false);
+  });
+});

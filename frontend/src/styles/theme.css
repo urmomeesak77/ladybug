@@ -704,6 +704,13 @@ main {
   background-color: var(--color-menu-hover);
 }
 
+/* The destructive confirm step: outlined in a warning tone, but the word "delete" carries
+   the meaning so colour is never the sole signal (Principle IV, FR-014). */
+.moderation-actions__button--danger {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
 /* Numbered page links. */
 .moderation-pagination {
   margin-top: var(--space-lg);

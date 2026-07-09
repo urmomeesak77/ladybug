@@ -122,4 +122,50 @@ final class ModerationServiceTest extends TestCase {
 
         $this->assertNotNull($updated->activated_at);
     }
+
+    public function test_delete_soft_deletes_and_retains_the_row(): void {
+        $post = Trashpost::factory()->create();
+
+        $updated = $this->service()->delete($post->hash);
+
+        $this->assertNotNull($updated->deleted_at);
+        // Retained, not purged: still present when trashed rows are included.
+        $this->assertTrue(Trashpost::withTrashed()->whereKey($post->id)->exists());
+    }
+
+    public function test_restore_clears_deleted_at(): void {
+        $post = Trashpost::factory()->deleted()->create();
+
+        $updated = $this->service()->restore($post->hash);
+
+        $this->assertNull($updated->deleted_at);
+    }
+
+    public function test_delete_is_idempotent_and_preserves_the_original_timestamp(): void {
+        // Set-to-target: deleting an already-deleted meme keeps its original deleted_at.
+        $post = Trashpost::factory()->deleted()->create();
+        $original = $post->fresh()->deleted_at;
+
+        $updated = $this->service()->delete($post->hash);
+
+        $this->assertNotNull($updated->deleted_at);
+        $this->assertTrue($updated->deleted_at->equalTo($original));
+    }
+
+    public function test_restore_is_idempotent_on_a_live_meme(): void {
+        $post = Trashpost::factory()->create();
+
+        $updated = $this->service()->restore($post->hash);
+
+        $this->assertNull($updated->deleted_at);
+    }
+
+    public function test_restore_finds_a_soft_deleted_meme(): void {
+        // The target to restore is itself soft-deleted; the withTrashed lookup still finds it.
+        $post = Trashpost::factory()->deleted()->create();
+
+        $this->service()->restore($post->hash);
+
+        $this->assertNull($post->fresh()->deleted_at);
+    }
 }
