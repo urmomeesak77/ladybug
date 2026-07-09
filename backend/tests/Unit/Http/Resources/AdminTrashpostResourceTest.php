@@ -43,7 +43,7 @@ final class AdminTrashpostResourceTest extends TestCase {
         $row = $this->toArray($post);
 
         $this->assertSame(
-            ['hash', 'thumbnail', 'type', 'username', 'created_at', 'activated_at', 'deleted_at', 'url'],
+            ['hash', 'thumbnail', 'title', 'type', 'username', 'created_at', 'activated_at', 'deleted_at', 'url'],
             array_keys($row),
         );
         $this->assertSame($post->hash, $row['hash']);
@@ -125,5 +125,17 @@ final class AdminTrashpostResourceTest extends TestCase {
         $disk = Storage::disk('public');
         $this->assertSame($disk->url($rel), $this->toArray($post)['thumbnail']);
         $disk->assertExists($rel);
+    }
+
+    public function test_title_is_the_raw_stored_title(): void {
+        $post = Trashpost::factory()->create(['title' => 'A funny meme']);
+
+        $this->assertSame('A funny meme', $this->toArray($post)['title']);
+    }
+
+    public function test_title_is_null_when_unset(): void {
+        $post = Trashpost::factory()->create(['title' => null]);
+
+        $this->assertNull($this->toArray($post)['title']);
     }
 }

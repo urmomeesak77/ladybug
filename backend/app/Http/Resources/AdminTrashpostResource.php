@@ -28,6 +28,7 @@ class AdminTrashpostResource extends JsonResource {
         return [
             'hash' => $this->hash,
             'thumbnail' => $this->thumbnailUrl(),
+            'title' => $this->title,
             'type' => $this->type,
             'username' => $this->uploaderName(),
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
