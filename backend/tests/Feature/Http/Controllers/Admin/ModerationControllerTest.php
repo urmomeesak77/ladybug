@@ -21,6 +21,28 @@ final class ModerationControllerTest extends TestCase {
         return User::factory()->admin()->create();
     }
 
+    public function test_index_refuses_a_guest_with_401(): void {
+        // The boundary protects the DATA, not just the SPA page (Principle VI):
+        // an unauthenticated JSON request is rejected before any row is emitted.
+        $this->getJson('/api/admin/posts')->assertUnauthorized();
+    }
+
+    public function test_index_refuses_a_member_with_403(): void {
+        $member = User::factory()->create();
+
+        $this->actingAs($member)->getJson('/api/admin/posts')->assertForbidden();
+    }
+
+    public function test_index_admits_an_admin(): void {
+        $this->actingAs($this->admin())->getJson('/api/admin/posts')->assertOk();
+    }
+
+    public function test_index_admits_a_superuser(): void {
+        $superuser = User::factory()->superuser()->create();
+
+        $this->actingAs($superuser)->getJson('/api/admin/posts')->assertOk();
+    }
+
     public function test_index_returns_the_paginator_envelope_newest_first(): void {
         $older = Trashpost::factory()->create(['created_at' => now()->subDay()]);
         $newer = Trashpost::factory()->create(['created_at' => now()]);

@@ -7,6 +7,7 @@ import LeftMenu from '../../src/components/LeftMenu';
 import { AuthContext } from '../../src/hooks/useAuth';
 import type { AuthContextValue } from '../../src/hooks/useAuth';
 import type { AuthUser } from '../../src/lib/authApi';
+import type { RoleName } from '../../src/lib/role';
 
 afterEach(cleanup);
 
@@ -25,9 +26,11 @@ function authValue(overrides: Partial<AuthContextValue>): AuthContextValue {
   return {
     status: 'anonymous',
     user: null,
+    role: 'guest' as RoleName,
     register: vi.fn(),
     login: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined),
+    refresh: vi.fn(),
     ...overrides,
   };
 }
@@ -87,6 +90,31 @@ describe('LeftMenu', () => {
     expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Account' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy();
+  });
+
+  it('shows the Moderation link to an admin', () => {
+    renderMenu(authValue({ status: 'authenticated', user, role: 'admin' }));
+
+    const link = screen.getByRole('link', { name: 'Moderation' });
+    expect(link.getAttribute('href')).toBe('/admin/memes');
+  });
+
+  it('shows the Moderation link to a superuser', () => {
+    renderMenu(authValue({ status: 'authenticated', user, role: 'superuser' }));
+
+    expect(screen.getByRole('link', { name: 'Moderation' })).toBeTruthy();
+  });
+
+  it('hides the Moderation link from a member', () => {
+    renderMenu(authValue({ status: 'authenticated', user, role: 'member' }));
+
+    expect(screen.queryByRole('link', { name: 'Moderation' })).toBeNull();
+  });
+
+  it('hides the Moderation link from anonymous visitors', () => {
+    renderMenu(authValue({ status: 'anonymous', role: 'guest' }));
+
+    expect(screen.queryByRole('link', { name: 'Moderation' })).toBeNull();
   });
 
   it('logs out and navigates home', async () => {

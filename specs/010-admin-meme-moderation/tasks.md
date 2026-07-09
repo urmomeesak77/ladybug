@@ -116,15 +116,15 @@ superuser → only admin/superuser succeed; the LeftMenu Moderation link shows o
 
 ### Tests for User Story 2 ⚠️ (write first, must fail)
 
-- [ ] T033 [US2] Add access-control cases to `backend/tests/Feature/Http/Controllers/Admin/ModerationControllerTest.php` — `GET /api/admin/posts` and each action route: guest → 401, member → 403, admin → 200/allowed, superuser → allowed (SC-002).
-- [ ] T034 [P] [US2] `RequireRole` route-gate test in `frontend/tests/unit/components/RequireRole.test.tsx` — renders children for admin+, redirects home for guest/member, renders nothing while `status === 'unknown'` (no flash), mirroring `RequireAuth`.
-- [ ] T035 [P] [US2] LeftMenu link-visibility test in `frontend/tests/unit/components/LeftMenu.test.tsx` — Moderation link present for admin/superuser, absent for guest/member (FR-001a).
+- [X] T033 [US2] Add access-control cases to `backend/tests/Feature/Http/Controllers/Admin/ModerationControllerTest.php` — `GET /api/admin/posts`: guest → 401, member → 403, admin → 200, superuser → 200 (SC-002). (Action-route cases land with those routes in US3/US4; the shared group middleware gates them identically.)
+- [X] T034 [P] [US2] `RequireRole` route-gate test in `frontend/tests/components/RequireRole.test.tsx` — renders children for admin+, redirects home for guest/member, renders nothing while `status === 'unknown'` (no flash), mirroring `RequireAuth`.
+- [X] T035 [P] [US2] LeftMenu link-visibility test in `frontend/tests/components/LeftMenu.test.tsx` — Moderation link present for admin/superuser, absent for guest/member (FR-001a).
 
 ### Implementation for User Story 2
 
-- [ ] T036 [US2] Implement `RequireRole` in `frontend/src/components/RequireRole.tsx` — min-role gate reusing 009 `lib/role.ts` + `useAuth().role`.
-- [ ] T037 [US2] Wrap the `/admin/memes` route in `frontend/src/App.tsx` with `RequireRole` (admin+).
-- [ ] T038 [US2] Add the admin-only Moderation link to `frontend/src/components/LeftMenu.tsx` (shown only when `Role.rank(role) >= Role.rank('admin')`).
+- [X] T036 [US2] Implement `RequireRole` in `frontend/src/components/RequireRole.tsx` — min-role gate reusing 009 `lib/role.ts` + `useAuth().role`.
+- [X] T037 [US2] Wrap the `/admin/memes` route in `frontend/src/App.tsx` with `RequireRole` (admin+).
+- [X] T038 [US2] Add the admin-only Moderation link to `frontend/src/components/LeftMenu.tsx` (shown only when `Role.rank(role) >= Role.rank('admin')`).
 
 **Checkpoint**: Unauthorized users cannot reach the data or the page, and cannot see the link;
 the security boundary (server) plus its UX mirror (client) are both in place.

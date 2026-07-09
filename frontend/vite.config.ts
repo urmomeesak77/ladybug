@@ -8,7 +8,10 @@ export default defineConfig({
   // Windows host + Docker bind mount: inotify events don't cross into the Linux
   // container, so the watcher must poll for HMR to detect edits (dev-only cost).
   server: {
-    watch: { usePolling: true },
+    watch: {
+      usePolling: true,
+      ignored: ['**/node_modules/**', '**/.git/**'],
+    },
   },
   test: {
     include: ['tests/**/*.test.{ts,tsx}'],

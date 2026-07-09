@@ -5,6 +5,7 @@ import NoticeProvider from './components/NoticeProvider';
 import PageLayout from './components/PageLayout';
 import RequireAnon from './components/RequireAnon';
 import RequireAuth from './components/RequireAuth';
+import RequireRole from './components/RequireRole';
 import RequireVerified from './components/RequireVerified';
 import { useTheme } from './hooks/useTheme';
 import AccountPage from './pages/AccountPage';
@@ -33,8 +34,12 @@ function App() {
               <Route path="/register" element={<RequireAnon><RegisterPage /></RequireAnon>} />
               <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
               {/* Admin moderation console (010). The server gates the data (role:admin);
-                  the SPA route guard (RequireRole) is wrapped on in US2. */}
-              <Route path="/admin/memes" element={<ModerationPage />} />
+                  RequireRole mirrors that boundary in the SPA, keeping the page (and its
+                  nav link) admin-or-higher only. */}
+              <Route
+                path="/admin/memes"
+                element={<RequireRole role="admin"><ModerationPage /></RequireRole>}
+              />
               <Route path="/upload" element={<RequireAuth><RequireVerified><UploadPage /></RequireVerified></RequireAuth>} />
               <Route path="/verify-email" element={<RequireAuth><VerifyEmailNoticePage /></RequireAuth>} />
               {/* Deliberately unguarded: the emailed link must verify even in a

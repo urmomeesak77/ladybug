@@ -2,8 +2,9 @@ import type { ReactElement } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../hooks/useAuth';
+import { Role } from '../lib/role';
 
-type MenuGlyph = 'home' | 'person' | 'upload' | 'logout';
+type MenuGlyph = 'home' | 'person' | 'upload' | 'logout' | 'moderation';
 
 // Prototype-style flat glyphs on a 25x25 grid. House and person are copied verbatim
 // from the prototype's LeftMenu; upload (arrow into tray) and logout (door + arrow)
@@ -32,6 +33,14 @@ const GLYPHS: Record<MenuGlyph, ReactElement> = {
     <g>
       <polygon points="4,3 14,3 14,8 12,8 12,5 6,5 6,20 12,20 12,17 14,17 14,22 4,22" />
       <polygon points="15,8 22,12 15,17 15,14 9,14 9,11 15,11" />
+    </g>
+  ),
+  // Stacked rows: the moderation table, drawn in the same flat style as the set.
+  moderation: (
+    <g>
+      <polygon points="3,4 22,4 22,8 3,8" />
+      <polygon points="3,11 22,11 22,15 3,15" />
+      <polygon points="3,18 22,18 22,22 3,22" />
     </g>
   ),
 };
@@ -66,9 +75,18 @@ function AnonymousLinks() {
   );
 }
 
-// Upload is verified-only (the API rejects unverified posts with 403); hiding the
-// entry keeps the menu honest about what the user can actually do right now.
-function AuthenticatedLinks({ showUpload, onLogout }: { showUpload: boolean; onLogout: () => void }) {
+// Upload is verified-only (the API rejects unverified posts with 403); Moderation is
+// admin-only (the API gates it with role:admin). Hiding each entry keeps the menu honest
+// about what the user can actually do right now.
+function AuthenticatedLinks({
+  showUpload,
+  showModeration,
+  onLogout,
+}: {
+  showUpload: boolean;
+  showModeration: boolean;
+  onLogout: () => void;
+}) {
   return (
     <>
       <li>
@@ -82,6 +100,14 @@ function AuthenticatedLinks({ showUpload, onLogout }: { showUpload: boolean; onL
           <NavLink to="/upload">
             <MenuIcon glyph="upload" />
             Upload
+          </NavLink>
+        </li>
+      ) : null}
+      {showModeration ? (
+        <li>
+          <NavLink to="/admin/memes">
+            <MenuIcon glyph="moderation" />
+            Moderation
           </NavLink>
         </li>
       ) : null}
@@ -106,9 +132,10 @@ function AuthenticatedLinks({ showUpload, onLogout }: { showUpload: boolean; onL
 // Account and a working Log out control. `unknown` (session check in flight) renders
 // as anonymous so authed-only items never flash.
 function LeftMenu() {
-  const { status, user, logout } = useAuth();
+  const { status, user, role, logout } = useAuth();
   const navigate = useNavigate();
   const isAuthenticated = status === 'authenticated' && user !== null;
+  const isAdmin = Role.rank(role) >= Role.rank('admin');
 
   async function handleLogout(): Promise<void> {
     await logout();
@@ -119,7 +146,11 @@ function LeftMenu() {
     <nav id="left-menu" aria-label="Primary">
       <ul>
         {isAuthenticated ? (
-          <AuthenticatedLinks showUpload={user.emailVerifiedAt !== null} onLogout={() => void handleLogout()} />
+          <AuthenticatedLinks
+            showUpload={user.emailVerifiedAt !== null}
+            showModeration={isAdmin}
+            onLogout={() => void handleLogout()}
+          />
         ) : (
           <AnonymousLinks />
         )}
