@@ -197,5 +197,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/009-user-roles/plan.md` (feature: User Roles (Backbone)).
+`specs/010-admin-meme-moderation/plan.md` (feature: Admin Meme Moderation Table).
 <!-- SPECKIT END -->

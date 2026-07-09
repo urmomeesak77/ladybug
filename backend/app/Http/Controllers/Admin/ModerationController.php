@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Http\Resources\AdminTrashpostResource;
+use App\Services\ModerationService;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+
+/**
+ * Admin moderation console API. The whole controller mounts behind auth:sanctum + role:admin
+ * (routes/api.php), so every method here already has an admin-or-higher caller. State
+ * transitions (activate/deactivate/delete/restore) arrive in US3/US4.
+ */
+class ModerationController extends Controller {
+    public function __construct(private readonly ModerationService $service) {
+    }
+
+    /**
+     * GET /api/admin/posts — one 100-row page of every meme, newest-first. `page` (default 1)
+     * selects the page; a page beyond the last is an empty page, not an error.
+     */
+    public function index(Request $request): AnonymousResourceCollection {
+        $page = max(1, (int) $request->query('page', '1'));
+
+        return AdminTrashpostResource::collection($this->service->paginate($page));
+    }
+}

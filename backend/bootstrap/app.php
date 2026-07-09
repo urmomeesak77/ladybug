@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\EnsureRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,6 +18,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sanctum SPA auth: requests from the configured stateful frontend domains
         // are authenticated via the session cookie (CSRF-protected) instead of a token.
         $middleware->statefulApi();
+
+        // `role:admin` (etc.) gates a route to accounts of at least the named role.
+        $middleware->alias(['role' => EnsureRole::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

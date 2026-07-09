@@ -69,4 +69,22 @@ final class MediaPathTest extends TestCase {
             MediaPath::videoRelativePath('_clip', 'mp4'),
         );
     }
+
+    public function test_youtube_thumbnail_relative_path_shards_by_lowercased_video_id_lead(): void {
+        $this->assertSame(
+            'image/trash/youtube/a/AbCdEfGhIjK.jpg',
+            MediaPath::youtubeThumbnailRelativePath('AbCdEfGhIjK'),
+        );
+        $this->assertSame(
+            'image/trash/youtube/d/dQw4w9WgXcQ.jpg',
+            MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ'),
+        );
+    }
+
+    public function test_youtube_thumbnail_relative_path_uses_the_other_shard_for_non_alphanumeric_lead(): void {
+        $this->assertSame(
+            'image/trash/youtube/other/-bCdEfGhIjK.jpg',
+            MediaPath::youtubeThumbnailRelativePath('-bCdEfGhIjK'),
+        );
+    }
 }

@@ -57,4 +57,12 @@ final class MediaPath {
         // Videos are not resized, so there is no {size} segment — sibling of the image root.
         return self::VIDEO_ROOT . "/{$shard}/{$code}.{$ext}";
     }
+
+    public static function youtubeThumbnailRelativePath(string $videoId): string {
+        $shard = self::shardFor("{$videoId}.jpg");
+
+        // Dedicated subtree for the once-downloaded YouTube stills, sharded by the
+        // video id's lead char so no single directory holds the whole library.
+        return self::IMAGE_ROOT . "/youtube/{$shard}/{$videoId}.jpg";
+    }
 }

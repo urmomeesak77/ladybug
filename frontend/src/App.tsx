@@ -10,6 +10,7 @@ import { useTheme } from './hooks/useTheme';
 import AccountPage from './pages/AccountPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
+import ModerationPage from './pages/ModerationPage';
 import NotFoundPage from './pages/NotFoundPage';
 import PostPage from './pages/PostPage';
 import RegisterPage from './pages/RegisterPage';
@@ -31,6 +32,9 @@ function App() {
               <Route path="/login" element={<RequireAnon><LoginPage /></RequireAnon>} />
               <Route path="/register" element={<RequireAnon><RegisterPage /></RequireAnon>} />
               <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
+              {/* Admin moderation console (010). The server gates the data (role:admin);
+                  the SPA route guard (RequireRole) is wrapped on in US2. */}
+              <Route path="/admin/memes" element={<ModerationPage />} />
               <Route path="/upload" element={<RequireAuth><RequireVerified><UploadPage /></RequireVerified></RequireAuth>} />
               <Route path="/verify-email" element={<RequireAuth><VerifyEmailNoticePage /></RequireAuth>} />
               {/* Deliberately unguarded: the emailed link must verify even in a

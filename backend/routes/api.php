@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\ModerationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\TrashpostsApiController;
@@ -38,6 +39,14 @@ Route::post('/login', [AuthController::class, 'login'])
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('api.auth.logout');
 // Public on purpose: returns the user when authenticated, else {data:null} (FR-005).
 Route::get('/user', [AuthController::class, 'user'])->name('api.auth.user');
+
+// Admin moderation console (010). The whole group is gated by auth:sanctum (guest → 401)
+// then role:admin (member → 403; admin/superuser through) — the boundary protects the
+// DATA, not just the SPA page (contracts/admin-moderation-api.md, Principle VI). The
+// action routes (activate/deactivate/delete/restore) land in US3/US4.
+Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
+    Route::get('/posts', [ModerationController::class, 'index'])->name('api.admin.posts.index');
+});
 
 // Email verification (008). {hash} is sha1 of the recipient's email — never a DB
 // id (research D3). Deliberately session-free: possession of the signed link

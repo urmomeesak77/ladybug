@@ -596,3 +596,117 @@ main {
   opacity: 0.7;
   cursor: not-allowed;
 }
+
+/* ------------------------------------------------------------------ *
+ * Admin moderation console (010): a wide, all-states meme table. The  *
+ * table scrolls inside its own container so the PAGE never scrolls    *
+ * horizontally on mobile (Principle VIII). State is text (+glyph),    *
+ * never color alone (Principle IV / FR-014). Themed via the shared    *
+ * tokens, so dark mode follows automatically.                         *
+ * ------------------------------------------------------------------ */
+
+.moderation h1 {
+  font-size: 1.375rem;
+  margin: var(--space-md) 0 var(--space-lg);
+}
+
+.moderation__status {
+  color: var(--color-text-muted);
+  padding: var(--space-md) 0;
+}
+
+/* The wide table lives here; only this box scrolls sideways, not the page. */
+.moderation-table__scroll {
+  overflow-x: auto;
+}
+
+.moderation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.moderation-table caption {
+  text-align: left;
+  color: var(--color-text-muted);
+  padding-bottom: var(--space-sm);
+}
+
+.moderation-table th,
+.moderation-table td {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.moderation-table th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+/* The whole row links to the meme page; keep the affordance obvious and keyboard-visible. */
+.moderation-row {
+  cursor: pointer;
+}
+
+.moderation-row:hover,
+.moderation-row:focus-visible {
+  background-color: var(--color-menu-hover);
+}
+
+/* Thumbnail clipped to a small fixed box (≤100×75), placeholder is a subtle framed box. */
+.moderation-thumb {
+  width: 100px;
+  height: 75px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+}
+
+.moderation-thumb--empty {
+  display: inline-block;
+  border: 1px dashed var(--color-border);
+  background-color: var(--color-bg);
+}
+
+.moderation-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.moderation-state--off {
+  color: var(--color-text-muted);
+}
+
+/* Numbered page links. */
+.moderation-pagination {
+  margin-top: var(--space-lg);
+}
+
+.moderation-pagination ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  list-style: none;
+  padding: 0;
+}
+
+.moderation-pagination a {
+  display: inline-block;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding: var(--space-xs) var(--space-sm);
+  text-align: center;
+  text-decoration: none;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.moderation-pagination a[aria-current='page'] {
+  background-color: var(--color-control-border);
+  color: #ffffff;
+  border-color: var(--color-control-border);
+}
