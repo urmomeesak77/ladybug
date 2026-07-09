@@ -57,9 +57,13 @@ function AuthProvider({ children }: { children: ReactNode }) {
     setStatus(current ? 'authenticated' : 'anonymous');
   }, []);
 
+  // Effective role: the stored role once a user materialises, guest while anonymous or
+  // still probing (status 'unknown') — future privilege gating reads this (009, OOS-001).
+  const role = user?.role ?? 'guest';
+
   const value = useMemo(
-    () => ({ status, user, register, login, logout, refresh }),
-    [status, user, register, login, logout, refresh],
+    () => ({ status, user, role, register, login, logout, refresh }),
+    [status, user, role, register, login, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

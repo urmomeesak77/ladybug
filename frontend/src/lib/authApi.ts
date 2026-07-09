@@ -1,5 +1,6 @@
 import { Api } from './api';
 import { Csrf } from './csrf';
+import type { RoleName } from './role';
 
 export type AuthUser = {
   id: number;
@@ -7,6 +8,8 @@ export type AuthUser = {
   email: string;
   // null until the account's email is verified (008).
   emailVerifiedAt: string | null;
+  // The account's stored role — always assignable (member/admin/superuser), never guest (009).
+  role: RoleName;
   createdAt: string;
   updatedAt: string;
 };
@@ -49,6 +52,7 @@ type RawUser = {
   name: string;
   email: string;
   email_verified_at: string | null;
+  role: RoleName;
   created_at: string;
   updated_at: string;
 };
@@ -61,6 +65,7 @@ export class AuthApi {
       name: raw.name,
       email: raw.email,
       emailVerifiedAt: raw.email_verified_at,
+      role: raw.role,
       createdAt: raw.created_at,
       updatedAt: raw.updated_at,
     };

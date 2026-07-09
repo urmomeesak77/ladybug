@@ -17,18 +17,20 @@ const ada: AuthUser = {
   name: 'Ada',
   email: 'ada@example.com',
   emailVerifiedAt: null,
+  role: 'member',
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
 
 // Exposes the context so the provider's state transitions are observable from the DOM.
 function Probe() {
-  const { status, user, login, register, logout, refresh } = useAuth();
+  const { status, user, role, login, register, logout, refresh } = useAuth();
   return (
     <div>
       <output data-testid="status">{status}</output>
       <output data-testid="name">{user?.name ?? ''}</output>
       <output data-testid="verified">{user?.emailVerifiedAt ?? ''}</output>
+      <output data-testid="role">{role}</output>
       <button onClick={() => void login({ email: 'ada@example.com', password: 'pw' })}>do-login</button>
       <button
         onClick={() => void register({
@@ -74,6 +76,37 @@ describe('AuthProvider', () => {
 
     await expectStatus('anonymous');
   });
+
+  it('exposes the effective role guest when the viewer is anonymous', async () => {
+    renderProvider(null);
+
+    await expectStatus('anonymous');
+    expect(screen.getByTestId('role').textContent).toBe('guest');
+  });
+
+  it('exposes guest while the initial session probe is still in flight', () => {
+    // The probe never resolves here, so status stays 'unknown'; the effective role
+    // is guest until a user materialises, exactly like status.
+    vi.spyOn(AuthApi, 'fetchCurrentUser').mockReturnValue(new Promise(() => {}));
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+
+    expect(screen.getByTestId('status').textContent).toBe('unknown');
+    expect(screen.getByTestId('role').textContent).toBe('guest');
+  });
+
+  it.each(['member', 'admin', 'superuser'] as const)(
+    'exposes the stored role %s when the viewer is authenticated',
+    async (role) => {
+      renderProvider({ ...ada, role });
+
+      await expectStatus('authenticated');
+      expect(screen.getByTestId('role').textContent).toBe(role);
+    },
+  );
 
   it('flips to authenticated after a successful login', async () => {
     renderProvider(null);

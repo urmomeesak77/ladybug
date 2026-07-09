@@ -2,10 +2,13 @@ import { createContext, useContext } from 'react';
 
 import type { AuthResult, AuthUser, LoginInput, RegisterInput } from '../lib/authApi';
 import type { AuthStatus } from '../lib/authModel';
+import type { RoleName } from '../lib/role';
 
 export type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
+  // The viewer's effective role: the stored role when authenticated, guest otherwise (009).
+  role: RoleName;
   register: (input: RegisterInput) => Promise<AuthResult>;
   login: (input: LoginInput) => Promise<AuthResult>;
   logout: () => Promise<void>;
