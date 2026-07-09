@@ -28,8 +28,8 @@ test.describe('Admin moderation', () => {
   test('a member cannot see the nav link or reach the console', async ({ page }) => {
     await register(page, 'E2E Member', uniqueEmail());
 
-    // The Moderation entry is admin-only (FR-001a), so a member never sees it.
-    await expect(page.getByRole('link', { name: 'Moderation' })).toHaveCount(0);
+    // The Trashposts entry is admin-only (FR-001a), so a member never sees it.
+    await expect(page.getByRole('link', { name: 'Trashposts' })).toHaveCount(0);
 
     // The SPA route guard mirrors the server boundary: a member is bounced home (FR-002).
     await page.goto('/admin/memes');
@@ -50,8 +50,8 @@ test.describe('Admin moderation', () => {
     await page.goto('/');
     await page.reload();
 
-    await expect(page.getByRole('link', { name: 'Moderation' })).toBeVisible();
-    await page.getByRole('link', { name: 'Moderation' }).click();
+    await expect(page.getByRole('link', { name: 'Trashposts' })).toBeVisible();
+    await page.getByRole('link', { name: 'Trashposts' }).click();
     await expect(page).toHaveURL('/admin/memes');
 
     // The seeded 20 activated posts fill a single 100-row page.

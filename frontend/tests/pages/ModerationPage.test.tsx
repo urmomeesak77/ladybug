@@ -19,9 +19,9 @@ const row: ModerationRow = {
   thumbnail: null,
   type: 'image',
   username: 'alice',
-  createdAt: '2026-07-08T20:14:02.000000Z',
-  activated: true,
-  deleted: false,
+  createdAt: '2026-07-08 20:14:02',
+  activatedAt: '2026-07-09 08:01:10',
+  deletedAt: null,
   url: '/posts/Ab3-_9xQ12',
 };
 

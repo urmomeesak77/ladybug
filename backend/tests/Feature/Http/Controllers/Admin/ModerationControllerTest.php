@@ -51,7 +51,7 @@ final class ModerationControllerTest extends TestCase {
 
         $response->assertOk();
         $response->assertJsonStructure([
-            'data' => [['hash', 'thumbnail', 'type', 'username', 'created_at', 'activated', 'deleted', 'url']],
+            'data' => [['hash', 'thumbnail', 'type', 'username', 'created_at', 'activated_at', 'deleted_at', 'url']],
             'links' => ['first', 'last', 'prev', 'next'],
             'meta' => ['current_page', 'last_page', 'per_page', 'total'],
         ]);
@@ -95,7 +95,7 @@ final class ModerationControllerTest extends TestCase {
 
         $response->assertOk();
         $response->assertJsonPath('data.hash', $post->hash);
-        $response->assertJsonPath('data.activated', true);
+        $this->assertNotNull($response->json('data.activated_at'));
     }
 
     public function test_deactivate_returns_the_updated_row(): void {
@@ -105,7 +105,7 @@ final class ModerationControllerTest extends TestCase {
 
         $response->assertOk();
         $response->assertJsonPath('data.hash', $post->hash);
-        $response->assertJsonPath('data.activated', false);
+        $response->assertJsonPath('data.activated_at', null);
     }
 
     public function test_activate_on_an_unknown_hash_is_404(): void {
@@ -119,9 +119,8 @@ final class ModerationControllerTest extends TestCase {
         $admin = $this->admin();
 
         $this->actingAs($admin)->postJson("/api/admin/posts/{$post->hash}/activate")->assertOk();
-        $this->actingAs($admin)->postJson("/api/admin/posts/{$post->hash}/activate")
-            ->assertOk()
-            ->assertJsonPath('data.activated', true);
+        $response = $this->actingAs($admin)->postJson("/api/admin/posts/{$post->hash}/activate")->assertOk();
+        $this->assertNotNull($response->json('data.activated_at'));
     }
 
     public function test_destroy_soft_deletes_and_returns_the_updated_row(): void {
@@ -131,7 +130,7 @@ final class ModerationControllerTest extends TestCase {
 
         $response->assertOk();
         $response->assertJsonPath('data.hash', $post->hash);
-        $response->assertJsonPath('data.deleted', true);
+        $this->assertNotNull($response->json('data.deleted_at'));
     }
 
     public function test_restore_returns_the_updated_row(): void {
@@ -141,7 +140,7 @@ final class ModerationControllerTest extends TestCase {
 
         $response->assertOk();
         $response->assertJsonPath('data.hash', $post->hash);
-        $response->assertJsonPath('data.deleted', false);
+        $response->assertJsonPath('data.deleted_at', null);
     }
 
     public function test_destroy_on_an_unknown_hash_is_404(): void {

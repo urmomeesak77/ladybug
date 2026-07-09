@@ -15,9 +15,9 @@ const page = {
       thumbnail: null,
       type: 'image',
       username: 'alice',
-      created_at: '2026-07-08T20:14:02.000000Z',
-      activated: true,
-      deleted: false,
+      created_at: '2026-07-08 20:14:02',
+      activated_at: '2026-07-09 08:01:10',
+      deleted_at: null,
       url: '/posts/Ab3-_9xQ12',
     },
   ],
@@ -42,7 +42,9 @@ describe('ModerationApi.fetchPage', () => {
     if (result.ok) {
       expect(result.data).toHaveLength(1);
       expect(result.data[0].hash).toBe('Ab3-_9xQ12');
-      expect(result.data[0].createdAt).toBe('2026-07-08T20:14:02.000000Z');
+      expect(result.data[0].createdAt).toBe('2026-07-08 20:14:02');
+      expect(result.data[0].activatedAt).toBe('2026-07-09 08:01:10');
+      expect(result.data[0].deletedAt).toBeNull();
       expect(result.meta.current_page).toBe(3);
     }
   });
@@ -72,7 +74,7 @@ describe('ModerationApi.activate / deactivate', () => {
   });
 
   it('POSTs to the activate endpoint (CSRF header) and returns the updated row', async () => {
-    const updated = { ...page.data[0], activated: true };
+    const updated = { ...page.data[0], activated_at: '2026-07-09 08:01:10' };
     const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: updated }) }));
 
     const result = await ModerationApi.activate('Ab3-_9xQ12');
@@ -87,12 +89,12 @@ describe('ModerationApi.activate / deactivate', () => {
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.row.activated).toBe(true);
+      expect(result.row.activatedAt).toBe('2026-07-09 08:01:10');
     }
   });
 
   it('POSTs to the deactivate endpoint', async () => {
-    const updated = { ...page.data[0], activated: false };
+    const updated = { ...page.data[0], activated_at: null };
     const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: updated }) }));
 
     const result = await ModerationApi.deactivate('Ab3-_9xQ12');
@@ -103,7 +105,7 @@ describe('ModerationApi.activate / deactivate', () => {
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.row.activated).toBe(false);
+      expect(result.row.activatedAt).toBeNull();
     }
   });
 
@@ -122,7 +124,7 @@ describe('ModerationApi.remove / restore', () => {
   });
 
   it('DELETEs the meme (CSRF header) and returns the updated row', async () => {
-    const updated = { ...page.data[0], deleted: true };
+    const updated = { ...page.data[0], deleted_at: '2026-07-09 09:30:00' };
     const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: updated }) }));
 
     const result = await ModerationApi.remove('Ab3-_9xQ12');
@@ -137,12 +139,12 @@ describe('ModerationApi.remove / restore', () => {
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.row.deleted).toBe(true);
+      expect(result.row.deletedAt).toBe('2026-07-09 09:30:00');
     }
   });
 
   it('POSTs restore and returns the updated row', async () => {
-    const updated = { ...page.data[0], deleted: false };
+    const updated = { ...page.data[0], deleted_at: null };
     const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: updated }) }));
 
     const result = await ModerationApi.restore('Ab3-_9xQ12');
@@ -153,7 +155,7 @@ describe('ModerationApi.remove / restore', () => {
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.row.deleted).toBe(false);
+      expect(result.row.deletedAt).toBeNull();
     }
   });
 

@@ -16,7 +16,8 @@ use Tests\TestCase;
 
 /**
  * The compact moderation row projection (data-model.md): hash, thumbnail, type, username,
- * created_at, activated, deleted, url — and nothing internal (id/user_id/file, Principle V).
+ * created_at, activated_at, deleted_at, url — and nothing internal (id/user_id/file, Principle V).
+ * The three timestamps are raw MySQL datetimes (Y-m-d H:i:s) or null.
  * The user column resolves to the account name when user_id resolves, else the stored
  * uploader name (FR-012); the thumbnail resolves the 100-size image variant or the YouTube
  * still, null when neither exists.
@@ -42,7 +43,7 @@ final class AdminTrashpostResourceTest extends TestCase {
         $row = $this->toArray($post);
 
         $this->assertSame(
-            ['hash', 'thumbnail', 'type', 'username', 'created_at', 'activated', 'deleted', 'url'],
+            ['hash', 'thumbnail', 'type', 'username', 'created_at', 'activated_at', 'deleted_at', 'url'],
             array_keys($row),
         );
         $this->assertSame($post->hash, $row['hash']);
@@ -71,14 +72,26 @@ final class AdminTrashpostResourceTest extends TestCase {
         $this->assertSame('anon-uploader', $this->toArray($post)['username']);
     }
 
-    public function test_activated_and_deleted_flags_reflect_the_timestamps(): void {
-        $activeDeleted = Trashpost::factory()->create(['activated_at' => now(), 'deleted_at' => now()]);
+    public function test_activated_and_deleted_are_raw_mysql_datetimes_or_null(): void {
+        $activatedAt = now()->setTime(8, 1, 10);
+        $deletedAt = now()->setTime(9, 30, 0);
+        $activeDeleted = Trashpost::factory()->create(['activated_at' => $activatedAt, 'deleted_at' => $deletedAt]);
         $inactiveLive = Trashpost::factory()->create(['activated_at' => null, 'deleted_at' => null]);
 
-        $this->assertTrue($this->toArray($activeDeleted)['activated']);
-        $this->assertTrue($this->toArray($activeDeleted)['deleted']);
-        $this->assertFalse($this->toArray($inactiveLive)['activated']);
-        $this->assertFalse($this->toArray($inactiveLive)['deleted']);
+        $active = $this->toArray($activeDeleted);
+        $this->assertSame($activatedAt->format('Y-m-d H:i:s'), $active['activated_at']);
+        $this->assertSame($deletedAt->format('Y-m-d H:i:s'), $active['deleted_at']);
+
+        $live = $this->toArray($inactiveLive);
+        $this->assertNull($live['activated_at']);
+        $this->assertNull($live['deleted_at']);
+    }
+
+    public function test_created_at_is_a_raw_mysql_datetime(): void {
+        $createdAt = now()->setTime(12, 34, 56);
+        $post = Trashpost::factory()->create(['created_at' => $createdAt]);
+
+        $this->assertSame($createdAt->format('Y-m-d H:i:s'), $this->toArray($post)['created_at']);
     }
 
     public function test_image_thumbnail_is_the_100_variant_url_when_present(): void {

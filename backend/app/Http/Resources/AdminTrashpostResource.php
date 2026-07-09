@@ -30,9 +30,9 @@ class AdminTrashpostResource extends JsonResource {
             'thumbnail' => $this->thumbnailUrl(),
             'type' => $this->type,
             'username' => $this->uploaderName(),
-            'created_at' => $this->created_at,
-            'activated' => $this->activated_at !== null,
-            'deleted' => $this->deleted_at !== null,
+            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
+            'activated_at' => $this->activated_at?->format('Y-m-d H:i:s'),
+            'deleted_at' => $this->deleted_at?->format('Y-m-d H:i:s'),
             'url' => "/posts/{$this->hash}",
         ];
     }

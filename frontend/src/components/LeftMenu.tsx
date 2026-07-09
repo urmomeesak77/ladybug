@@ -107,7 +107,7 @@ function AuthenticatedLinks({
         <li>
           <NavLink to="/admin/memes">
             <MenuIcon glyph="moderation" />
-            Moderation
+            Trashposts
           </NavLink>
         </li>
       ) : null}

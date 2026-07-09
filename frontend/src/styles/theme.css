@@ -670,14 +670,11 @@ main {
   background-color: var(--color-bg);
 }
 
-.moderation-state {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.moderation-state--off {
-  color: var(--color-text-muted);
+/* Raw MySQL datetimes: kept on one line (the table scrolls horizontally on its own) and
+   tabular so the digits line up column-to-column. An empty cell reads as "never". */
+.moderation-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Per-row moderation controls: compact outlined buttons in the neutral prototype style,

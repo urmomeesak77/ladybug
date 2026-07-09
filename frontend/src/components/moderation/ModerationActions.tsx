@@ -32,16 +32,19 @@ class RowAction {
   }
 }
 
-// Exactly one activation control, reflecting the row's current state.
+// Exactly one activation control, reflecting the row's current state. A meme is activated
+// precisely when it carries an activated_at timestamp.
 function ActivationButton({ row, onApply }: { row: Row; onApply: Apply }) {
+  const activated = row.activatedAt !== null;
+
   function toggle(event: MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation();
-    void RowAction.apply(row.activated ? ModerationApi.deactivate(row.hash) : ModerationApi.activate(row.hash), onApply);
+    void RowAction.apply(activated ? ModerationApi.deactivate(row.hash) : ModerationApi.activate(row.hash), onApply);
   }
 
   return (
     <button type="button" className="moderation-actions__button" onClick={toggle}>
-      {row.activated ? 'Deactivate' : 'Activate'}
+      {activated ? 'Deactivate' : 'Activate'}
     </button>
   );
 }
@@ -50,6 +53,7 @@ function ActivationButton({ row, onApply }: { row: Row; onApply: Apply }) {
 // Restore for a soft-deleted one. Exactly one path shows, per the row's deleted state.
 function DeletionControl({ row, onApply }: { row: Row; onApply: Apply }) {
   const [confirming, setConfirming] = useState(false);
+  const deleted = row.deletedAt !== null;
 
   function restore(event: MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation();
@@ -70,7 +74,7 @@ function DeletionControl({ row, onApply }: { row: Row; onApply: Apply }) {
     void RowAction.apply(ModerationApi.remove(row.hash), onApply);
   }
 
-  if (row.deleted) {
+  if (deleted) {
     return (
       <button type="button" className="moderation-actions__button" onClick={restore}>
         Restore

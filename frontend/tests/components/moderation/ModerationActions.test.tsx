@@ -16,13 +16,13 @@ const activated: Row = {
   thumbnail: null,
   type: 'image',
   username: 'alice',
-  createdAt: '2026-07-08T20:14:02.000000Z',
-  activated: true,
-  deleted: false,
+  createdAt: '2026-07-08 20:14:02',
+  activatedAt: '2026-07-09 08:01:10',
+  deletedAt: null,
   url: '/posts/Ab3-_9xQ12',
 };
 
-const inactive: Row = { ...activated, activated: false };
+const inactive: Row = { ...activated, activatedAt: null };
 
 // The actions cell lives inside a clickable row; render it in that shape so the
 // stopPropagation behaviour (an action must never navigate the row) is exercised for real.
@@ -56,7 +56,7 @@ describe('ModerationActions activation control', () => {
   });
 
   it('activates then applies the updated row', async () => {
-    const updated = { ...inactive, activated: true };
+    const updated = { ...inactive, activatedAt: '2026-07-09 08:01:10' };
     vi.spyOn(ModerationApi, 'activate').mockResolvedValue({ ok: true, row: updated });
     const onApply = vi.fn();
 
@@ -68,7 +68,7 @@ describe('ModerationActions activation control', () => {
   });
 
   it('deactivates an activated meme', async () => {
-    const updated = { ...activated, activated: false };
+    const updated = { ...activated, activatedAt: null };
     vi.spyOn(ModerationApi, 'deactivate').mockResolvedValue({ ok: true, row: updated });
     const onApply = vi.fn();
 
@@ -109,13 +109,13 @@ describe('ModerationActions delete/restore control', () => {
     expect(screen.queryByRole('button', { name: /^restore$/i })).toBeNull();
     cleanup();
 
-    renderInRow({ ...inactive, deleted: true }, () => {});
+    renderInRow({ ...inactive, deletedAt: '2026-07-09 09:30:00' }, () => {});
     expect(screen.getByRole('button', { name: /^restore$/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^delete$/i })).toBeNull();
   });
 
   it('requires an inline confirm before it deletes (FR-016)', async () => {
-    const updated = { ...inactive, deleted: true };
+    const updated = { ...inactive, deletedAt: '2026-07-09 09:30:00' };
     vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: true, row: updated });
     const onApply = vi.fn();
 
@@ -142,11 +142,11 @@ describe('ModerationActions delete/restore control', () => {
   });
 
   it('restores on a single click (no confirmation)', async () => {
-    const updated = { ...inactive, deleted: false };
+    const updated = { ...inactive, deletedAt: null };
     vi.spyOn(ModerationApi, 'restore').mockResolvedValue({ ok: true, row: updated });
     const onApply = vi.fn();
 
-    renderInRow({ ...inactive, deleted: true }, onApply);
+    renderInRow({ ...inactive, deletedAt: '2026-07-09 09:30:00' }, onApply);
     fireEvent.click(screen.getByRole('button', { name: /^restore$/i }));
 
     await waitFor(() => expect(onApply).toHaveBeenCalledWith(updated));

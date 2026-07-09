@@ -2,21 +2,17 @@ import type { KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import type { ModerationRow as Row } from '../../lib/moderationModel';
-import { ModerationModel } from '../../lib/moderationModel';
 import ModerationActions from './ModerationActions';
 import ModerationThumbnail from './ModerationThumbnail';
 
 // Shown in the user column when a meme has no resolvable uploader name at all.
 const NO_UPLOADER = '—';
 
-// A state cell: an aria-hidden glyph plus the text label, so state reads without relying
-// on color (FR-014). The text is the accessible signal; the glyph is decoration.
-function StateBadge({ on, label }: { on: boolean; label: string }) {
-  return (
-    <span className={`moderation-state ${on ? 'moderation-state--on' : 'moderation-state--off'}`}>
-      <span aria-hidden="true">{on ? '●' : '○'}</span> {label}
-    </span>
-  );
+// A timestamp cell: the raw MySQL datetime as the server sent it, or an empty cell when the
+// meme was never activated / isn't deleted. Text (or its absence) carries the meaning — never
+// color alone (FR-014); the column header names what an empty cell means.
+function TimeCell({ value }: { value: string | null }) {
+  return <td className="moderation-time">{value ?? ''}</td>;
 }
 
 // One moderation-table row. The whole row is a link to the meme's own page (FR-018) —
@@ -50,9 +46,9 @@ function ModerationRow({ row, onApply }: { row: Row; onApply: (updated: Row) => 
     >
       <td><ModerationThumbnail src={row.thumbnail} alt={alt} /></td>
       <td>{uploader}</td>
-      <td><time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString()}</time></td>
-      <td><StateBadge on={row.activated} label={ModerationModel.activationLabel(row.activated)} /></td>
-      <td><StateBadge on={row.deleted} label={ModerationModel.deletionLabel(row.deleted)} /></td>
+      <TimeCell value={row.createdAt} />
+      <TimeCell value={row.activatedAt} />
+      <TimeCell value={row.deletedAt} />
       <td className="moderation-row__actions">
         <ModerationActions row={row} onApply={onApply} />
       </td>

@@ -92,29 +92,29 @@ describe('LeftMenu', () => {
     expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy();
   });
 
-  it('shows the Moderation link to an admin', () => {
+  it('shows the Trashposts link to an admin', () => {
     renderMenu(authValue({ status: 'authenticated', user, role: 'admin' }));
 
-    const link = screen.getByRole('link', { name: 'Moderation' });
+    const link = screen.getByRole('link', { name: 'Trashposts' });
     expect(link.getAttribute('href')).toBe('/admin/memes');
   });
 
-  it('shows the Moderation link to a superuser', () => {
+  it('shows the Trashposts link to a superuser', () => {
     renderMenu(authValue({ status: 'authenticated', user, role: 'superuser' }));
 
-    expect(screen.getByRole('link', { name: 'Moderation' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Trashposts' })).toBeTruthy();
   });
 
-  it('hides the Moderation link from a member', () => {
+  it('hides the Trashposts link from a member', () => {
     renderMenu(authValue({ status: 'authenticated', user, role: 'member' }));
 
-    expect(screen.queryByRole('link', { name: 'Moderation' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Trashposts' })).toBeNull();
   });
 
-  it('hides the Moderation link from anonymous visitors', () => {
+  it('hides the Trashposts link from anonymous visitors', () => {
     renderMenu(authValue({ status: 'anonymous', role: 'guest' }));
 
-    expect(screen.queryByRole('link', { name: 'Moderation' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Trashposts' })).toBeNull();
   });
 
   it('logs out and navigates home', async () => {

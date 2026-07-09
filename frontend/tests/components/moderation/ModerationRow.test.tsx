@@ -13,9 +13,9 @@ const row: Row = {
   thumbnail: null,
   type: 'image',
   username: 'alice',
-  createdAt: '2026-07-08T20:14:02.000000Z',
-  activated: true,
-  deleted: false,
+  createdAt: '2026-07-08 20:14:02',
+  activatedAt: '2026-07-09 08:01:10',
+  deletedAt: null,
   url: '/posts/Ab3-_9xQ12',
 };
 
@@ -56,11 +56,19 @@ describe('ModerationRow', () => {
     expect(screen.getByText('—')).toBeTruthy();
   });
 
-  it('exposes the created timestamp as a machine-readable time', () => {
+  it('shows the raw created and activated timestamps verbatim', () => {
+    renderRow(row);
+
+    expect(screen.getByText('2026-07-08 20:14:02')).toBeTruthy();
+    expect(screen.getByText('2026-07-09 08:01:10')).toBeTruthy();
+  });
+
+  it('leaves the deleted cell empty when the meme is not deleted', () => {
     const { container } = renderRow(row);
 
-    const time = container.querySelector('time');
-    expect(time?.getAttribute('dateTime')).toBe('2026-07-08T20:14:02.000000Z');
+    // Cells: thumbnail, user, created, activated, deleted, actions — the deleted cell is empty.
+    const deletedCell = container.querySelectorAll('td.moderation-time')[2];
+    expect(deletedCell?.textContent).toBe('');
   });
 
   it('navigates to the meme page when the row is clicked (FR-018)', () => {

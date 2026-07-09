@@ -17,9 +17,9 @@ const row: ModerationRow = {
   thumbnail: null,
   type: 'image',
   username: 'alice',
-  createdAt: '2026-07-08T20:14:02.000000Z',
-  activated: true,
-  deleted: false,
+  createdAt: '2026-07-08 20:14:02',
+  activatedAt: '2026-07-09 08:01:10',
+  deletedAt: null,
   url: '/posts/Ab3-_9xQ12',
 };
 
@@ -73,7 +73,7 @@ describe('useModeration', () => {
   });
 
   it('applyRow replaces just the matching row and keeps the current page', async () => {
-    const rowB: ModerationRow = { ...row, hash: 'Zz9-_0000A', activated: false };
+    const rowB: ModerationRow = { ...row, hash: 'Zz9-_0000A', activatedAt: null };
     const fetchPage = vi
       .spyOn(ModerationApi, 'fetchPage')
       .mockResolvedValue({ ok: true, data: [row, rowB], meta: { ...meta, total: 2 } });
@@ -82,11 +82,11 @@ describe('useModeration', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(fetchPage).toHaveBeenCalledTimes(1);
 
-    act(() => result.current.applyRow({ ...rowB, activated: true }));
+    act(() => result.current.applyRow({ ...rowB, activatedAt: '2026-07-09 08:01:10' }));
 
     // Only rowB is replaced; row is untouched; no refetch (still page 3).
     expect(result.current.rows[0]).toEqual(row);
-    expect(result.current.rows[1].activated).toBe(true);
+    expect(result.current.rows[1].activatedAt).toBe('2026-07-09 08:01:10');
     expect(fetchPage).toHaveBeenCalledTimes(1);
     expect(result.current.loading).toBe(false);
   });
@@ -97,9 +97,9 @@ describe('useModeration', () => {
     const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/memes') });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    act(() => result.current.applyRow({ ...row, deleted: true }));
+    act(() => result.current.applyRow({ ...row, deletedAt: '2026-07-09 09:30:00' }));
 
-    expect(result.current.rows[0].deleted).toBe(true);
+    expect(result.current.rows[0].deletedAt).toBe('2026-07-09 09:30:00');
   });
 
   it('drops a response that resolves after the hook unmounts', async () => {

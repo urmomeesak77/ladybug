@@ -8,16 +8,16 @@ const rawRow: RawModerationRow = {
   thumbnail: 'http://localhost/storage/x.jpg',
   type: 'image',
   username: 'alice',
-  created_at: '2026-07-08T20:14:02.000000Z',
-  activated: true,
-  deleted: false,
+  created_at: '2026-07-08 20:14:02',
+  activated_at: '2026-07-09 08:01:10',
+  deleted_at: null,
   url: '/posts/Ab3-_9xQ12',
 };
 
 const meta: ModerationMeta = { current_page: 2, last_page: 4, per_page: 100, total: 331 };
 
 describe('ModerationModel.mapRow', () => {
-  it('maps the raw row into a render-ready row, renaming created_at', () => {
+  it('maps the raw row into a render-ready row, camelCasing the timestamp keys', () => {
     const row = ModerationModel.mapRow(rawRow);
 
     expect(row).toEqual({
@@ -25,9 +25,9 @@ describe('ModerationModel.mapRow', () => {
       thumbnail: 'http://localhost/storage/x.jpg',
       type: 'image',
       username: 'alice',
-      createdAt: '2026-07-08T20:14:02.000000Z',
-      activated: true,
-      deleted: false,
+      createdAt: '2026-07-08 20:14:02',
+      activatedAt: '2026-07-09 08:01:10',
+      deletedAt: null,
       url: '/posts/Ab3-_9xQ12',
     });
   });
@@ -60,17 +60,5 @@ describe('ModerationModel.parsePage', () => {
 
   it('parses a valid page number', () => {
     expect(ModerationModel.parsePage('5')).toBe(5);
-  });
-});
-
-describe('ModerationModel state labels', () => {
-  it('labels activation by state', () => {
-    expect(ModerationModel.activationLabel(true)).toBe('Activated');
-    expect(ModerationModel.activationLabel(false)).toBe('Not activated');
-  });
-
-  it('labels deletion by state', () => {
-    expect(ModerationModel.deletionLabel(true)).toBe('Deleted');
-    expect(ModerationModel.deletionLabel(false)).toBe('Not deleted');
   });
 });

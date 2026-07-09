@@ -12,12 +12,12 @@ function ModerationPage() {
   const { rows, meta, loading, empty, applyRow } = useModeration();
 
   useEffect(() => {
-    document.title = 'Moderation';
+    document.title = 'Trashposts';
   }, []);
 
   return (
-    <section className="moderation" aria-label="Meme moderation">
-      <h1>Meme moderation</h1>
+    <section className="moderation" aria-label="Trashposts">
+      <h1>Trashposts</h1>
       {loading && <p className="moderation__status">Loading memes…</p>}
       {empty && <p className="moderation__status">No entries to moderate.</p>}
       {!loading && !empty && (

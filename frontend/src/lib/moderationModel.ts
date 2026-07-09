@@ -5,9 +5,9 @@ export type RawModerationRow = {
   thumbnail: string | null;
   type: string | null;
   username: string | null;
-  created_at: string;
-  activated: boolean;
-  deleted: boolean;
+  created_at: string | null;
+  activated_at: string | null;
+  deleted_at: string | null;
   url: string;
 };
 
@@ -24,9 +24,11 @@ export type ModerationRow = {
   thumbnail: string | null;
   type: string | null;
   username: string | null;
-  createdAt: string;
-  activated: boolean;
-  deleted: boolean;
+  // Raw MySQL datetimes (Y-m-d H:i:s) straight from the server, or null when unset. The
+  // absence of an activated_at/deleted_at is itself the "not activated"/"live" signal.
+  createdAt: string | null;
+  activatedAt: string | null;
+  deletedAt: string | null;
   url: string;
 };
 
@@ -40,8 +42,8 @@ export class ModerationModel {
       type: raw.type,
       username: raw.username,
       createdAt: raw.created_at,
-      activated: raw.activated,
-      deleted: raw.deleted,
+      activatedAt: raw.activated_at,
+      deletedAt: raw.deleted_at,
       url: raw.url,
     };
   }
@@ -57,14 +59,5 @@ export class ModerationModel {
   static parsePage(raw: string | null): number {
     const page = Number(raw);
     return Number.isInteger(page) && page >= 1 ? page : 1;
-  }
-
-  // State conveyed as text (paired with an icon in the row) — never color alone (FR-014).
-  static activationLabel(activated: boolean): string {
-    return activated ? 'Activated' : 'Not activated';
-  }
-
-  static deletionLabel(deleted: boolean): string {
-    return deleted ? 'Deleted' : 'Not deleted';
   }
 }
