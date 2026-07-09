@@ -623,7 +623,7 @@ main {
 .moderation-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
 }
 
 .moderation-table caption {
@@ -706,6 +706,15 @@ main {
 .moderation-actions__button:hover,
 .moderation-actions__button:focus-visible {
   background-color: var(--color-menu-hover);
+}
+
+/* Icon-only action buttons: the glyph inherits the button's text colour and sits on a
+   square-ish footprint so the controls line up. The accessible name lives on the button. */
+.moderation-actions__icon {
+  display: block;
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
 }
 
 /* The destructive confirm step: outlined in a warning tone, but the word "delete" carries

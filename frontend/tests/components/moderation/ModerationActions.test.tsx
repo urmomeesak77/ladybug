@@ -42,6 +42,15 @@ function renderInRow(row: Row, onApply: (updated: Row) => void, onRowClick: () =
 }
 
 describe('ModerationActions activation control', () => {
+  it('renders the Activate control as an icon button (aria-label + title, no visible text)', () => {
+    renderInRow(inactive, () => {});
+
+    const button = screen.getByRole('button', { name: /^activate$/i });
+    expect(button.getAttribute('title')).toBe('Activate');
+    expect(button.textContent).toBe('');
+    expect(button.querySelector('svg[aria-hidden="true"]')).toBeTruthy();
+  });
+
   it('offers Activate for an inactive meme (and only that)', () => {
     renderInRow(inactive, () => {});
 
