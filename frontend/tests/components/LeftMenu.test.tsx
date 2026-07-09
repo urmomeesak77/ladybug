@@ -96,7 +96,7 @@ describe('LeftMenu', () => {
     renderMenu(authValue({ status: 'authenticated', user, role: 'admin' }));
 
     const link = screen.getByRole('link', { name: 'Trashposts' });
-    expect(link.getAttribute('href')).toBe('/admin/memes');
+    expect(link.getAttribute('href')).toBe('/admin/trashposts');
   });
 
   it('shows the Trashposts link to a superuser', () => {

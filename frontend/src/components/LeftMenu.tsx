@@ -105,7 +105,7 @@ function AuthenticatedLinks({
       ) : null}
       {showModeration ? (
         <li>
-          <NavLink to="/admin/memes">
+          <NavLink to="/admin/trashposts">
             <MenuIcon glyph="moderation" />
             Trashposts
           </NavLink>

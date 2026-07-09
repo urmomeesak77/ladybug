@@ -27,7 +27,7 @@ function LocationProbe() {
 
 function renderRow(value: Row) {
   return render(
-    <MemoryRouter initialEntries={['/admin/memes']}>
+    <MemoryRouter initialEntries={['/admin/trashposts']}>
       <table>
         <tbody>
           <ModerationRow row={value} onApply={() => {}} />

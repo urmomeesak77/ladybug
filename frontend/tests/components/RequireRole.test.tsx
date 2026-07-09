@@ -22,12 +22,12 @@ function renderGate(status: AuthStatus, role: RoleName) {
     refresh: vi.fn(),
   };
   render(
-    <MemoryRouter initialEntries={['/admin/memes']}>
+    <MemoryRouter initialEntries={['/admin/trashposts']}>
       <AuthContext.Provider value={value}>
         <Routes>
           <Route path="/" element={<p>home page</p>} />
           <Route
-            path="/admin/memes"
+            path="/admin/trashposts"
             element={<RequireRole role="admin"><p>moderation table</p></RequireRole>}
           />
         </Routes>

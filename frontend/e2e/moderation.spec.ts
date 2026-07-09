@@ -32,7 +32,7 @@ test.describe('Admin moderation', () => {
     await expect(page.getByRole('link', { name: 'Trashposts' })).toHaveCount(0);
 
     // The SPA route guard mirrors the server boundary: a member is bounced home (FR-002).
-    await page.goto('/admin/memes');
+    await page.goto('/admin/trashposts');
     await expect(page).toHaveURL('/');
   });
 
@@ -52,7 +52,7 @@ test.describe('Admin moderation', () => {
 
     await expect(page.getByRole('link', { name: 'Trashposts' })).toBeVisible();
     await page.getByRole('link', { name: 'Trashposts' }).click();
-    await expect(page).toHaveURL('/admin/memes');
+    await expect(page).toHaveURL('/admin/trashposts');
 
     // The seeded 20 activated posts fill a single 100-row page.
     const rows = page.locator('tbody tr.moderation-row');
@@ -74,6 +74,6 @@ test.describe('Admin moderation', () => {
     await expect(first.getByRole('button', { name: 'Deactivate', exact: true })).toBeVisible();
 
     // Still on the same page after acting (FR-017).
-    await expect(page).toHaveURL('/admin/memes');
+    await expect(page).toHaveURL('/admin/trashposts');
   });
 });

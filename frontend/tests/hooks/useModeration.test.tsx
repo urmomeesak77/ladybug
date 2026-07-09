@@ -36,7 +36,7 @@ describe('useModeration', () => {
   it('loads page 1 by default and exposes rows and meta', async () => {
     const fetchPage = vi.spyOn(ModerationApi, 'fetchPage').mockResolvedValue({ ok: true, data: [row], meta });
 
-    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/memes') });
+    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts') });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(fetchPage).toHaveBeenCalledWith(1);
@@ -48,7 +48,7 @@ describe('useModeration', () => {
   it('reads ?page from the URL and fetches that page', async () => {
     const fetchPage = vi.spyOn(ModerationApi, 'fetchPage').mockResolvedValue({ ok: true, data: [row], meta });
 
-    renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/memes?page=4') });
+    renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts?page=4') });
 
     await waitFor(() => expect(fetchPage).toHaveBeenCalledWith(4));
   });
@@ -56,7 +56,7 @@ describe('useModeration', () => {
   it('reports empty when the page has no rows', async () => {
     vi.spyOn(ModerationApi, 'fetchPage').mockResolvedValue({ ok: true, data: [], meta: { ...meta, total: 0 } });
 
-    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/memes') });
+    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts') });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.empty).toBe(true);
@@ -65,7 +65,7 @@ describe('useModeration', () => {
   it('settles into an empty state when the fetch fails', async () => {
     vi.spyOn(ModerationApi, 'fetchPage').mockResolvedValue({ ok: false });
 
-    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/memes') });
+    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts') });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.rows).toEqual([]);
@@ -79,7 +79,7 @@ describe('useModeration', () => {
       .spyOn(ModerationApi, 'fetchPage')
       .mockResolvedValue({ ok: true, data: [row, rowB], meta: { ...meta, total: 2 } });
 
-    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/memes?page=3') });
+    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts?page=3') });
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(fetchPage).toHaveBeenCalledTimes(1);
 
@@ -95,7 +95,7 @@ describe('useModeration', () => {
   it('applyRow also carries a deleted-state change in place', async () => {
     vi.spyOn(ModerationApi, 'fetchPage').mockResolvedValue({ ok: true, data: [row], meta });
 
-    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/memes') });
+    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts') });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => result.current.applyRow({ ...row, deletedAt: '2026-07-09 09:30:00' }));
@@ -110,7 +110,7 @@ describe('useModeration', () => {
     });
     vi.spyOn(ModerationApi, 'fetchPage').mockReturnValue(pending);
 
-    const { result, unmount } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/memes') });
+    const { result, unmount } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts') });
     expect(result.current.loading).toBe(true);
 
     // Unmount cancels the in-flight load; the late response must resolve without updating

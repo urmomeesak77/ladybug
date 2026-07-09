@@ -9,7 +9,7 @@ afterEach(cleanup);
 
 function renderPagination(currentPage: number, lastPage: number) {
   return render(
-    <MemoryRouter initialEntries={['/admin/memes']}>
+    <MemoryRouter initialEntries={['/admin/trashposts']}>
       <ModerationPagination meta={{ current_page: currentPage, last_page: lastPage, per_page: 100, total: 250 }} />
     </MemoryRouter>,
   );

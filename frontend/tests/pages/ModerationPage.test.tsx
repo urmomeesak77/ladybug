@@ -30,7 +30,7 @@ const meta = { current_page: 1, last_page: 1, per_page: 100, total: 1 };
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/admin/memes']}>
+    <MemoryRouter initialEntries={['/admin/trashposts']}>
       <ModerationPage />
     </MemoryRouter>,
   );

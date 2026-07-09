@@ -37,7 +37,7 @@ function App() {
                   RequireRole mirrors that boundary in the SPA, keeping the page (and its
                   nav link) admin-or-higher only. */}
               <Route
-                path="/admin/memes"
+                path="/admin/trashposts"
                 element={<RequireRole role="admin"><ModerationPage /></RequireRole>}
               />
               <Route path="/upload" element={<RequireAuth><RequireVerified><UploadPage /></RequireVerified></RequireAuth>} />
