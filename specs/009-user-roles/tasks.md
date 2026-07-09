@@ -125,9 +125,9 @@ description: "Task list for feature implementation: User Roles (Backbone)"
 
 **Purpose**: Verify the gates and validate end-to-end.
 
-- [ ] T019 [P] Run backend lint + tests + coverage through Docker: `docker compose exec backend vendor/bin/pint --test` and `docker compose exec backend php artisan test --coverage` — confirm ≥90% line coverage (Principle VII) and all new/edited tests green.
-- [ ] T020 [P] Run frontend lint + tests + coverage: `cd frontend && npm run lint && npm run test -- --coverage` — confirm ESLint clean and Vitest coverage ≥90% over all of `src/`.
-- [ ] T021 Run the quickstart.md validation: apply the migration, confirm legacy rows read `member`, and smoke `user:make-superuser` (promote → idempotent re-run → unknown-email failure) per specs/009-user-roles/quickstart.md.
+- [X] T019 [P] Run backend lint + tests + coverage through Docker: `docker compose exec backend vendor/bin/pint --test` and `docker compose exec backend php artisan test --coverage` — confirm ≥90% line coverage (Principle VII) and all new/edited tests green.
+- [X] T020 [P] Run frontend lint + tests + coverage: `cd frontend && npm run lint && npm run test -- --coverage` — confirm ESLint clean and Vitest coverage ≥90% over all of `src/`.
+- [X] T021 Run the quickstart.md validation: apply the migration, confirm legacy rows read `member`, and smoke `user:make-superuser` (promote → idempotent re-run → unknown-email failure) per specs/009-user-roles/quickstart.md.
 
 ---
 
