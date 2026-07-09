@@ -9,6 +9,7 @@ use App\Http\Resources\AdminTrashpostResource;
 use App\Services\ModerationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Admin moderation console API. The whole controller mounts behind auth:sanctum + role:admin
@@ -27,5 +28,20 @@ class ModerationController extends Controller {
         $page = max(1, (int) $request->query('page', '1'));
 
         return AdminTrashpostResource::collection($this->service->paginate($page));
+    }
+
+    /**
+     * POST /api/admin/posts/{hash}/activate — mark the meme activated and return the updated
+     * row so the client refreshes it in place without leaving the current page (FR-017).
+     */
+    public function activate(string $hash): JsonResource {
+        return new AdminTrashpostResource($this->service->activate($hash));
+    }
+
+    /**
+     * POST /api/admin/posts/{hash}/deactivate — clear activation; returns the updated row.
+     */
+    public function deactivate(string $hash): JsonResource {
+        return new AdminTrashpostResource($this->service->deactivate($hash));
     }
 }

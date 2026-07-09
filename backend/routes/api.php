@@ -46,6 +46,8 @@ Route::get('/user', [AuthController::class, 'user'])->name('api.auth.user');
 // action routes (activate/deactivate/delete/restore) land in US3/US4.
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/posts', [ModerationController::class, 'index'])->name('api.admin.posts.index');
+    Route::post('/posts/{hash}/activate', [ModerationController::class, 'activate'])->name('api.admin.posts.activate');
+    Route::post('/posts/{hash}/deactivate', [ModerationController::class, 'deactivate'])->name('api.admin.posts.deactivate');
 });
 
 // Email verification (008). {hash} is sha1 of the recipient's email — never a DB

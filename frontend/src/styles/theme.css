@@ -680,6 +680,30 @@ main {
   color: var(--color-text-muted);
 }
 
+/* Per-row moderation controls: compact outlined buttons in the neutral prototype style,
+   laid out so they can wrap as more actions arrive (Delete/Restore in US4). */
+.moderation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.moderation-actions__button {
+  padding: var(--space-xs) var(--space-sm);
+  font: inherit;
+  white-space: nowrap;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.moderation-actions__button:hover,
+.moderation-actions__button:focus-visible {
+  background-color: var(--color-menu-hover);
+}
+
 /* Numbered page links. */
 .moderation-pagination {
   margin-top: var(--space-lg);

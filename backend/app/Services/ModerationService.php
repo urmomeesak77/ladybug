@@ -31,4 +31,38 @@ class ModerationService {
             ->orderByDesc('id')
             ->paginate(self::PER_PAGE, ['*'], 'page', $page);
     }
+
+    /**
+     * Mark a meme activated (publicly eligible). Set-to-target, not toggle: an already
+     * activated meme keeps its original `activated_at`, so repeated or concurrent calls
+     * converge without churning the timestamp (contract idempotency).
+     */
+    public function activate(string $hash): Trashpost {
+        $post = $this->find($hash);
+        if ($post->activated_at === null) {
+            $post->activated_at = now();
+            $post->save();
+        }
+
+        return $post;
+    }
+
+    /**
+     * Clear a meme's activation. Idempotent: already-inactive stays null.
+     */
+    public function deactivate(string $hash): Trashpost {
+        $post = $this->find($hash);
+        $post->activated_at = null;
+        $post->save();
+
+        return $post;
+    }
+
+    /**
+     * Resolve a meme by its public hash, including soft-deleted ones so a trashed meme is
+     * still reachable for a state change (contract lookup semantics). Missing → 404.
+     */
+    private function find(string $hash): Trashpost {
+        return Trashpost::withTrashed()->where('hash', $hash)->firstOrFail();
+    }
 }

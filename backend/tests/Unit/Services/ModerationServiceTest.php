@@ -77,4 +77,49 @@ final class ModerationServiceTest extends TestCase {
         $this->assertCount(0, $page->items());
         $this->assertSame(0, $page->total());
     }
+
+    public function test_activate_sets_activated_at_on_an_inactive_meme(): void {
+        $post = Trashpost::factory()->hidden()->create();
+
+        $updated = $this->service()->activate($post->hash);
+
+        $this->assertNotNull($updated->activated_at);
+    }
+
+    public function test_deactivate_clears_activated_at(): void {
+        $post = Trashpost::factory()->create(['activated_at' => now()]);
+
+        $updated = $this->service()->deactivate($post->hash);
+
+        $this->assertNull($updated->activated_at);
+    }
+
+    public function test_activate_is_idempotent_and_preserves_the_original_timestamp(): void {
+        // Set-to-target, not overwrite: activating an already-activated meme keeps its
+        // original activation instant (contract: "if not already activated"). Compare
+        // against the stored value so DB datetime precision doesn't confound the check.
+        $post = Trashpost::factory()->create(['activated_at' => now()->subDay()]);
+        $original = $post->fresh()->activated_at;
+
+        $updated = $this->service()->activate($post->hash);
+
+        $this->assertTrue($updated->activated_at->equalTo($original));
+    }
+
+    public function test_deactivate_is_idempotent_on_an_already_inactive_meme(): void {
+        $post = Trashpost::factory()->hidden()->create();
+
+        $updated = $this->service()->deactivate($post->hash);
+
+        $this->assertNull($updated->activated_at);
+    }
+
+    public function test_activation_transitions_find_a_soft_deleted_meme(): void {
+        // withTrashed lookup: a soft-deleted meme is still reachable for activation changes.
+        $post = Trashpost::factory()->deleted()->hidden()->create();
+
+        $updated = $this->service()->activate($post->hash);
+
+        $this->assertNotNull($updated->activated_at);
+    }
 }

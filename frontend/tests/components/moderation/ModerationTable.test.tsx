@@ -24,7 +24,7 @@ function makeRow(hash: string, username: string): ModerationRow {
 function renderTable(rows: ModerationRow[]) {
   return render(
     <MemoryRouter>
-      <ModerationTable rows={rows} />
+      <ModerationTable rows={rows} onApply={() => {}} />
     </MemoryRouter>,
   );
 }

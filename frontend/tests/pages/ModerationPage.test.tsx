@@ -37,7 +37,7 @@ function renderPage() {
 
 describe('ModerationPage', () => {
   it('renders the table and pagination once loaded', () => {
-    useModerationMock.mockReturnValue({ rows: [row], meta, loading: false, empty: false });
+    useModerationMock.mockReturnValue({ rows: [row], meta, loading: false, empty: false, applyRow: vi.fn() });
 
     const { container } = renderPage();
 
@@ -46,7 +46,7 @@ describe('ModerationPage', () => {
   });
 
   it('renders an explicit no-entries state for an empty corpus (FR-019)', () => {
-    useModerationMock.mockReturnValue({ rows: [], meta: null, loading: false, empty: true });
+    useModerationMock.mockReturnValue({ rows: [], meta: null, loading: false, empty: true, applyRow: vi.fn() });
 
     const { container } = renderPage();
 
@@ -55,7 +55,7 @@ describe('ModerationPage', () => {
   });
 
   it('shows a loading indicator while the page is in flight', () => {
-    useModerationMock.mockReturnValue({ rows: [], meta: null, loading: true, empty: false });
+    useModerationMock.mockReturnValue({ rows: [], meta: null, loading: true, empty: false, applyRow: vi.fn() });
 
     renderPage();
 

@@ -65,3 +65,53 @@ describe('ModerationApi.fetchPage', () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe('ModerationApi.activate / deactivate', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('POSTs to the activate endpoint (CSRF header) and returns the updated row', async () => {
+    const updated = { ...page.data[0], activated: true };
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: updated }) }));
+
+    const result = await ModerationApi.activate('Ab3-_9xQ12');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/posts\/Ab3-_9xQ12\/activate$/),
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        headers: expect.objectContaining({ 'X-XSRF-TOKEN': expect.anything() }),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.row.activated).toBe(true);
+    }
+  });
+
+  it('POSTs to the deactivate endpoint', async () => {
+    const updated = { ...page.data[0], activated: false };
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: updated }) }));
+
+    const result = await ModerationApi.deactivate('Ab3-_9xQ12');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/posts\/Ab3-_9xQ12\/deactivate$/),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.row.activated).toBe(false);
+    }
+  });
+
+  it('reports failure on a non-2xx response (e.g. 404 unknown hash)', async () => {
+    stubFetch(async () => ({ ok: false, status: 404, json: async () => ({}) }));
+
+    const result = await ModerationApi.activate('missing0000');
+
+    expect(result.ok).toBe(false);
+  });
+});

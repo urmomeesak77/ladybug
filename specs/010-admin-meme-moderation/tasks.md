@@ -141,18 +141,18 @@ on a single click, updating the row in place without losing the current page.
 
 ### Tests for User Story 3 ⚠️ (write first, must fail)
 
-- [ ] T039 [P] [US3] Add activate/deactivate cases to `backend/tests/Unit/Services/ModerationServiceTest.php` — Activate sets `activated_at`, Deactivate clears it; both idempotent against the target state (concurrent/repeated safe).
-- [ ] T040 [US3] Add activate/deactivate feature cases to `backend/tests/Feature/Http/Controllers/Admin/ModerationControllerTest.php` — `POST /posts/{hash}/activate` and `/deactivate` return 200 with the updated row (FR-017); unknown hash → 404; repeated calls stay idempotent.
-- [ ] T041 [P] [US3] Add activate/deactivate to `frontend/tests/unit/lib/moderationApi.test.ts` and apply-in-place to `frontend/tests/unit/hooks/useModeration.test.tsx` — action posts to the right endpoint and replaces just that row, keeping `?page`.
-- [ ] T042 [P] [US3] `ModerationActions` test in `frontend/tests/unit/components/moderation/ModerationActions.test.tsx` — renders Activate when inactive / Deactivate when activated (exactly one); clicking an action does NOT trigger row navigation (FR-018).
+- [X] T039 [P] [US3] Add activate/deactivate cases to `backend/tests/Unit/Services/ModerationServiceTest.php` — Activate sets `activated_at`, Deactivate clears it; both idempotent against the target state (concurrent/repeated safe).
+- [X] T040 [US3] Add activate/deactivate feature cases to `backend/tests/Feature/Http/Controllers/Admin/ModerationControllerTest.php` — `POST /posts/{hash}/activate` and `/deactivate` return 200 with the updated row (FR-017); unknown hash → 404; repeated calls stay idempotent.
+- [X] T041 [P] [US3] Add activate/deactivate to `frontend/tests/unit/lib/moderationApi.test.ts` and apply-in-place to `frontend/tests/unit/hooks/useModeration.test.tsx` — action posts to the right endpoint and replaces just that row, keeping `?page`.
+- [X] T042 [P] [US3] `ModerationActions` test in `frontend/tests/unit/components/moderation/ModerationActions.test.tsx` — renders Activate when inactive / Deactivate when activated (exactly one); clicking an action does NOT trigger row navigation (FR-018).
 
 ### Implementation for User Story 3
 
-- [ ] T043 [US3] Add `activate`/`deactivate` to `backend/app/Services/ModerationService.php` — set-to-target on `activated_at` via `withTrashed()->where('hash', ...)` lookup.
-- [ ] T044 [US3] Add `activate`/`deactivate` actions + routes (`POST /posts/{hash}/activate`, `/deactivate`) in `backend/app/Http/Controllers/Admin/ModerationController.php` and `backend/routes/api.php`; return the updated `AdminTrashpostResource`.
-- [ ] T045 [P] [US3] Add `activate`/`deactivate` to `frontend/src/lib/moderationApi.ts`.
-- [ ] T046 [US3] Add an `applyAction` (replace-row) path to `frontend/src/hooks/useModeration.ts`.
-- [ ] T047 [US3] Implement `ModerationActions` in `frontend/src/components/moderation/ModerationActions.tsx` (Activate/Deactivate, single click, `stopPropagation` so the row does not navigate) and wire it into `ModerationRow`.
+- [X] T043 [US3] Add `activate`/`deactivate` to `backend/app/Services/ModerationService.php` — set-to-target on `activated_at` via `withTrashed()->where('hash', ...)` lookup.
+- [X] T044 [US3] Add `activate`/`deactivate` actions + routes (`POST /posts/{hash}/activate`, `/deactivate`) in `backend/app/Http/Controllers/Admin/ModerationController.php` and `backend/routes/api.php`; return the updated `AdminTrashpostResource`.
+- [X] T045 [P] [US3] Add `activate`/`deactivate` to `frontend/src/lib/moderationApi.ts`.
+- [X] T046 [US3] Add an `applyAction` (replace-row) path to `frontend/src/hooks/useModeration.ts`.
+- [X] T047 [US3] Implement `ModerationActions` in `frontend/src/components/moderation/ModerationActions.tsx` (Activate/Deactivate, single click, `stopPropagation` so the row does not navigate) and wire it into `ModerationRow`.
 
 **Checkpoint**: Admins can flip activation both ways from the table, staying on their page.
 

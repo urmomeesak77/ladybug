@@ -38,9 +38,24 @@ export function useModeration() {
     };
   }, [page]);
 
+  // Replace one row in place after a moderation action (FR-017): the admin stays on the
+  // current page (no refetch, so `loaded.page` is untouched) and only the acted-on row's
+  // state changes. A no-op if the row isn't on the loaded page.
+  function applyRow(updated: ModerationRow): void {
+    setLoaded((current) => {
+      if (current === null) {
+        return current;
+      }
+      return {
+        ...current,
+        rows: current.rows.map((row) => (row.hash === updated.hash ? updated : row)),
+      };
+    });
+  }
+
   const loading = loaded === null || loaded.page !== page;
   const rows = loading ? [] : loaded.rows;
   const meta = loading ? null : loaded.meta;
   const empty = !loading && rows.length === 0;
-  return { rows, meta, loading, empty };
+  return { rows, meta, loading, empty, applyRow };
 }

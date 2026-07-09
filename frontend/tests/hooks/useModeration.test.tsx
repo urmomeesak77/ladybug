@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -70,6 +70,25 @@ describe('useModeration', () => {
     expect(result.current.rows).toEqual([]);
     expect(result.current.meta).toBeNull();
     expect(result.current.empty).toBe(true);
+  });
+
+  it('applyRow replaces just the matching row and keeps the current page', async () => {
+    const rowB: ModerationRow = { ...row, hash: 'Zz9-_0000A', activated: false };
+    const fetchPage = vi
+      .spyOn(ModerationApi, 'fetchPage')
+      .mockResolvedValue({ ok: true, data: [row, rowB], meta: { ...meta, total: 2 } });
+
+    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/memes?page=3') });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.applyRow({ ...rowB, activated: true }));
+
+    // Only rowB is replaced; row is untouched; no refetch (still page 3).
+    expect(result.current.rows[0]).toEqual(row);
+    expect(result.current.rows[1].activated).toBe(true);
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+    expect(result.current.loading).toBe(false);
   });
 
   it('drops a response that resolves after the hook unmounts', async () => {

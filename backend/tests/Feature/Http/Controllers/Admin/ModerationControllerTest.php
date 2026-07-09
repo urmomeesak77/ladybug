@@ -87,4 +87,40 @@ final class ModerationControllerTest extends TestCase {
         $response->assertJsonCount(0, 'data');
         $response->assertJsonPath('meta.total', 0);
     }
+
+    public function test_activate_returns_the_updated_row(): void {
+        $post = Trashpost::factory()->hidden()->create();
+
+        $response = $this->actingAs($this->admin())->postJson("/api/admin/posts/{$post->hash}/activate");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.hash', $post->hash);
+        $response->assertJsonPath('data.activated', true);
+    }
+
+    public function test_deactivate_returns_the_updated_row(): void {
+        $post = Trashpost::factory()->create(['activated_at' => now()]);
+
+        $response = $this->actingAs($this->admin())->postJson("/api/admin/posts/{$post->hash}/deactivate");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.hash', $post->hash);
+        $response->assertJsonPath('data.activated', false);
+    }
+
+    public function test_activate_on_an_unknown_hash_is_404(): void {
+        $this->actingAs($this->admin())
+            ->postJson('/api/admin/posts/Nonexist99/activate')
+            ->assertNotFound();
+    }
+
+    public function test_activate_stays_idempotent_across_repeated_calls(): void {
+        $post = Trashpost::factory()->create(['activated_at' => now()]);
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->postJson("/api/admin/posts/{$post->hash}/activate")->assertOk();
+        $this->actingAs($admin)->postJson("/api/admin/posts/{$post->hash}/activate")
+            ->assertOk()
+            ->assertJsonPath('data.activated', true);
+    }
 }

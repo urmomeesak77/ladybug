@@ -29,7 +29,7 @@ function renderRow(value: Row) {
     <MemoryRouter initialEntries={['/admin/memes']}>
       <table>
         <tbody>
-          <ModerationRow row={value} />
+          <ModerationRow row={value} onApply={() => {}} />
         </tbody>
       </table>
       <LocationProbe />
