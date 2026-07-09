@@ -677,6 +677,13 @@ main {
   font-variant-numeric: tabular-nums;
 }
 
+/* The title can be long: let it wrap within a capped width so a long title grows the
+   row's height, not the table's width (the other cells stay single-line). */
+.moderation-title {
+  white-space: normal;
+  max-width: 22rem;
+}
+
 /* Per-row moderation controls: compact outlined buttons in the neutral prototype style,
    laid out so they can wrap as more actions arrive (Delete/Restore in US4). */
 .moderation-actions {

@@ -13,6 +13,7 @@ const page = {
     {
       hash: 'Ab3-_9xQ12',
       thumbnail: null,
+      title: 'A funny meme',
       type: 'image',
       username: 'alice',
       created_at: '2026-07-08 20:14:02',

@@ -14,6 +14,7 @@ afterEach(() => {
 const activated: Row = {
   hash: 'Ab3-_9xQ12',
   thumbnail: null,
+  title: 'A funny meme',
   type: 'image',
   username: 'alice',
   createdAt: '2026-07-08 20:14:02',

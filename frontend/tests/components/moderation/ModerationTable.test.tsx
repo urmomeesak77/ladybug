@@ -12,6 +12,7 @@ function makeRow(hash: string, username: string): ModerationRow {
   return {
     hash,
     thumbnail: null,
+    title: 'A funny meme',
     type: 'image',
     username,
     createdAt: '2026-07-08 20:14:02',
@@ -35,7 +36,8 @@ describe('ModerationTable', () => {
 
     expect(container.querySelector('caption')).toBeTruthy();
     const headers = container.querySelectorAll('th[scope="col"]');
-    expect(headers).toHaveLength(6);
+    expect(headers).toHaveLength(7);
+    expect(screen.getByRole('columnheader', { name: 'Title' })).toBeTruthy();
   });
 
   it('renders one row per meme', () => {

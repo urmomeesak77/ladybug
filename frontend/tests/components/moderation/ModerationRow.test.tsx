@@ -11,6 +11,7 @@ afterEach(cleanup);
 const row: Row = {
   hash: 'Ab3-_9xQ12',
   thumbnail: null,
+  title: 'A funny meme',
   type: 'image',
   username: 'alice',
   createdAt: '2026-07-08 20:14:02',
@@ -38,10 +39,16 @@ function renderRow(value: Row) {
 }
 
 describe('ModerationRow', () => {
-  it('renders all six cells', () => {
+  it('renders all seven cells', () => {
     const { container } = renderRow(row);
 
-    expect(container.querySelectorAll('td')).toHaveLength(6);
+    expect(container.querySelectorAll('td')).toHaveLength(7);
+  });
+
+  it('shows the post title', () => {
+    renderRow(row);
+
+    expect(screen.getByText('A funny meme')).toBeTruthy();
   });
 
   it('shows the uploader name in the user column (FR-012)', () => {

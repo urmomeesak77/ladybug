@@ -13,6 +13,7 @@ function ModerationTable({ rows, onApply }: { rows: Row[]; onApply: (updated: Ro
         <thead>
           <tr>
             <th scope="col">Thumbnail</th>
+            <th scope="col">Title</th>
             <th scope="col">User</th>
             <th scope="col">Created</th>
             <th scope="col">Activated</th>

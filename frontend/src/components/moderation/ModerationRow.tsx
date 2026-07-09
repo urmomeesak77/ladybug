@@ -45,6 +45,7 @@ function ModerationRow({ row, onApply }: { row: Row; onApply: (updated: Row) => 
       aria-label={`Open meme ${row.hash}`}
     >
       <td><ModerationThumbnail src={row.thumbnail} alt={alt} /></td>
+      <td className="moderation-title">{row.title ?? ''}</td>
       <td>{uploader}</td>
       <TimeCell value={row.createdAt} />
       <TimeCell value={row.activatedAt} />

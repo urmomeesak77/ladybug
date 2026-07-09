@@ -3,6 +3,7 @@
 export type RawModerationRow = {
   hash: string;
   thumbnail: string | null;
+  title: string | null;
   type: string | null;
   username: string | null;
   created_at: string | null;
@@ -22,6 +23,7 @@ export type ModerationMeta = {
 export type ModerationRow = {
   hash: string;
   thumbnail: string | null;
+  title: string | null;
   type: string | null;
   username: string | null;
   // Raw MySQL datetimes (Y-m-d H:i:s) straight from the server, or null when unset. The
@@ -39,6 +41,7 @@ export class ModerationModel {
     return {
       hash: raw.hash,
       thumbnail: raw.thumbnail,
+      title: raw.title,
       type: raw.type,
       username: raw.username,
       createdAt: raw.created_at,
