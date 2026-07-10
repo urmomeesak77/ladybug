@@ -152,9 +152,9 @@ non-deleted state.
   row's navigate-to-meme behavior.
 - **Concurrent moderation**: Two admins act on the same meme nearly simultaneously — the
   second action reflects the already-changed state without error.
-- **Already-deleted meme**: Its state is shown as deleted and its deletion control offers
-  Restore; its activation control still reflects its activated state (Activate/Deactivate)
-  per FR-016.
+- **Already-deleted meme**: Its state is shown as deleted and its deletion controls offer
+  Restore and permanent delete (revised 2026-07-10); its activation control still reflects
+  its activated state (Activate/Deactivate) per FR-016.
 - **Repeated toggles**: Activating then deactivating (or deleting then restoring) the same
   meme returns it cleanly to the prior state with no residual or duplicate effect.
 
@@ -201,22 +201,26 @@ non-deleted state.
 - **FR-014**: The activated column MUST clearly indicate whether the meme is activated, and
   the deleted column MUST clearly indicate whether the meme is deleted — using more than
   color alone.
-- **FR-015**: Each row MUST offer a reversible activation control and a reversible soft
-  deletion control, presented according to the row's current state (FR-016).
+- **FR-015**: Each row MUST offer a reversible activation control and a deletion control
+  (reversible soft delete, plus irreversible permanent delete behind its own confirmation;
+  revised 2026-07-10), presented according to the row's current state (FR-016).
 - **FR-016**: Both moderation actions MUST be reversible from this page:
   - Activation: a not-yet-activated meme MUST offer **Activate**; an activated meme MUST
     offer **Deactivate**, which returns it to the not-activated state.
-  - Deletion: a non-deleted meme MUST offer **Delete** (soft-delete: retain data, flag as
-    deleted, remove from public views); a deleted meme MUST offer **Restore**, which
-    returns it to the non-deleted state. **Delete** MUST require a confirmation step — a
-    blocking modal dialog that suspends interaction with the rest of the page until
-    answered (revised 2026-07-10 from the original inline confirm, which overflowed the
-    actions column) — before it applies; **Activate**, **Deactivate**, and **Restore** apply
-    on a single click without confirmation.
+  - Deletion: a non-deleted meme MUST offer **Delete**, whose blocking modal confirmation
+    (a dialog that suspends interaction with the rest of the page until answered; revised
+    2026-07-10 from the original inline confirm) MUST offer three choices: **soft delete**
+    (retain data, flag as deleted, remove from public views), **permanent delete** (remove
+    the meme's database row and its media files irreversibly; added 2026-07-10), and
+    **cancel**. A deleted meme MUST offer **Restore** (single click, returns it to the
+    non-deleted state) and **permanent delete** behind a confirmation offering only
+    permanent delete and cancel. **Activate**, **Deactivate**, and **Restore** apply on a
+    single click without confirmation.
   Each control MUST reflect the row's current state so the admin always sees the action
   that applies.
-- **FR-017**: After any moderation action (Activate, Deactivate, Delete, Restore), the admin
-  MUST remain on the same page of the table, and the affected row MUST reflect the new state.
+- **FR-017**: After any moderation action (Activate, Deactivate, Delete, Restore, permanent
+  delete), the admin MUST remain on the same page of the table; the affected row MUST
+  reflect the new state — or, after a permanent delete, disappear from the table.
 - **FR-018**: Clicking a row (outside the action buttons) MUST open that meme's own page;
   clicking an action button MUST NOT also trigger row navigation.
 - **FR-019**: The page MUST render an explicit empty state when there are no memes to show.
