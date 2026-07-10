@@ -40,8 +40,13 @@ function TitleCell({ title }: { title: string | null }) {
 
 // One moderation-table row. The whole row is a link to the meme's own page (FR-018) —
 // keyboard-operable via role="link" + Enter/Space — while the trailing actions cell stops
-// propagation so acting never navigates. `onApply` refreshes this row in place after an action.
-function ModerationRow({ row, onApply }: { row: Row; onApply: (updated: Row) => void }) {
+// propagation so acting never navigates. `onApply` refreshes this row in place after an
+// action; `onRemove` drops it after a purge.
+function ModerationRow({ row, onApply, onRemove }: {
+  row: Row;
+  onApply: (updated: Row) => void;
+  onRemove: (hash: string) => void;
+}) {
   const navigate = useNavigate();
 
   function open(): void {
@@ -74,7 +79,7 @@ function ModerationRow({ row, onApply }: { row: Row; onApply: (updated: Row) => 
       <TimeCell value={row.activatedAt} />
       <TimeCell value={row.deletedAt} />
       <td className="moderation-row__actions">
-        <ModerationActions row={row} onApply={onApply} />
+        <ModerationActions row={row} onApply={onApply} onRemove={onRemove} />
       </td>
     </tr>
   );

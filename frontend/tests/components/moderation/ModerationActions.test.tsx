@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import ModerationActions from '../../../src/components/moderation/ModerationActions';
@@ -34,14 +34,19 @@ const inactive: Row = { ...activated, activatedAt: null };
 
 // The actions cell lives inside a clickable row; render it in that shape so the
 // stopPropagation behaviour (an action must never navigate the row) is exercised for real.
-function renderInRow(row: Row, onApply: (updated: Row) => void, onRowClick: () => void = () => {}) {
+function renderInRow(
+  row: Row,
+  onApply: (updated: Row) => void,
+  onRowClick: () => void = () => {},
+  onRemove: (hash: string) => void = () => {},
+) {
   return render(
     <NoticeProvider>
       <table>
         <tbody>
           <tr onClick={onRowClick}>
             <td>
-              <ModerationActions row={row} onApply={onApply} />
+              <ModerationActions row={row} onApply={onApply} onRemove={onRemove} />
             </td>
           </tr>
         </tbody>
@@ -122,57 +127,125 @@ describe('ModerationActions activation control', () => {
 });
 
 describe('ModerationActions delete/restore control', () => {
-  it('offers Delete for a live meme and Restore for a deleted one (exactly one)', () => {
+  const deletedRow: Row = { ...inactive, deletedAt: '2026-07-09 09:30:00' };
+
+  it('offers Delete for a live meme; Restore and Delete permanently for a deleted one', () => {
     renderInRow(inactive, () => {});
     expect(screen.getByRole('button', { name: /^delete$/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^restore$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^delete permanently$/i })).toBeNull();
     cleanup();
 
-    renderInRow({ ...inactive, deletedAt: '2026-07-09 09:30:00' }, () => {});
+    renderInRow(deletedRow, () => {});
     expect(screen.getByRole('button', { name: /^restore$/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^delete permanently$/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^delete$/i })).toBeNull();
   });
 
-  it('requires a modal confirm before it deletes (FR-016)', async () => {
+  it('soft-deletes through the modal and applies the updated row (FR-016)', async () => {
     const updated = { ...inactive, deletedAt: '2026-07-09 09:30:00' };
     vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: true, row: updated });
+    vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: false });
     const onApply = vi.fn();
 
     renderInRow(inactive, onApply);
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
 
-    // Not sent yet — the modal confirmation must be answered first; the copy says "post".
+    // Not sent yet — the modal must be answered first; the copy explains both outcomes.
     expect(ModerationApi.remove).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: 'Delete post?' })).toBeTruthy();
     expect(
-      screen.getByText('The post "A funny meme" will be hidden from the site. You can restore it later.'),
+      screen.getByText(
+        'Soft delete hides the post "A funny meme" from the site — you can restore it later. '
+          + 'Permanent delete removes the post and its files forever.',
+      ),
     ).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Soft delete' }));
 
     await waitFor(() => expect(onApply).toHaveBeenCalledWith(updated));
     expect(ModerationApi.remove).toHaveBeenCalledWith('Ab3-_9xQ12');
+    expect(ModerationApi.purge).not.toHaveBeenCalled();
     expect(document.querySelector('dialog')).toBeNull();
   });
 
-  it('cancels a pending delete without sending it, closing the modal', () => {
+  it('hard-deletes a live meme through the modal and removes the row', async () => {
     vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: false });
+    vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: true });
+    const onApply = vi.fn();
+    const onRemove = vi.fn();
+
+    renderInRow(inactive, onApply, () => {}, onRemove);
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
+
+    await waitFor(() => expect(onRemove).toHaveBeenCalledWith('Ab3-_9xQ12'));
+    expect(ModerationApi.purge).toHaveBeenCalledWith('Ab3-_9xQ12');
+    expect(ModerationApi.remove).not.toHaveBeenCalled();
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it('offers only permanent delete for an already-deleted meme', async () => {
+    vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: true });
+    const onRemove = vi.fn();
+
+    renderInRow(deletedRow, () => {}, () => {}, onRemove);
+    fireEvent.click(screen.getByRole('button', { name: /^delete permanently$/i }));
+
+    expect(screen.getByRole('heading', { name: 'Delete post permanently?' })).toBeTruthy();
+    expect(
+      screen.getByText(
+        'The post "A funny meme" is already hidden from the site. '
+          + 'Permanent delete removes it and its files forever.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Soft delete' })).toBeNull();
+
+    // Scope to the modal: the already-deleted row's own trash button also reads
+    // "Delete permanently", so pick the one inside the dialog.
+    const dialog = document.querySelector('dialog') as HTMLDialogElement;
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete permanently' }));
+
+    await waitFor(() => expect(onRemove).toHaveBeenCalledWith('Ab3-_9xQ12'));
+    expect(ModerationApi.purge).toHaveBeenCalledWith('Ab3-_9xQ12');
+  });
+
+  it('cancels a pending delete without sending anything, closing the modal', () => {
+    vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: false });
+    vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: false });
 
     renderInRow(inactive, () => {});
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(ModerationApi.remove).not.toHaveBeenCalled();
+    expect(ModerationApi.purge).not.toHaveBeenCalled();
     expect(document.querySelector('dialog')).toBeNull();
     expect(screen.getByRole('button', { name: /^delete$/i })).toBeTruthy();
   });
 
-  it('falls back to "This post" copy when the row has no title', () => {
+  it('keeps the row when the purge fails', async () => {
+    vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: false });
+    const onRemove = vi.fn();
+
+    renderInRow(inactive, () => {}, () => {}, onRemove);
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
+
+    // Give the settled failure a tick; the row must not be removed.
+    await Promise.resolve();
+    expect(onRemove).not.toHaveBeenCalled();
+  });
+
+  it('falls back to "this post" copy when the row has no title', () => {
     renderInRow({ ...inactive, title: null }, () => {});
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
 
     expect(
-      screen.getByText('This post will be hidden from the site. You can restore it later.'),
+      screen.getByText(
+        'Soft delete hides this post from the site — you can restore it later. '
+          + 'Permanent delete removes the post and its files forever.',
+      ),
     ).toBeTruthy();
   });
 
@@ -181,20 +254,20 @@ describe('ModerationActions delete/restore control', () => {
     vi.spyOn(ModerationApi, 'restore').mockResolvedValue({ ok: true, row: updated });
     const onApply = vi.fn();
 
-    renderInRow({ ...inactive, deletedAt: '2026-07-09 09:30:00' }, onApply);
+    renderInRow(deletedRow, onApply);
     fireEvent.click(screen.getByRole('button', { name: /^restore$/i }));
 
     await waitFor(() => expect(onApply).toHaveBeenCalledWith(updated));
     expect(ModerationApi.restore).toHaveBeenCalledWith('Ab3-_9xQ12');
   });
 
-  it('does not navigate the row when Delete then Confirm is clicked (FR-018)', () => {
-    vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: false });
+  it('does not navigate the row when a delete choice is made (FR-018)', () => {
+    vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: false });
     const onRowClick = vi.fn();
 
     renderInRow(inactive, () => {}, onRowClick);
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
 
     expect(onRowClick).not.toHaveBeenCalled();
   });

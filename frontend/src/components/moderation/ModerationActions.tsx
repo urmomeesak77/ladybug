@@ -2,11 +2,13 @@ import type { MouseEvent, ReactElement } from 'react';
 
 import { useNotice } from '../../hooks/useNotice';
 import { ModerationApi } from '../../lib/moderationApi';
-import type { ModerationActionResult } from '../../lib/moderationApi';
+import type { ModerationActionResult, ModerationPurgeResult } from '../../lib/moderationApi';
 import { ModerationModel } from '../../lib/moderationModel';
 import type { ModerationRow as Row } from '../../lib/moderationModel';
 
 type Apply = (updated: Row) => void;
+
+type Remove = (hash: string) => void;
 
 type ActionGlyph = 'activate' | 'deactivate' | 'delete' | 'restore';
 
@@ -30,13 +32,14 @@ function ActionIcon({ glyph }: { glyph: ActionGlyph }): ReactElement {
 
 // The per-row moderation controls (US3 activation + US4 delete/restore). Every button stops
 // the click from bubbling to the row so acting never navigates to the meme page (FR-018); a
-// successful action hands the server's updated row back up via `onApply` for an in-place
-// refresh, keeping the admin on the current page (FR-017).
-function ModerationActions({ row, onApply }: { row: Row; onApply: Apply }) {
+// successful state change hands the server's updated row back up via `onApply` for an
+// in-place refresh (FR-017), while a successful purge reports the hash via `onRemove` so the
+// page drops the now-nonexistent row.
+function ModerationActions({ row, onApply, onRemove }: { row: Row; onApply: Apply; onRemove: Remove }) {
   return (
     <div className="moderation-actions">
       <ActivationButton row={row} onApply={onApply} />
-      <DeletionControl row={row} onApply={onApply} />
+      <DeletionControl row={row} onApply={onApply} onRemove={onRemove} />
     </div>
   );
 }
@@ -49,6 +52,17 @@ class RowAction {
     const result = await action;
     if (result.ok) {
       onApply(result.row);
+    }
+  }
+}
+
+// The purge sibling of RowAction: a 204 means the row no longer exists, so success reports
+// the hash upward for removal instead of an updated row.
+class RowPurge {
+  static async apply(action: Promise<ModerationPurgeResult>, hash: string, onRemove: Remove): Promise<void> {
+    const result = await action;
+    if (result.ok) {
+      onRemove(hash);
     }
   }
 }
@@ -72,10 +86,11 @@ function ActivationButton({ row, onApply }: { row: Row; onApply: Apply }) {
   );
 }
 
-// Delete (guarded by a blocking modal confirm raised app-level via useNotice, FR-016) for a
-// live meme; single-click Restore for a soft-deleted one. Exactly one path shows, per the
-// row's deleted state. The modal renders outside the row, so answering it never navigates.
-function DeletionControl({ row, onApply }: { row: Row; onApply: Apply }) {
+// Deletion, guarded by a blocking modal confirm raised app-level via useNotice (FR-016).
+// A live meme's trash button offers soft delete and permanent delete; a soft-deleted meme
+// shows single-click Restore plus a trash button offering only permanent delete. The modal
+// renders outside the row, so answering it never navigates.
+function DeletionControl({ row, onApply, onRemove }: { row: Row; onApply: Apply; onRemove: Remove }) {
   const { ask } = useNotice();
   const deleted = row.deletedAt !== null;
 
@@ -84,8 +99,12 @@ function DeletionControl({ row, onApply }: { row: Row; onApply: Apply }) {
     void RowAction.apply(ModerationApi.restore(row.hash), onApply);
   }
 
-  function confirmDelete(): void {
+  function confirmSoftDelete(): void {
     void RowAction.apply(ModerationApi.remove(row.hash), onApply);
+  }
+
+  function confirmPurge(): void {
+    void RowPurge.apply(ModerationApi.purge(row.hash), row.hash, onRemove);
   }
 
   function askDelete(event: MouseEvent<HTMLButtonElement>): void {
@@ -93,15 +112,38 @@ function DeletionControl({ row, onApply }: { row: Row; onApply: Apply }) {
     ask({
       title: 'Delete post?',
       message: ModerationModel.deleteConfirmMessage(row.title),
-      actions: [{ caption: 'Confirm delete', onChoose: confirmDelete }],
+      actions: [
+        { caption: 'Soft delete', onChoose: confirmSoftDelete },
+        { caption: 'Delete permanently', onChoose: confirmPurge, strong: true },
+      ],
+    });
+  }
+
+  function askPurge(event: MouseEvent<HTMLButtonElement>): void {
+    event.stopPropagation();
+    ask({
+      title: 'Delete post permanently?',
+      message: ModerationModel.purgeConfirmMessage(row.title),
+      actions: [{ caption: 'Delete permanently', onChoose: confirmPurge, strong: true }],
     });
   }
 
   if (deleted) {
     return (
-      <button type="button" className="moderation-actions__button" onClick={restore} aria-label="Restore" title="Restore">
-        <ActionIcon glyph="restore" />
-      </button>
+      <>
+        <button type="button" className="moderation-actions__button" onClick={restore} aria-label="Restore" title="Restore">
+          <ActionIcon glyph="restore" />
+        </button>
+        <button
+          type="button"
+          className="moderation-actions__button"
+          onClick={askPurge}
+          aria-label="Delete permanently"
+          title="Delete permanently"
+        >
+          <ActionIcon glyph="delete" />
+        </button>
+      </>
     );
   }
 

@@ -98,15 +98,17 @@ describe('ModerationModel.parsePage', () => {
 });
 
 describe('ModerationModel.deleteConfirmMessage', () => {
-  it('names the post by its title', () => {
+  it('explains both outcomes, naming the post by its title', () => {
     expect(ModerationModel.deleteConfirmMessage('A funny meme')).toBe(
-      'The post "A funny meme" will be hidden from the site. You can restore it later.',
+      'Soft delete hides the post "A funny meme" from the site — you can restore it later. '
+        + 'Permanent delete removes the post and its files forever.',
     );
   });
 
-  it('falls back to "This post" when the title is missing', () => {
+  it('falls back to "this post" when the title is missing', () => {
     expect(ModerationModel.deleteConfirmMessage(null)).toBe(
-      'This post will be hidden from the site. You can restore it later.',
+      'Soft delete hides this post from the site — you can restore it later. '
+        + 'Permanent delete removes the post and its files forever.',
     );
   });
 });

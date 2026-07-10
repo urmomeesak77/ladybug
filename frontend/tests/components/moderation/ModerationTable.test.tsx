@@ -29,7 +29,7 @@ function renderTable(rows: ModerationRow[]) {
   return render(
     <MemoryRouter>
       <NoticeProvider>
-        <ModerationTable rows={rows} onApply={() => {}} />
+        <ModerationTable rows={rows} onApply={() => {}} onRemove={() => {}} />
       </NoticeProvider>
     </MemoryRouter>,
   );

@@ -9,7 +9,7 @@ import { useModeration } from '../hooks/useModeration';
 // for an empty corpus or an out-of-range page (FR-019). The route is gated to admin+ in
 // US2; here the page trusts the server, which already refuses non-admin callers.
 function ModerationPage() {
-  const { rows, meta, loading, empty, applyRow } = useModeration();
+  const { rows, meta, loading, empty, applyRow, removeRow } = useModeration();
 
   useEffect(() => {
     document.title = 'Trashposts';
@@ -22,7 +22,7 @@ function ModerationPage() {
       {empty && <p className="moderation__status">No entries to moderate.</p>}
       {!loading && !empty && (
         <>
-          <ModerationTable rows={rows} onApply={applyRow} />
+          <ModerationTable rows={rows} onApply={applyRow} onRemove={removeRow} />
           {meta !== null && <ModerationPagination meta={meta} />}
         </>
       )}

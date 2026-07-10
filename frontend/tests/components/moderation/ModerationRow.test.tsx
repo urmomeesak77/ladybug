@@ -34,7 +34,7 @@ function renderRow(value: Row) {
       <NoticeProvider>
         <table>
           <tbody>
-            <ModerationRow row={value} onApply={() => {}} />
+            <ModerationRow row={value} onApply={() => {}} onRemove={() => {}} />
           </tbody>
         </table>
         <LocationProbe />

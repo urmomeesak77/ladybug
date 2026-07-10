@@ -55,13 +55,13 @@ export class ModerationModel {
     return `${title.slice(0, TITLE_MAX).trimEnd()}…`;
   }
 
-  // The delete-confirm modal's body. Soft-delete phrased for the admin: hidden, restorable.
-  // User-facing copy says "post" (site vocabulary), never the internal "meme"/"trashpost".
+  // The delete-confirm body for a live post: both outcomes explained — soft delete is
+  // reversible, permanent delete is not. User-facing copy says "post" (site vocabulary),
+  // never the internal "meme"/"trashpost".
   static deleteConfirmMessage(title: string | null): string {
-    if (title === null) {
-      return 'This post will be hidden from the site. You can restore it later.';
-    }
-    return `The post "${title}" will be hidden from the site. You can restore it later.`;
+    const subject = title === null ? 'this post' : `the post "${title}"`;
+    return `Soft delete hides ${subject} from the site — you can restore it later. `
+      + 'Permanent delete removes the post and its files forever.';
   }
 
   // The confirm body for an already soft-deleted post, where only permanent deletion (and
