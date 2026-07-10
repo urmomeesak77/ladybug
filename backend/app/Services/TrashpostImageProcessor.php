@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Support\GifFile;
 use App\Support\ImageFile;
 use App\Support\MediaPath;
 use Illuminate\Http\UploadedFile;
@@ -16,7 +17,10 @@ use Illuminate\Support\Facades\Storage;
  * reads. Pairs with TrashpostImageService (read side) and reuses MediaPath for all paths.
  */
 class TrashpostImageProcessor {
-    public function __construct(private readonly ImageFile $imageFile = new ImageFile()) {
+    public function __construct(
+        private readonly ImageFile $imageFile = new ImageFile(),
+        private readonly GifFile $gifFile = new GifFile(),
+    ) {
     }
 
     /**
@@ -32,10 +36,7 @@ class TrashpostImageProcessor {
 
         [$width, $height] = $this->imageFile->dimensions($originalPath);
 
-        // GIFs are stored as-is: GD would flatten animation, so we serve the original.
-        if ($ext !== 'gif') {
-            $this->generateVariants($hash, $ext, $originalPath, $width);
-        }
+        $this->generateVariants($hash, $ext, $originalPath, $width);
 
         return [
             'file' => "{$hash}.{$ext}",
@@ -80,7 +81,13 @@ class TrashpostImageProcessor {
             }
             $variantPath = Storage::disk('public')->path(MediaPath::imageRelativePath($size, $hash, $ext));
             File::ensureDirectoryExists(dirname($variantPath));
-            $this->imageFile->scaledDownCopy($originalPath, $variantPath, (int) $size);
+            // GIFs go through gifsicle: GD would flatten animation to the first frame.
+            if ($ext === 'gif') {
+                $this->gifFile->scaledDownCopy($originalPath, $variantPath, (int) $size);
+            }
+            else {
+                $this->imageFile->scaledDownCopy($originalPath, $variantPath, (int) $size);
+            }
         }
     }
 

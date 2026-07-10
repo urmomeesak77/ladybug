@@ -60,12 +60,14 @@ class TrashpostImageProcessorTest extends TestCase {
         $disk->assertExists(MediaPath::imageRelativePath('300', 'abc1234567', 'jpg'));
     }
 
-    public function test_does_not_resize_gifs(): void {
+    public function test_generates_gif_variants(): void {
         (new TrashpostImageProcessor())->process($this->image('m.gif', 1200, 600), 'abc1234567');
 
         $disk = Storage::disk('public');
         $disk->assertExists(MediaPath::imageRelativePath('original', 'abc1234567', 'gif'));
-        $disk->assertMissing(MediaPath::imageRelativePath('800', 'abc1234567', 'gif'));
+        // GIF variants are made by gifsicle (not GD) so animation frames survive.
+        $disk->assertExists(MediaPath::imageRelativePath('800', 'abc1234567', 'gif'));
+        $disk->assertExists(MediaPath::imageRelativePath('100', 'abc1234567', 'gif'));
     }
 
     public function test_extension_is_derived_from_content_not_the_client_filename(): void {

@@ -3,10 +3,13 @@
 # production image (FR-009).
 FROM php:8.3-cli
 
-# System libraries required to build the bundled PHP extensions below.
+# System libraries required to build the bundled PHP extensions below, plus
+# gifsicle: animated-GIF resizing for upload size variants (approved dependency —
+# GD can only read the first frame, so resizing GIFs in PHP would flatten them).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git unzip libzip-dev libpng-dev libjpeg62-turbo-dev libfreetype6-dev \
+        gifsicle \
     && rm -rf /var/lib/apt/lists/*
 
 # pdo_mysql: app database driver. zip: composer dist installs. bcmath:

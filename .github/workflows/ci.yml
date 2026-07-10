@@ -43,6 +43,11 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      # gifsicle: animated-GIF variant generation (App\Support\GifFile) — the unit
+      # tests shell out to the real binary, same as the ladybug-php dev image.
+      - name: Install gifsicle
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gifsicle
+
       - name: Prepare environment
         run: |
           cp .env.example .env

@@ -38,7 +38,7 @@ only the missing **write path**.
 |---|---|---|
 | Image library | **In-house GD** helper (`ext-gd`), no Composer package | Constitution Principle I ("prefer small in-house helpers over pulling packages"); avoids the dependency-approval gate. User approved 2026-06-29. |
 | Processing model | **Synchronous**, in-request | No queue/worker infrastructure (no new deps); volume at this stage does not warrant async. |
-| GIFs | Stored as **original only**, no resized variants (any GIF) | GD flattens GIF animation on resize; resizing by extension (not animation-detection) keeps the rule simple. The feed already falls back to `original` via `TrashpostImageService`. |
+| GIFs | ~~Stored as **original only**, no resized variants (any GIF)~~ **Superseded 2026-07-10:** variants are generated with the approved `gifsicle` system dependency (`App\Support\GifFile`), which preserves animation frames | GD flattens GIF animation on resize; the user later approved gifsicle so GIF posts get real size variants like every other image. The feed still falls back to `original` when a variant is absent. |
 | EXIF orientation (JPEG) | **Deferred** to a follow-up | GD cannot write EXIF-tagged test fixtures, so the rotation branches would be untestable and threaten the ≥90% gate; screenshots/downloaded memes (the common case) carry no orientation tag. |
 | Auth | `auth:sanctum` (SPA cookie session from 007) | Constitution security; uploads must be attributable. |
 | Filename | `{hash}.{ext}` | Hash is the immutable public id; reuses `MediaPath`. |
