@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import NoticeProvider from '../../src/components/NoticeProvider';
 import ModerationPage from '../../src/pages/ModerationPage';
 import type { ModerationRow } from '../../src/lib/moderationModel';
 
@@ -28,10 +29,14 @@ const row: ModerationRow = {
 
 const meta = { current_page: 1, last_page: 1, per_page: 100, total: 1 };
 
+// ModerationActions (rendered per-row inside ModerationTable) now raises delete confirms
+// through useNotice(), so a NoticeProvider ancestor is required to render the page at all.
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/admin/trashposts']}>
-      <ModerationPage />
+      <NoticeProvider>
+        <ModerationPage />
+      </NoticeProvider>
     </MemoryRouter>,
   );
 }

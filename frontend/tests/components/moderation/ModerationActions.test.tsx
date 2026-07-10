@@ -3,8 +3,15 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import ModerationActions from '../../../src/components/moderation/ModerationActions';
+import NoticeProvider from '../../../src/components/NoticeProvider';
 import { ModerationApi } from '../../../src/lib/moderationApi';
 import type { ModerationRow as Row } from '../../../src/lib/moderationModel';
+
+if (!HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.open = true;
+  };
+}
 
 afterEach(() => {
   cleanup();
@@ -29,15 +36,17 @@ const inactive: Row = { ...activated, activatedAt: null };
 // stopPropagation behaviour (an action must never navigate the row) is exercised for real.
 function renderInRow(row: Row, onApply: (updated: Row) => void, onRowClick: () => void = () => {}) {
   return render(
-    <table>
-      <tbody>
-        <tr onClick={onRowClick}>
-          <td>
-            <ModerationActions row={row} onApply={onApply} />
-          </td>
-        </tr>
-      </tbody>
-    </table>,
+    <NoticeProvider>
+      <table>
+        <tbody>
+          <tr onClick={onRowClick}>
+            <td>
+              <ModerationActions row={row} onApply={onApply} />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </NoticeProvider>,
   );
 }
 
@@ -124,7 +133,7 @@ describe('ModerationActions delete/restore control', () => {
     expect(screen.queryByRole('button', { name: /^delete$/i })).toBeNull();
   });
 
-  it('requires an inline confirm before it deletes (FR-016)', async () => {
+  it('requires a modal confirm before it deletes (FR-016)', async () => {
     const updated = { ...inactive, deletedAt: '2026-07-09 09:30:00' };
     vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: true, row: updated });
     const onApply = vi.fn();
@@ -132,23 +141,39 @@ describe('ModerationActions delete/restore control', () => {
     renderInRow(inactive, onApply);
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
 
-    // Not sent yet — the inline confirmation must be answered first.
+    // Not sent yet — the modal confirmation must be answered first; the copy says "post".
     expect(ModerationApi.remove).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+    expect(screen.getByRole('heading', { name: 'Delete post?' })).toBeTruthy();
+    expect(
+      screen.getByText('The post "A funny meme" will be hidden from the site. You can restore it later.'),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
 
     await waitFor(() => expect(onApply).toHaveBeenCalledWith(updated));
     expect(ModerationApi.remove).toHaveBeenCalledWith('Ab3-_9xQ12');
+    expect(document.querySelector('dialog')).toBeNull();
   });
 
-  it('cancels a pending delete without sending it, returning to the Delete affordance', () => {
+  it('cancels a pending delete without sending it, closing the modal', () => {
     vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: false });
 
     renderInRow(inactive, () => {});
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(ModerationApi.remove).not.toHaveBeenCalled();
+    expect(document.querySelector('dialog')).toBeNull();
     expect(screen.getByRole('button', { name: /^delete$/i })).toBeTruthy();
+  });
+
+  it('falls back to "This post" copy when the row has no title', () => {
+    renderInRow({ ...inactive, title: null }, () => {});
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    expect(
+      screen.getByText('This post will be hidden from the site. You can restore it later.'),
+    ).toBeTruthy();
   });
 
   it('restores on a single click (no confirmation)', async () => {
@@ -169,7 +194,7 @@ describe('ModerationActions delete/restore control', () => {
 
     renderInRow(inactive, () => {}, onRowClick);
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
 
     expect(onRowClick).not.toHaveBeenCalled();
   });

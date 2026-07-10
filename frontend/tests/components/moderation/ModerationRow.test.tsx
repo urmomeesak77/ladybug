@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import ModerationRow from '../../../src/components/moderation/ModerationRow';
+import NoticeProvider from '../../../src/components/NoticeProvider';
 import type { ModerationRow as Row } from '../../../src/lib/moderationModel';
 
 afterEach(cleanup);
@@ -25,15 +26,19 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>;
 }
 
+// ModerationActions (rendered inside ModerationRow) now raises delete confirms through
+// useNotice(), so a NoticeProvider ancestor is required to render the row at all.
 function renderRow(value: Row) {
   return render(
     <MemoryRouter initialEntries={['/admin/trashposts']}>
-      <table>
-        <tbody>
-          <ModerationRow row={value} onApply={() => {}} />
-        </tbody>
-      </table>
-      <LocationProbe />
+      <NoticeProvider>
+        <table>
+          <tbody>
+            <ModerationRow row={value} onApply={() => {}} />
+          </tbody>
+        </table>
+        <LocationProbe />
+      </NoticeProvider>
     </MemoryRouter>,
   );
 }

@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import ModerationTable from '../../../src/components/moderation/ModerationTable';
+import NoticeProvider from '../../../src/components/NoticeProvider';
 import type { ModerationRow } from '../../../src/lib/moderationModel';
 
 afterEach(cleanup);
@@ -22,10 +23,14 @@ function makeRow(hash: string, username: string): ModerationRow {
   };
 }
 
+// ModerationActions (rendered per-row inside ModerationTable) now raises delete confirms
+// through useNotice(), so a NoticeProvider ancestor is required to render the table at all.
 function renderTable(rows: ModerationRow[]) {
   return render(
     <MemoryRouter>
-      <ModerationTable rows={rows} onApply={() => {}} />
+      <NoticeProvider>
+        <ModerationTable rows={rows} onApply={() => {}} />
+      </NoticeProvider>
     </MemoryRouter>,
   );
 }
