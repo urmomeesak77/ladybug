@@ -13,6 +13,9 @@ export type ModerationActionResult =
   | { ok: true; row: ModerationRow }
   | { ok: false };
 
+// A purge has no row to return (204): success only says the post and its files are gone.
+export type ModerationPurgeResult = { ok: boolean };
+
 // Admin moderation API client (010). Cookie-session authenticated like the other SPA calls;
 // the server enforces admin-or-higher, so a non-admin simply gets a failed result. Unsafe
 // actions carry the Sanctum SPA CSRF header, exactly like the auth/upload mutations.
@@ -49,6 +52,21 @@ export class ModerationApi {
 
   static restore(hash: string): Promise<ModerationActionResult> {
     return ModerationApi.act('POST', `/api/admin/posts/${encodeURIComponent(hash)}/restore`);
+  }
+
+  // Hard delete: the row and its media files are removed for good. 204 carries no body,
+  // so success is just `ok` — the caller drops the row from its page.
+  static async purge(hash: string): Promise<ModerationPurgeResult> {
+    try {
+      const response = await fetch(`${Api.base()}/api/admin/posts/${encodeURIComponent(hash)}/purge`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': Csrf.token() },
+      });
+      return { ok: response.ok };
+    } catch {
+      return { ok: false };
+    }
   }
 
   // The shared act-on-a-meme plumbing: send the unsafe request with the CSRF header and, on

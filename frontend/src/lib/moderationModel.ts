@@ -64,6 +64,13 @@ export class ModerationModel {
     return `The post "${title}" will be hidden from the site. You can restore it later.`;
   }
 
+  // The confirm body for an already soft-deleted post, where only permanent deletion (and
+  // cancel) is on offer. User-facing copy says "post" (site vocabulary).
+  static purgeConfirmMessage(title: string | null): string {
+    const subject = title === null ? 'This post' : `The post "${title}"`;
+    return `${subject} is already hidden from the site. Permanent delete removes it and its files forever.`;
+  }
+
   static mapRow(raw: RawModerationRow): ModerationRow {
     return {
       hash: raw.hash,

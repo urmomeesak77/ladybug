@@ -170,3 +170,43 @@ describe('ModerationApi.remove / restore', () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe('ModerationApi.purge', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('DELETEs the purge endpoint (CSRF header) and reports ok on 204', async () => {
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 204 }));
+
+    const result = await ModerationApi.purge('Ab3-_9xQ12');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/posts\/Ab3-_9xQ12\/purge$/),
+      expect.objectContaining({
+        method: 'DELETE',
+        credentials: 'include',
+        headers: expect.objectContaining({ 'X-XSRF-TOKEN': expect.anything() }),
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('reports failure on a non-2xx response (e.g. 404 unknown hash)', async () => {
+    stubFetch(async () => ({ ok: false, status: 404 }));
+
+    const result = await ModerationApi.purge('missing0000');
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('reports failure when the request rejects (offline)', async () => {
+    stubFetch(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+
+    const result = await ModerationApi.purge('Ab3-_9xQ12');
+
+    expect(result.ok).toBe(false);
+  });
+});

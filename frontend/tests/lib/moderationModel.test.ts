@@ -110,3 +110,18 @@ describe('ModerationModel.deleteConfirmMessage', () => {
     );
   });
 });
+
+describe('ModerationModel.purgeConfirmMessage', () => {
+  it('states the post is already hidden and the removal is forever, naming it by title', () => {
+    expect(ModerationModel.purgeConfirmMessage('A funny meme')).toBe(
+      'The post "A funny meme" is already hidden from the site. '
+        + 'Permanent delete removes it and its files forever.',
+    );
+  });
+
+  it('falls back to "This post" when the title is missing', () => {
+    expect(ModerationModel.purgeConfirmMessage(null)).toBe(
+      'This post is already hidden from the site. Permanent delete removes it and its files forever.',
+    );
+  });
+});
