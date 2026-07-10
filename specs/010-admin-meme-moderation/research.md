@@ -124,16 +124,18 @@ use `Http::fake()` to stub the remote fetch (success + failure) and `Storage::fa
 to assert the file is written and the column set. This honors "tests never hit the network /
 real DB".
 
-## R7 — Delete confirmation (lightweight)
+## R7 — Delete confirmation (modal)
 
-**Decision**: Delete is a two-step confirm handled **inline in the action cell** (the Delete
-button swaps to a "Confirm / Cancel" pair on first click); Activate, Deactivate, and Restore
-apply on a single click (FR-016 clarification). No global modal/dialog infra is added.
+**Decision**: Delete is confirmed in a **blocking modal dialog** (native `<dialog>` +
+`showModal()`), raised app-level through `NoticeProvider` via a new `useNotice().ask()`;
+Activate, Deactivate, and Restore apply on a single click (FR-016 clarification).
 
-**Rationale**: "Lightweight confirmation" maps to an in-row confirm rather than a heavy modal;
-it keeps the admin's place in the table and needs no new dialog component or provider. The
-existing `NoticeProvider`/`NoticeDialog` is a one-way notice, not a confirm, so it is not
-repurposed here.
+**Rationale**: Originally an inline in-cell Confirm/Cancel pair; once the action buttons
+became compact icons, the text pair overflowed the actions column (revised 2026-07-10 —
+see docs/superpowers/specs/2026-07-10-modal-delete-confirm-design.md). A modal fits any
+row width and blocks stray page actions while the decision is pending. The existing
+`NoticeProvider`/`NoticeDialog` already established the native-dialog pattern, so the
+confirm extends that infrastructure with a two-button `ConfirmDialog` sibling.
 
 **Alternatives considered**:
 - *`window.confirm`* — not themeable/accessible-controllable, blocks the event loop, and

@@ -208,9 +208,11 @@ non-deleted state.
     offer **Deactivate**, which returns it to the not-activated state.
   - Deletion: a non-deleted meme MUST offer **Delete** (soft-delete: retain data, flag as
     deleted, remove from public views); a deleted meme MUST offer **Restore**, which
-    returns it to the non-deleted state. **Delete** MUST require a lightweight confirmation
-    step before it applies; **Activate**, **Deactivate**, and **Restore** apply on a single
-    click without confirmation.
+    returns it to the non-deleted state. **Delete** MUST require a confirmation step — a
+    blocking modal dialog that suspends interaction with the rest of the page until
+    answered (revised 2026-07-10 from the original inline confirm, which overflowed the
+    actions column) — before it applies; **Activate**, **Deactivate**, and **Restore** apply
+    on a single click without confirmation.
   Each control MUST reflect the row's current state so the admin always sees the action
   that applies.
 - **FR-017**: After any moderation action (Activate, Deactivate, Delete, Restore), the admin

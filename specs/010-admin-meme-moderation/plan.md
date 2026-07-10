@@ -53,8 +53,8 @@ cookie-session.
 **Constraints**: Page-based pagination (100/page) reflected in the URL and refresh-safe
 (FR-004/FR-005); table must not overflow horizontally on mobile (Principle VIII); no DB ids
 in URLs — the 10-char `hash` is the handle (Principle V); role gate enforced on the data,
-not just the view (FR-002, Principle VI); Delete requires a lightweight confirmation, the
-other three actions apply on a single click (FR-016).
+not just the view (FR-002, Principle VI); Delete requires a blocking modal confirmation
+(revised 2026-07-10 from inline), the other three actions apply on a single click (FR-016).
 
 **Scale/Scope**: Back-office table over the full `trashposts` corpus (thousands of rows,
 paged 100 at a time); ~1 backend migration + middleware + controller + 2 services +

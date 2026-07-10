@@ -83,7 +83,8 @@ Both stacks must stay **≥90%** line coverage (Principle VII).
 
 ### US4 — Soft delete / restore (stay on page)
 
-13. Use **Delete** on a non-deleted meme → a **lightweight confirmation** appears; confirm →
+13. Use **Delete** on a non-deleted meme → a **blocking modal confirmation** appears
+    ("Delete post?"; the page behind it is inert); **Confirm delete** →
     row shows **deleted**, still on page N. Verify the meme is **absent** from the public feed
     and its `/posts/{hash}` public view (soft-deleted, retained). Use **Restore** → row
     returns to not-deleted and it reappears publicly.
