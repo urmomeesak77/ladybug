@@ -55,6 +55,15 @@ export class ModerationModel {
     return `${title.slice(0, TITLE_MAX).trimEnd()}…`;
   }
 
+  // The delete-confirm modal's body. Soft-delete phrased for the admin: hidden, restorable.
+  // User-facing copy says "post" (site vocabulary), never the internal "meme"/"trashpost".
+  static deleteConfirmMessage(title: string | null): string {
+    if (title === null) {
+      return 'This post will be hidden from the site. You can restore it later.';
+    }
+    return `The post "${title}" will be hidden from the site. You can restore it later.`;
+  }
+
   static mapRow(raw: RawModerationRow): ModerationRow {
     return {
       hash: raw.hash,

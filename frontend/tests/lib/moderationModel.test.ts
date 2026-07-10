@@ -96,3 +96,17 @@ describe('ModerationModel.parsePage', () => {
     expect(ModerationModel.parsePage('5')).toBe(5);
   });
 });
+
+describe('ModerationModel.deleteConfirmMessage', () => {
+  it('names the post by its title', () => {
+    expect(ModerationModel.deleteConfirmMessage('A funny meme')).toBe(
+      'The post "A funny meme" will be hidden from the site. You can restore it later.',
+    );
+  });
+
+  it('falls back to "This post" when the title is missing', () => {
+    expect(ModerationModel.deleteConfirmMessage(null)).toBe(
+      'This post will be hidden from the site. You can restore it later.',
+    );
+  });
+});
