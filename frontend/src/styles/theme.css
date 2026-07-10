@@ -554,6 +554,14 @@ main {
   border-color: var(--color-error);
 }
 
+/* The irreversible choice (e.g. permanent delete): filled with the error tone for extra
+   weight next to its milder outlined sibling. The caption ("Delete permanently") still
+   carries the meaning — never color/weight alone (Principle IV). */
+.notice-dialog__buttons button.notice-dialog__danger--strong {
+  color: #fff;
+  background-color: var(--color-error);
+}
+
 /* ------------------------------------------------------------------ *
  * Email verification (008): notice + link-landing pages. Same column *
  * as the auth forms; every color is a theme variable, so both light  *

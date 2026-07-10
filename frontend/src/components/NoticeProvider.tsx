@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { NoticeContext } from '../hooks/useNotice';
-import type { Confirm, Notice } from '../hooks/useNotice';
+import type { Confirm, ConfirmAction, Notice } from '../hooks/useNotice';
 import ConfirmDialog from './ConfirmDialog';
 import NoticeDialog from './NoticeDialog';
 
@@ -29,11 +29,11 @@ function NoticeProvider({ children }: { children: ReactNode }) {
     setConfirm(null);
   }, []);
 
-  // Confirming closes the dialog first, then runs the caller's action exactly once.
-  const runConfirm = useCallback(() => {
+  // Choosing an action closes the dialog first, then runs that action exactly once.
+  const choose = useCallback((action: ConfirmAction) => {
     setConfirm(null);
-    confirm?.onConfirm();
-  }, [confirm]);
+    action.onChoose();
+  }, []);
 
   const value = useMemo(() => ({ notice, confirm, show, ask, clear }), [notice, confirm, show, ask, clear]);
 
@@ -45,8 +45,8 @@ function NoticeProvider({ children }: { children: ReactNode }) {
         <ConfirmDialog
           message={confirm.message}
           title={confirm.title}
-          confirmCaption={confirm.confirmCaption}
-          onConfirm={runConfirm}
+          actions={confirm.actions}
+          onChoose={choose}
           onCancel={clear}
         />
       ) : null}

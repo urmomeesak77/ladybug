@@ -93,8 +93,7 @@ function DeletionControl({ row, onApply }: { row: Row; onApply: Apply }) {
     ask({
       title: 'Delete post?',
       message: ModerationModel.deleteConfirmMessage(row.title),
-      confirmCaption: 'Confirm delete',
-      onConfirm: confirmDelete,
+      actions: [{ caption: 'Confirm delete', onChoose: confirmDelete }],
     });
   }
 

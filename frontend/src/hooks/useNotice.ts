@@ -2,13 +2,21 @@ import { createContext, useContext } from 'react';
 
 export type Notice = { message: string; title?: string };
 
-// A pending confirmation: the message/captions to show and the action to run only when the
-// user confirms. Cancel (or Esc) drops it unrun.
+// One destructive choice in a confirm dialog. `strong` marks the harsher outcome (e.g. an
+// irreversible delete) for heavier visual weight; the caption itself must still carry the
+// meaning — color/weight is never the sole signal (Principle IV).
+export type ConfirmAction = {
+  caption: string;
+  onChoose: () => void;
+  strong?: boolean;
+};
+
+// A pending confirmation: the message to show and the destructive choices on offer.
+// Cancel (or Esc) is always available and drops the confirm with nothing run.
 export type Confirm = {
   message: string;
   title?: string;
-  confirmCaption?: string;
-  onConfirm: () => void;
+  actions: ConfirmAction[];
 };
 
 export type NoticeContextValue = {

@@ -24,14 +24,23 @@ function Raiser() {
   );
 }
 
-// Consumer for the confirm side: raises a delete-style confirm carrying the caller's action.
-function ConfirmRaiser({ onConfirm }: { onConfirm: () => void }) {
+// Consumer for the confirm side: raises a delete-style confirm with two destructive choices.
+function ConfirmRaiser({ onSoft, onHard }: { onSoft: () => void; onHard: () => void }) {
   const { ask } = useNotice();
+
+  function raise(): void {
+    ask({
+      title: 'Delete post?',
+      message: 'Sure?',
+      actions: [
+        { caption: 'Soft delete', onChoose: onSoft },
+        { caption: 'Delete permanently', onChoose: onHard, strong: true },
+      ],
+    });
+  }
+
   return (
-    <button
-      type="button"
-      onClick={() => ask({ title: 'Delete post?', message: 'Sure?', confirmCaption: 'Confirm delete', onConfirm })}
-    >
+    <button type="button" onClick={raise}>
       raise confirm
     </button>
   );
@@ -62,34 +71,40 @@ describe('NoticeProvider', () => {
 });
 
 describe('NoticeProvider confirm dialogs', () => {
-  it('shows the confirm dialog for a raised confirm', () => {
-    render(<NoticeProvider><ConfirmRaiser onConfirm={vi.fn()} /></NoticeProvider>);
+  it('shows the confirm dialog with every offered action', () => {
+    render(<NoticeProvider><ConfirmRaiser onSoft={vi.fn()} onHard={vi.fn()} /></NoticeProvider>);
 
     fireEvent.click(screen.getByRole('button', { name: 'raise confirm' }));
 
     expect(screen.getByRole('heading', { name: 'Delete post?' })).toBeTruthy();
     expect(screen.getByText('Sure?')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Soft delete' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Delete permanently' })).toBeTruthy();
   });
 
-  it('cancel clears the dialog without running the action', () => {
-    const onConfirm = vi.fn();
-    render(<NoticeProvider><ConfirmRaiser onConfirm={onConfirm} /></NoticeProvider>);
+  it('cancel clears the dialog without running any action', () => {
+    const onSoft = vi.fn();
+    const onHard = vi.fn();
+    render(<NoticeProvider><ConfirmRaiser onSoft={onSoft} onHard={onHard} /></NoticeProvider>);
 
     fireEvent.click(screen.getByRole('button', { name: 'raise confirm' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onSoft).not.toHaveBeenCalled();
+    expect(onHard).not.toHaveBeenCalled();
     expect(document.querySelector('dialog')).toBeNull();
   });
 
-  it('confirm runs the action exactly once and clears the dialog', () => {
-    const onConfirm = vi.fn();
-    render(<NoticeProvider><ConfirmRaiser onConfirm={onConfirm} /></NoticeProvider>);
+  it('runs exactly the chosen action once and clears the dialog', () => {
+    const onSoft = vi.fn();
+    const onHard = vi.fn();
+    render(<NoticeProvider><ConfirmRaiser onSoft={onSoft} onHard={onHard} /></NoticeProvider>);
 
     fireEvent.click(screen.getByRole('button', { name: 'raise confirm' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
 
-    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onHard).toHaveBeenCalledTimes(1);
+    expect(onSoft).not.toHaveBeenCalled();
     expect(document.querySelector('dialog')).toBeNull();
   });
 });
