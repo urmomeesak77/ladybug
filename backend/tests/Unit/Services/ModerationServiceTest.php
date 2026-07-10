@@ -6,7 +6,10 @@ namespace Tests\Unit\Services;
 
 use App\Models\Trashpost;
 use App\Services\ModerationService;
+use App\Support\MediaPath;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -167,5 +170,121 @@ final class ModerationServiceTest extends TestCase {
         $this->service()->restore($post->hash);
 
         $this->assertNull($post->fresh()->deleted_at);
+    }
+
+    public function test_purge_removes_the_row_entirely(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->create();
+
+        $this->service()->purge($post->hash);
+
+        $this->assertFalse(Trashpost::withTrashed()->whereKey($post->id)->exists());
+    }
+
+    public function test_purge_deletes_every_image_size_variant(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->create();
+        $paths = $this->seedImageVariants($post);
+
+        $this->service()->purge($post->hash);
+
+        foreach ($paths as $path) {
+            Storage::disk('public')->assertMissing($path);
+        }
+    }
+
+    public function test_purge_leaves_another_posts_files_alone(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->create();
+        $other = Trashpost::factory()->create();
+        $otherPaths = $this->seedImageVariants($other);
+
+        $this->service()->purge($post->hash);
+
+        foreach ($otherPaths as $path) {
+            Storage::disk('public')->assertExists($path);
+        }
+    }
+
+    public function test_purge_works_on_a_soft_deleted_post(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->deleted()->create();
+
+        $this->service()->purge($post->hash);
+
+        $this->assertFalse(Trashpost::withTrashed()->whereKey($post->id)->exists());
+    }
+
+    public function test_purge_succeeds_when_the_files_are_already_missing(): void {
+        // No variants were ever seeded on the fake disk; the purge must still remove the row.
+        Storage::fake('public');
+        $post = Trashpost::factory()->create();
+
+        $this->service()->purge($post->hash);
+
+        $this->assertFalse(Trashpost::withTrashed()->whereKey($post->id)->exists());
+    }
+
+    public function test_purge_deletes_a_last_reference_youtube_thumbnail(): void {
+        Storage::fake('public');
+        $thumbnail = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
+        Storage::disk('public')->put($thumbnail, 'stub');
+        $post = Trashpost::factory()->linkOnly()->create(['youtube_thumbnail' => $thumbnail]);
+
+        $this->service()->purge($post->hash);
+
+        Storage::disk('public')->assertMissing($thumbnail);
+    }
+
+    public function test_purge_keeps_a_youtube_thumbnail_shared_with_another_post(): void {
+        // Thumbnails are stored once per video id; another post embedding the same video
+        // must keep its image when this one is purged.
+        Storage::fake('public');
+        $thumbnail = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
+        Storage::disk('public')->put($thumbnail, 'stub');
+        $post = Trashpost::factory()->linkOnly()->create(['youtube_thumbnail' => $thumbnail]);
+        Trashpost::factory()->linkOnly()->create(['youtube_thumbnail' => $thumbnail]);
+
+        $this->service()->purge($post->hash);
+
+        Storage::disk('public')->assertExists($thumbnail);
+    }
+
+    public function test_purge_keeps_a_thumbnail_referenced_by_a_soft_deleted_post(): void {
+        // "Referenced" includes trashed rows — a soft-deleted post may be restored later.
+        Storage::fake('public');
+        $thumbnail = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
+        Storage::disk('public')->put($thumbnail, 'stub');
+        $post = Trashpost::factory()->linkOnly()->create(['youtube_thumbnail' => $thumbnail]);
+        Trashpost::factory()->linkOnly()->deleted()->create(['youtube_thumbnail' => $thumbnail]);
+
+        $this->service()->purge($post->hash);
+
+        Storage::disk('public')->assertExists($thumbnail);
+    }
+
+    public function test_purge_of_an_unknown_hash_throws_model_not_found(): void {
+        Storage::fake('public');
+
+        $this->expectException(ModelNotFoundException::class);
+
+        $this->service()->purge('Nonexist99');
+    }
+
+    /**
+     * Put a stub file at every image-size variant path of the post's file.
+     *
+     * @return list<string> the seeded relative paths
+     */
+    private function seedImageVariants(Trashpost $post): array {
+        $code = pathinfo($post->file, PATHINFO_FILENAME);
+        $ext = pathinfo($post->file, PATHINFO_EXTENSION);
+        $paths = [];
+        foreach (MediaPath::imageSizes() as $size) {
+            $paths[] = $path = MediaPath::imageRelativePath($size, $code, $ext);
+            Storage::disk('public')->put($path, 'stub');
+        }
+
+        return $paths;
     }
 }
