@@ -634,7 +634,8 @@ main {
 
 .moderation-table th,
 .moderation-table td {
-  padding: var(--space-sm);
+  /* Narrow horizontal padding: seven columns have to fit the page without scrolling. */
+  padding: var(--space-sm) var(--space-xs);
   border-bottom: 1px solid var(--color-border);
   text-align: left;
   vertical-align: middle;
@@ -675,13 +676,6 @@ main {
 .moderation-time {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-}
-
-/* The title can be long: let it wrap within a capped width so a long title grows the
-   row's height, not the table's width (the other cells stay single-line). */
-.moderation-title {
-  white-space: normal;
-  max-width: 22rem;
 }
 
 /* Per-row moderation controls: compact outlined buttons in the neutral prototype style,

@@ -34,9 +34,27 @@ export type ModerationRow = {
   url: string;
 };
 
+// The table shows at most this many title characters; the full title moves into a tooltip.
+const TITLE_MAX = 20;
+
 // Pure mapping/derivation for the moderation table: raw→row, page-link math, state labels.
 // IO lives in lib/moderationApi; this class never touches the network (Principle II).
 export class ModerationModel {
+  // The date part of a raw MySQL datetime (Y-m-d H:i:s); the full value lives in the
+  // cell's hover tooltip so the table stays narrow without losing information.
+  static dateOnly(value: string | null): string | null {
+    return value === null ? null : value.slice(0, 10);
+  }
+
+  // A title capped at TITLE_MAX characters (ellipsis appended, dangling space trimmed);
+  // short titles pass through unchanged so the caller can tell nothing was cut.
+  static shortTitle(title: string | null): string | null {
+    if (title === null || title.length <= TITLE_MAX) {
+      return title;
+    }
+    return `${title.slice(0, TITLE_MAX).trimEnd()}…`;
+  }
+
   static mapRow(raw: RawModerationRow): ModerationRow {
     return {
       hash: raw.hash,

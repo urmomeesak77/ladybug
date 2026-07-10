@@ -63,11 +63,35 @@ describe('ModerationRow', () => {
     expect(screen.getByText('—')).toBeTruthy();
   });
 
-  it('shows the raw created and activated timestamps verbatim', () => {
+  it('shows only the date part of the timestamps, with the full datetime as a tooltip', () => {
     renderRow(row);
 
-    expect(screen.getByText('2026-07-08 20:14:02')).toBeTruthy();
-    expect(screen.getByText('2026-07-09 08:01:10')).toBeTruthy();
+    const created = screen.getByText('2026-07-08');
+    const activated = screen.getByText('2026-07-09');
+    expect(created.getAttribute('title')).toBe('2026-07-08 20:14:02');
+    expect(activated.getAttribute('title')).toBe('2026-07-09 08:01:10');
+  });
+
+  it('puts no tooltip on an empty timestamp cell', () => {
+    const { container } = renderRow(row);
+
+    const deletedCell = container.querySelectorAll('td.moderation-time')[2];
+    expect(deletedCell?.hasAttribute('title')).toBe(false);
+  });
+
+  it('cuts a long title to 20 characters with the full title as a tooltip', () => {
+    renderRow({ ...row, title: 'Chewbacca Screams in terror' });
+
+    const title = screen.getByText('Chewbacca Screams in…');
+    expect(title.getAttribute('title')).toBe('Chewbacca Screams in terror');
+  });
+
+  it('puts no tooltip on a title that was not cut', () => {
+    const { container } = renderRow(row);
+
+    const titleCell = container.querySelector('td.moderation-title');
+    expect(titleCell?.textContent).toBe('A funny meme');
+    expect(titleCell?.hasAttribute('title')).toBe(false);
   });
 
   it('leaves the deleted cell empty when the meme is not deleted', () => {

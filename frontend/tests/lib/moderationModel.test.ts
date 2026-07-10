@@ -52,6 +52,38 @@ describe('ModerationModel.pageLinks', () => {
   });
 });
 
+describe('ModerationModel.dateOnly', () => {
+  it('cuts a raw MySQL datetime down to its date part', () => {
+    expect(ModerationModel.dateOnly('2026-07-08 20:14:02')).toBe('2026-07-08');
+  });
+
+  it('passes null through for a timestamp that was never set', () => {
+    expect(ModerationModel.dateOnly(null)).toBeNull();
+  });
+});
+
+describe('ModerationModel.shortTitle', () => {
+  it('passes a short title through unchanged', () => {
+    expect(ModerationModel.shortTitle('A funny meme')).toBe('A funny meme');
+  });
+
+  it('passes a title of exactly 20 characters through unchanged', () => {
+    expect(ModerationModel.shortTitle('12345678901234567890')).toBe('12345678901234567890');
+  });
+
+  it('cuts a longer title to 20 characters plus an ellipsis', () => {
+    expect(ModerationModel.shortTitle('Chewbacca Screams in terror')).toBe('Chewbacca Screams in…');
+  });
+
+  it('trims a trailing space left behind by the cut', () => {
+    expect(ModerationModel.shortTitle('Damn you High5 damn you again')).toBe('Damn you High5 damn…');
+  });
+
+  it('passes null through for a meme without a title', () => {
+    expect(ModerationModel.shortTitle(null)).toBeNull();
+  });
+});
+
 describe('ModerationModel.parsePage', () => {
   it('defaults an absent, non-numeric, or below-1 value to page 1', () => {
     expect(ModerationModel.parsePage(null)).toBe(1);
