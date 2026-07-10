@@ -24,6 +24,19 @@ function Raiser() {
   );
 }
 
+// Consumer for the confirm side: raises a delete-style confirm carrying the caller's action.
+function ConfirmRaiser({ onConfirm }: { onConfirm: () => void }) {
+  const { ask } = useNotice();
+  return (
+    <button
+      type="button"
+      onClick={() => ask({ title: 'Delete post?', message: 'Sure?', confirmCaption: 'Confirm delete', onConfirm })}
+    >
+      raise confirm
+    </button>
+  );
+}
+
 describe('NoticeProvider', () => {
   it('renders no dialog until a notice is shown', () => {
     render(<NoticeProvider><Raiser /></NoticeProvider>);
@@ -45,5 +58,38 @@ describe('NoticeProvider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => render(<Raiser />)).toThrow(/NoticeProvider/);
     spy.mockRestore();
+  });
+});
+
+describe('NoticeProvider confirm dialogs', () => {
+  it('shows the confirm dialog for a raised confirm', () => {
+    render(<NoticeProvider><ConfirmRaiser onConfirm={vi.fn()} /></NoticeProvider>);
+
+    fireEvent.click(screen.getByRole('button', { name: 'raise confirm' }));
+
+    expect(screen.getByRole('heading', { name: 'Delete post?' })).toBeTruthy();
+    expect(screen.getByText('Sure?')).toBeTruthy();
+  });
+
+  it('cancel clears the dialog without running the action', () => {
+    const onConfirm = vi.fn();
+    render(<NoticeProvider><ConfirmRaiser onConfirm={onConfirm} /></NoticeProvider>);
+
+    fireEvent.click(screen.getByRole('button', { name: 'raise confirm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(document.querySelector('dialog')).toBeNull();
+  });
+
+  it('confirm runs the action exactly once and clears the dialog', () => {
+    const onConfirm = vi.fn();
+    render(<NoticeProvider><ConfirmRaiser onConfirm={onConfirm} /></NoticeProvider>);
+
+    fireEvent.click(screen.getByRole('button', { name: 'raise confirm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('dialog')).toBeNull();
   });
 });
