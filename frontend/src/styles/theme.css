@@ -543,6 +543,17 @@ main {
   cursor: pointer;
 }
 
+.notice-dialog__buttons button + button {
+  margin-left: var(--space-sm);
+}
+
+/* The destructive choice in a confirm dialog: outlined in the error tone, but the caption
+   ("Confirm delete") carries the meaning so colour is never the sole signal (Principle IV). */
+.notice-dialog__buttons button.notice-dialog__danger {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
 /* ------------------------------------------------------------------ *
  * Email verification (008): notice + link-landing pages. Same column *
  * as the auth forms; every color is a theme variable, so both light  *
