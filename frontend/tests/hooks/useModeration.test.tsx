@@ -103,6 +103,33 @@ describe('useModeration', () => {
     expect(result.current.rows[0].deletedAt).toBe('2026-07-09 09:30:00');
   });
 
+  it('removeRow drops just the purged row, keeping the page and skipping any refetch', async () => {
+    const rowB: ModerationRow = { ...row, hash: 'Zz9-_0000A' };
+    const fetchPage = vi
+      .spyOn(ModerationApi, 'fetchPage')
+      .mockResolvedValue({ ok: true, data: [row, rowB], meta: { ...meta, total: 2 } });
+
+    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts') });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.removeRow(rowB.hash));
+
+    expect(result.current.rows).toEqual([row]);
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('removeRow is a no-op for a hash not on the page', async () => {
+    vi.spyOn(ModerationApi, 'fetchPage').mockResolvedValue({ ok: true, data: [row], meta });
+
+    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts') });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.removeRow('missing0000'));
+
+    expect(result.current.rows).toEqual([row]);
+  });
+
   it('drops a response that resolves after the hook unmounts', async () => {
     let resolveFetch: (result: { ok: true; data: ModerationRow[]; meta: typeof meta }) => void = () => undefined;
     const pending = new Promise<{ ok: true; data: ModerationRow[]; meta: typeof meta }>((resolve) => {

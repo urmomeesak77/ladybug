@@ -53,9 +53,24 @@ export function useModeration() {
     });
   }
 
+  // Drop a purged row from the page (the server returned 204 — the row no longer exists).
+  // No refetch: the admin stays on the current page; the meta counts stay as fetched until
+  // the next page load (acceptable staleness for a back-office table).
+  function removeRow(hash: string): void {
+    setLoaded((current) => {
+      if (current === null) {
+        return current;
+      }
+      return {
+        ...current,
+        rows: current.rows.filter((row) => row.hash !== hash),
+      };
+    });
+  }
+
   const loading = loaded === null || loaded.page !== page;
   const rows = loading ? [] : loaded.rows;
   const meta = loading ? null : loaded.meta;
   const empty = !loading && rows.length === 0;
-  return { rows, meta, loading, empty, applyRow };
+  return { rows, meta, loading, empty, applyRow, removeRow };
 }
