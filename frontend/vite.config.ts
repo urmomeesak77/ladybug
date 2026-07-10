@@ -7,9 +7,13 @@ export default defineConfig({
   plugins: [react()],
   // Windows host + Docker bind mount: inotify events don't cross into the Linux
   // container, so the watcher must poll for HMR to detect edits (dev-only cost).
+  // Chokidar's default 100 ms poll stats every file 10x/s over the bind mount,
+  // pinning a CPU core; 1 s keeps HMR usable at a fraction of the cost.
   server: {
     watch: {
       usePolling: true,
+      interval: 1000,
+      binaryInterval: 1500,
       ignored: ['**/node_modules/**', '**/.git/**'],
     },
   },
