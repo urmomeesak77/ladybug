@@ -49,6 +49,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('/posts/{hash}/activate', [ModerationController::class, 'activate'])->name('api.admin.posts.activate');
     Route::post('/posts/{hash}/deactivate', [ModerationController::class, 'deactivate'])->name('api.admin.posts.deactivate');
     Route::delete('/posts/{hash}', [ModerationController::class, 'destroy'])->name('api.admin.posts.destroy');
+    Route::delete('/posts/{hash}/purge', [ModerationController::class, 'purge'])->name('api.admin.posts.purge');
     Route::post('/posts/{hash}/restore', [ModerationController::class, 'restore'])->name('api.admin.posts.restore');
 });
 

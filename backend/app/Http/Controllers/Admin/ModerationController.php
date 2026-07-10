@@ -10,6 +10,7 @@ use App\Services\ModerationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Http\Response;
 
 /**
  * Admin moderation console API. The whole controller mounts behind auth:sanctum + role:admin
@@ -58,5 +59,17 @@ class ModerationController extends Controller {
      */
     public function restore(string $hash): JsonResource {
         return new AdminTrashpostResource($this->service->restore($hash));
+    }
+
+    /**
+     * DELETE /api/admin/posts/{hash}/purge — hard-delete the meme: the row is removed for
+     * good and its media files are deleted from disk. Irreversible, hence a dedicated route
+     * (a client bug on the soft-delete route can never escalate). 204: there is no updated
+     * row to return — the client drops the row. The client confirms first (FR-016).
+     */
+    public function purge(string $hash): Response {
+        $this->service->purge($hash);
+
+        return response()->noContent();
     }
 }

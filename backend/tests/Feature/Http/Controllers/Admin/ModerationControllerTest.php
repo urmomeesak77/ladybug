@@ -6,7 +6,9 @@ namespace Tests\Feature\Http\Controllers\Admin;
 
 use App\Models\Trashpost;
 use App\Models\User;
+use App\Support\MediaPath;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -163,5 +165,51 @@ final class ModerationControllerTest extends TestCase {
 
         $this->getJson('/api/posts')->assertOk()->assertJsonMissing(['hash' => $post->hash]);
         $this->getJson("/api/posts/{$post->hash}")->assertNotFound();
+    }
+
+    public function test_purge_refuses_a_guest_with_401(): void {
+        $post = Trashpost::factory()->create();
+
+        $this->deleteJson("/api/admin/posts/{$post->hash}/purge")->assertUnauthorized();
+    }
+
+    public function test_purge_refuses_a_member_with_403(): void {
+        $member = User::factory()->create();
+        $post = Trashpost::factory()->create();
+
+        $this->actingAs($member)->deleteJson("/api/admin/posts/{$post->hash}/purge")->assertForbidden();
+    }
+
+    public function test_purge_returns_204_and_removes_the_row_and_files(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->create();
+        $code = pathinfo($post->file, PATHINFO_FILENAME);
+        $ext = pathinfo($post->file, PATHINFO_EXTENSION);
+        $path = MediaPath::imageRelativePath('original', $code, $ext);
+        Storage::disk('public')->put($path, 'stub');
+
+        $this->actingAs($this->admin())
+            ->deleteJson("/api/admin/posts/{$post->hash}/purge")
+            ->assertNoContent();
+
+        $this->assertFalse(Trashpost::withTrashed()->whereKey($post->id)->exists());
+        Storage::disk('public')->assertMissing($path);
+    }
+
+    public function test_purge_works_on_a_soft_deleted_meme(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->deleted()->create();
+
+        $this->actingAs($this->admin())
+            ->deleteJson("/api/admin/posts/{$post->hash}/purge")
+            ->assertNoContent();
+
+        $this->assertFalse(Trashpost::withTrashed()->whereKey($post->id)->exists());
+    }
+
+    public function test_purge_on_an_unknown_hash_is_404(): void {
+        $this->actingAs($this->admin())
+            ->deleteJson('/api/admin/posts/Nonexist99/purge')
+            ->assertNotFound();
     }
 }

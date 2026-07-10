@@ -80,6 +80,19 @@ just applies.
 
 Clears `deleted_at` (idempotent). **200** updated row (`deleted: false`) / **404**.
 
+## DELETE `/api/admin/posts/{hash}/purge` — permanent delete
+
+Hard-deletes the meme (added 2026-07-10): the row is removed from the database and its
+media files are deleted from disk — every stored image size variant, plus its YouTube
+thumbnail **only when no other post (soft-deleted included) references the same file**
+(thumbnails are stored once per video id). Irreversible.
+
+- **204 No Content** — there is no updated row to return; the client removes the row
+  from the table in place.
+- **404** when no meme (including soft-deleted) has that `hash`.
+- Requires the client's blocking modal confirmation *before* it is sent (FR-016) —
+  enforced UI-side; the endpoint itself just applies.
+
 ---
 
 ## Lookup semantics for actions
@@ -98,6 +111,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('/posts/{hash}/activate', [ModerationController::class, 'activate'])->name('api.admin.posts.activate');
     Route::post('/posts/{hash}/deactivate', [ModerationController::class, 'deactivate'])->name('api.admin.posts.deactivate');
     Route::delete('/posts/{hash}', [ModerationController::class, 'destroy'])->name('api.admin.posts.destroy');
+    Route::delete('/posts/{hash}/purge', [ModerationController::class, 'purge'])->name('api.admin.posts.purge');
     Route::post('/posts/{hash}/restore', [ModerationController::class, 'restore'])->name('api.admin.posts.restore');
 });
 ```
