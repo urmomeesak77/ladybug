@@ -71,11 +71,6 @@ export class AuthApi {
     };
   }
 
-  // Prime the CSRF cookie before the first unsafe request (Sanctum SPA flow).
-  static async csrf(): Promise<void> {
-    await fetch(`${Api.base()}/sanctum/csrf-cookie`, { credentials: 'include' });
-  }
-
   static async register(input: RegisterInput): Promise<AuthResult> {
     try {
       const response = await AuthApi.postJson('/api/register', {
@@ -174,14 +169,15 @@ export class AuthApi {
     }
   }
 
-  private static postJson(path: string, body: unknown): Promise<Response> {
+  private static async postJson(path: string, body: unknown): Promise<Response> {
+    const token = await Csrf.ensure();
     return fetch(`${Api.base()}${path}`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        'X-XSRF-TOKEN': Csrf.token(),
+        'X-XSRF-TOKEN': token,
       },
       body: JSON.stringify(body),
     });

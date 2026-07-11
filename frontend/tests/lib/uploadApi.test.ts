@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UploadApi } from '../../src/lib/uploadApi';
 
@@ -9,8 +10,16 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
+// Csrf.ensure() short-circuits on an existing cookie; without one it inserts a priming
+// fetch call ahead of the real request and shifts mock.calls[0] out from under these
+// assertions.
+beforeEach(() => {
+  document.cookie = 'XSRF-TOKEN=test-token';
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
+  document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
 });
 
 describe('uploadApi', () => {

@@ -63,18 +63,6 @@ describe('mapUser', () => {
   });
 });
 
-describe('csrf', () => {
-  it('GETs the csrf-cookie endpoint with credentials included', async () => {
-    const mock = stubFetch({ ok: true, status: 204 });
-
-    await AuthApi.csrf();
-
-    const [url, init] = mock.mock.calls[0] as FetchArgs;
-    expect(url).toMatch(/\/sanctum\/csrf-cookie$/);
-    expect(init.credentials).toBe('include');
-  });
-});
-
 describe('register', () => {
   it('sends credentials, the decoded XSRF header, and a snake_case body', async () => {
     withXsrfCookie();

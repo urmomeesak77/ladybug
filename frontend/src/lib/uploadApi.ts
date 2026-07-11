@@ -29,7 +29,7 @@ export class UploadApi {
       // For FormData we must NOT set Content-Type — the browser adds the multipart boundary.
       const headers: Record<string, string> = {
         Accept: 'application/json',
-        'X-XSRF-TOKEN': Csrf.token(),
+        'X-XSRF-TOKEN': await Csrf.ensure(),
       };
       if (isJson) {
         headers['Content-Type'] = 'application/json';

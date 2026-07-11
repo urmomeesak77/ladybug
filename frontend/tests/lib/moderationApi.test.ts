@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ModerationApi } from '../../src/lib/moderationApi';
 
@@ -7,6 +8,12 @@ function stubFetch(impl: (...args: unknown[]) => Promise<unknown>) {
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
+
+// Csrf.ensure() short-circuits on an existing cookie; without one it inserts a priming
+// fetch call ahead of the real request.
+beforeEach(() => {
+  document.cookie = 'XSRF-TOKEN=test-token';
+});
 
 const page = {
   data: [
@@ -28,6 +35,7 @@ const page = {
 describe('ModerationApi.fetchPage', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   });
 
   it('requests the given page and returns the parsed rows and meta on success', async () => {
@@ -72,6 +80,7 @@ describe('ModerationApi.fetchPage', () => {
 describe('ModerationApi.activate / deactivate', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   });
 
   it('POSTs to the activate endpoint (CSRF header) and returns the updated row', async () => {
@@ -122,6 +131,7 @@ describe('ModerationApi.activate / deactivate', () => {
 describe('ModerationApi.remove / restore', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   });
 
   it('DELETEs the meme (CSRF header) and returns the updated row', async () => {
@@ -174,6 +184,7 @@ describe('ModerationApi.remove / restore', () => {
 describe('ModerationApi.purge', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   });
 
   it('DELETEs the purge endpoint (CSRF header) and reports ok on 204', async () => {

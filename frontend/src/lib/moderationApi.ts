@@ -58,10 +58,11 @@ export class ModerationApi {
   // so success is just `ok` — the caller drops the row from its page.
   static async purge(hash: string): Promise<ModerationPurgeResult> {
     try {
+      const token = await Csrf.ensure();
       const response = await fetch(`${Api.base()}/api/admin/posts/${encodeURIComponent(hash)}/purge`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': Csrf.token() },
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
       });
       return { ok: response.ok };
     } catch {
@@ -74,10 +75,11 @@ export class ModerationApi {
   // the caller leaves the row as it was.
   private static async act(method: string, path: string): Promise<ModerationActionResult> {
     try {
+      const token = await Csrf.ensure();
       const response = await fetch(`${Api.base()}${path}`, {
         method,
         credentials: 'include',
-        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': Csrf.token() },
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
       });
       if (!response.ok) {
         return { ok: false };
