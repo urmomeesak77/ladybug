@@ -204,6 +204,9 @@ non-deleted state.
 - **FR-015**: Each row MUST offer a reversible activation control and a deletion control
   (reversible soft delete, plus irreversible permanent delete behind its own confirmation;
   revised 2026-07-10), presented according to the row's current state (FR-016).
+  Soft-deleting or deactivating a meme also removes its media files from public reach
+  (they move to private storage and return on restore/activation); purge removes them
+  permanently.
 - **FR-016**: Both moderation actions MUST be reversible from this page:
   - Activation: a not-yet-activated meme MUST offer **Activate**; an activated meme MUST
     offer **Deactivate**, which returns it to the not-activated state.

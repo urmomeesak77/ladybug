@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Trashpost;
-use App\Support\MediaPath;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Storage;
 
@@ -13,12 +12,17 @@ use Illuminate\Support\Facades\Storage;
  * The back-office moderation query layer: the paged, all-states feed the admin table reads.
  * Unlike the public feed it hides nothing — soft-deleted and never-activated memes are
  * included (withTrashed, no activation filter) so an admin can see and act on the whole
- * corpus. The four state transitions land here in US3/US4. Purge (hard delete) removes the
- * row and its media files for good.
+ * corpus. The four state transitions land here in US3/US4, and each also syncs the meme's
+ * media to the disk matching its new visibility — soft-deleting/deactivating pulls files off
+ * the public disk, restoring/activating puts them back. Purge (hard delete) removes the row
+ * and its media files for good, from both disks.
  */
 class ModerationService {
     /** Back-office page size (spec FR-003): the table pages 100 rows at a time. */
     private const PER_PAGE = 100;
+
+    public function __construct(private readonly MediaVisibilityService $media = new MediaVisibilityService()) {
+    }
 
     /**
      * One page of every meme in every state, newest-first. `created_at` is the primary
@@ -46,6 +50,7 @@ class ModerationService {
             $post->activated_at = now();
             $post->save();
         }
+        $this->media->sync($post);
 
         return $post;
     }
@@ -57,6 +62,7 @@ class ModerationService {
         $post = $this->find($hash);
         $post->activated_at = null;
         $post->save();
+        $this->media->sync($post);
 
         return $post;
     }
@@ -71,6 +77,7 @@ class ModerationService {
         if (!$post->trashed()) {
             $post->delete();
         }
+        $this->media->sync($post);
 
         return $post;
     }
@@ -83,51 +90,24 @@ class ModerationService {
         if ($post->trashed()) {
             $post->restore();
         }
+        $this->media->sync($post);
 
         return $post;
     }
 
     /**
-     * Hard-delete a meme: remove the DB row for good, then its media files. The file list
-     * is computed before the row goes away; the row is removed FIRST so a failed file
-     * cleanup can only leave invisible orphan files — never a live row pointing at deleted
-     * media. Storage::delete() tolerates already-missing files.
+     * Hard-delete a meme: remove the DB row for good, then its media files from BOTH
+     * disks — a soft-deleted meme's files live on the private disk by the time purge
+     * runs. The file list is computed before the row goes away; the row is removed
+     * FIRST so a failed file cleanup can only leave invisible orphan files — never a
+     * live row pointing at deleted media. Storage::delete() tolerates missing files.
      */
     public function purge(string $hash): void {
         $post = $this->find($hash);
-        $paths = $this->purgeablePaths($post);
+        $paths = $this->media->ownedPaths($post);
         $post->forceDelete();
         Storage::disk('public')->delete($paths);
-    }
-
-    /**
-     * Every file the meme owns outright: all image size variants of its stored file, plus
-     * its YouTube thumbnail only when no other post (trashed included) shares that file —
-     * thumbnails are stored once per video id.
-     *
-     * @return list<string>
-     */
-    private function purgeablePaths(Trashpost $post): array {
-        $paths = [];
-        if ($post->file !== null) {
-            $code = pathinfo($post->file, PATHINFO_FILENAME);
-            $ext = pathinfo($post->file, PATHINFO_EXTENSION);
-            foreach (MediaPath::imageSizes() as $size) {
-                $paths[] = MediaPath::imageRelativePath($size, $code, $ext);
-            }
-        }
-        if ($post->youtube_thumbnail !== null && !$this->thumbnailShared($post)) {
-            $paths[] = $post->youtube_thumbnail;
-        }
-
-        return $paths;
-    }
-
-    private function thumbnailShared(Trashpost $post): bool {
-        return Trashpost::withTrashed()
-            ->where('youtube_thumbnail', $post->youtube_thumbnail)
-            ->whereKeyNot($post->id)
-            ->exists();
+        Storage::disk('local')->delete($paths);
     }
 
     /**

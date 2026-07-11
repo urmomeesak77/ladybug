@@ -271,6 +271,71 @@ final class ModerationServiceTest extends TestCase {
         $this->service()->purge('Nonexist99');
     }
 
+    public function test_delete_moves_the_memes_media_off_the_public_disk(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $post = Trashpost::factory()->create([
+            'activated_at' => now(), 'file' => 'abc.jpg', 'type' => 'image',
+        ]);
+        $path = MediaPath::imageRelativePath('original', 'abc', 'jpg');
+        Storage::disk('public')->put($path, 'bytes');
+
+        $this->service()->delete($post->hash);
+
+        Storage::disk('public')->assertMissing($path);
+        Storage::disk('local')->assertExists($path);
+    }
+
+    public function test_restore_moves_the_memes_media_back_to_the_public_disk(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $post = Trashpost::factory()->deleted()->create([
+            'activated_at' => now(), 'file' => 'abc.jpg', 'type' => 'image',
+        ]);
+        $path = MediaPath::imageRelativePath('original', 'abc', 'jpg');
+        Storage::disk('local')->put($path, 'bytes');
+
+        $this->service()->restore($post->hash);
+
+        Storage::disk('local')->assertMissing($path);
+        Storage::disk('public')->assertExists($path);
+    }
+
+    public function test_deactivate_hides_media_and_activate_re_exposes_it(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $post = Trashpost::factory()->create([
+            'activated_at' => now(), 'file' => 'abc.jpg', 'type' => 'image',
+        ]);
+        $path = MediaPath::imageRelativePath('original', 'abc', 'jpg');
+        Storage::disk('public')->put($path, 'bytes');
+
+        $this->service()->deactivate($post->hash);
+        Storage::disk('public')->assertMissing($path);
+        Storage::disk('local')->assertExists($path);
+
+        $this->service()->activate($post->hash);
+        Storage::disk('public')->assertExists($path);
+        Storage::disk('local')->assertMissing($path);
+    }
+
+    public function test_purge_removes_files_from_both_disks(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $post = Trashpost::factory()->deleted()->create([
+            'file' => 'abc.jpg', 'type' => 'image',
+        ]);
+        // A soft-deleted meme's files live on the private disk by now.
+        $path = MediaPath::imageRelativePath('original', 'abc', 'jpg');
+        Storage::disk('local')->put($path, 'bytes');
+
+        $this->service()->purge($post->hash);
+
+        Storage::disk('local')->assertMissing($path);
+        Storage::disk('public')->assertMissing($path);
+        $this->assertDatabaseMissing('trashposts', ['hash' => $post->hash]);
+    }
+
     /**
      * Put a stub file at every image-size variant path of the post's file.
      *
