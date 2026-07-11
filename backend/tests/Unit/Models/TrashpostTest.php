@@ -34,7 +34,11 @@ final class TrashpostTest extends TestCase {
     }
 
     public function test_soft_delete_hides_the_row_and_sets_deleted_at(): void {
-        $post = Trashpost::create(['hash' => 'softdelet1']);
+        // hash is identity, not content — no longer mass assignable (see
+        // $fillable), so it is set explicitly like in the sibling tests.
+        $post = new Trashpost();
+        $post->hash = 'softdelet1';
+        $post->save();
 
         $post->delete();
 
