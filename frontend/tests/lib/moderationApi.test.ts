@@ -26,7 +26,6 @@ const page = {
       created_at: '2026-07-08 20:14:02',
       activated_at: '2026-07-09 08:01:10',
       deleted_at: null,
-      url: '/posts/Ab3-_9xQ12',
     },
   ],
   meta: { current_page: 3, last_page: 4, per_page: 100, total: 331 },

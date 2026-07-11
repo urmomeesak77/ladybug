@@ -62,7 +62,7 @@ final class ModerationControllerTest extends TestCase {
 
         $response->assertOk();
         $response->assertJsonStructure([
-            'data' => [['hash', 'thumbnail', 'title', 'type', 'username', 'created_at', 'activated_at', 'deleted_at', 'url']],
+            'data' => [['hash', 'thumbnail', 'title', 'type', 'username', 'created_at', 'activated_at', 'deleted_at']],
             'links' => ['first', 'last', 'prev', 'next'],
             'meta' => ['current_page', 'last_page', 'per_page', 'total'],
         ]);

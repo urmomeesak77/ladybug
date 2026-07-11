@@ -666,14 +666,16 @@ main {
   font-weight: 600;
 }
 
-/* The whole row links to the meme page; keep the affordance obvious and keyboard-visible. */
-.moderation-row {
-  cursor: pointer;
+.moderation-row:hover {
+  background-color: var(--color-menu-hover);
 }
 
-.moderation-row:hover,
-.moderation-row:focus-visible {
-  background-color: var(--color-menu-hover);
+/* The title cell's text; the permalink itself is a real <Link> (moderation-title__link),
+   so it inherits the surrounding text color instead of the default link blue, with an
+   underline as the only visual affordance it needs. */
+.moderation-title__link {
+  color: inherit;
+  text-decoration: underline;
 }
 
 /* Thumbnail clipped to a small fixed box (≤100×75), placeholder is a subtle framed box. */

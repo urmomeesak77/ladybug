@@ -27,24 +27,22 @@ const activated: Row = {
   createdAt: '2026-07-08 20:14:02',
   activatedAt: '2026-07-09 08:01:10',
   deletedAt: null,
-  url: '/posts/Ab3-_9xQ12',
 };
 
 const inactive: Row = { ...activated, activatedAt: null };
 
-// The actions cell lives inside a clickable row; render it in that shape so the
-// stopPropagation behaviour (an action must never navigate the row) is exercised for real.
+// The actions cell lives inside a table row in production, next to (not nested in) the
+// title link; render it in that shape so the markup matches reality.
 function renderInRow(
   row: Row,
   onApply: (updated: Row) => void,
-  onRowClick: () => void = () => {},
   onRemove: (hash: string) => void = () => {},
 ) {
   return render(
     <NoticeProvider>
       <table>
         <tbody>
-          <tr onClick={onRowClick}>
+          <tr>
             <td>
               <ModerationActions row={row} onApply={onApply} onRemove={onRemove} />
             </td>
@@ -101,16 +99,6 @@ describe('ModerationActions activation control', () => {
 
     await waitFor(() => expect(onApply).toHaveBeenCalledWith(updated));
     expect(ModerationApi.deactivate).toHaveBeenCalledWith('Ab3-_9xQ12');
-  });
-
-  it('does not navigate the row when an action is clicked (FR-018)', () => {
-    vi.spyOn(ModerationApi, 'activate').mockResolvedValue({ ok: false });
-    const onRowClick = vi.fn();
-
-    renderInRow(inactive, () => {}, onRowClick);
-    fireEvent.click(screen.getByRole('button', { name: /^activate$/i }));
-
-    expect(onRowClick).not.toHaveBeenCalled();
   });
 
   it('leaves the row unchanged when the action fails', async () => {
@@ -175,7 +163,7 @@ describe('ModerationActions delete/restore control', () => {
     const onApply = vi.fn();
     const onRemove = vi.fn();
 
-    renderInRow(inactive, onApply, () => {}, onRemove);
+    renderInRow(inactive, onApply, onRemove);
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
 
@@ -189,7 +177,7 @@ describe('ModerationActions delete/restore control', () => {
     vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: true });
     const onRemove = vi.fn();
 
-    renderInRow(deletedRow, () => {}, () => {}, onRemove);
+    renderInRow(deletedRow, () => {}, onRemove);
     fireEvent.click(screen.getByRole('button', { name: /^delete permanently$/i }));
 
     expect(screen.getByRole('heading', { name: 'Delete post permanently?' })).toBeTruthy();
@@ -228,7 +216,7 @@ describe('ModerationActions delete/restore control', () => {
     vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: false });
     const onRemove = vi.fn();
 
-    renderInRow(inactive, () => {}, () => {}, onRemove);
+    renderInRow(inactive, () => {}, onRemove);
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
 
@@ -259,16 +247,5 @@ describe('ModerationActions delete/restore control', () => {
 
     await waitFor(() => expect(onApply).toHaveBeenCalledWith(updated));
     expect(ModerationApi.restore).toHaveBeenCalledWith('Ab3-_9xQ12');
-  });
-
-  it('does not navigate the row when a delete choice is made (FR-018)', () => {
-    vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: false });
-    const onRowClick = vi.fn();
-
-    renderInRow(inactive, () => {}, onRowClick);
-    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
-
-    expect(onRowClick).not.toHaveBeenCalled();
   });
 });

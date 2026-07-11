@@ -58,8 +58,8 @@ test.describe('Admin moderation', () => {
     const rows = page.locator('tbody tr.moderation-row');
     await expect(rows).toHaveCount(20);
     // The numbered page link is bookmarkable and marks the current page. Scoped to the
-    // pagination nav and matched exactly, so it doesn't collide with row links whose
-    // "Open meme <hash>" label happens to contain a "1".
+    // pagination nav and matched exactly, so it doesn't collide with a row's title link
+    // whose accessible name (the post title or hash) happens to contain a "1".
     await expect(
       page.getByRole('navigation', { name: 'Moderation pages' }).getByRole('link', { name: '1', exact: true }),
     ).toHaveAttribute('aria-current', 'page');

@@ -1,5 +1,4 @@
-import type { KeyboardEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import { ModerationModel } from '../../lib/moderationModel';
 import type { ModerationRow as Row } from '../../lib/moderationModel';
@@ -24,56 +23,37 @@ function TimeCell({ value }: { value: string | null }) {
   );
 }
 
-// The title cell: at most 20 characters on screen; a cut title carries the full text in a
-// hover tooltip so nothing is lost.
-function TitleCell({ title }: { title: string | null }) {
-  const short = ModerationModel.shortTitle(title);
-  if (short === title) {
-    return <td className="moderation-title">{title ?? ''}</td>;
-  }
+// The title cell doubles as the row's navigation: a real <Link> (FR-018), so screen
+// readers get one honest link per row instead of buttons nested inside a row-wide
+// role="link" (invalid ARIA nesting — review 2026-07-10). The permalink is built
+// client-side from the hash, like every other permalink in the SPA; untitled posts
+// fall back to the hash so the link always has text.
+function TitleCell({ row }: { row: Row }) {
+  const short = ModerationModel.shortTitle(row.title);
   return (
-    <td className="moderation-title" title={title ?? undefined}>
-      {short}
+    <td className="moderation-title" title={row.title ?? undefined}>
+      <Link className="moderation-title__link" to={`/posts/${row.hash}`}>
+        {short ?? row.hash}
+      </Link>
     </td>
   );
 }
 
-// One moderation-table row. The whole row is a link to the meme's own page (FR-018) —
-// keyboard-operable via role="link" + Enter/Space — while the trailing actions cell stops
-// propagation so acting never navigates. `onApply` refreshes this row in place after an
-// action; `onRemove` drops it after a purge.
+// One moderation-table row. Navigation lives on the title link; the actions cell's
+// buttons are ordinary siblings, so acting never navigates. `onApply` refreshes this
+// row in place after an action; `onRemove` drops it after a purge.
 function ModerationRow({ row, onApply, onRemove }: {
   row: Row;
   onApply: (updated: Row) => void;
   onRemove: (hash: string) => void;
 }) {
-  const navigate = useNavigate();
-
-  function open(): void {
-    navigate(row.url);
-  }
-
-  function handleKey(event: KeyboardEvent<HTMLTableRowElement>): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      open();
-    }
-  }
-
   const uploader = row.username ?? NO_UPLOADER;
   const alt = row.username !== null ? `Meme by ${row.username}` : 'Meme thumbnail';
 
   return (
-    <tr
-      className="moderation-row"
-      onClick={open}
-      onKeyDown={handleKey}
-      tabIndex={0}
-      role="link"
-      aria-label={`Open meme ${row.hash}`}
-    >
+    <tr className="moderation-row">
       <td><ModerationThumbnail src={row.thumbnail} alt={alt} /></td>
-      <TitleCell title={row.title} />
+      <TitleCell row={row} />
       <td>{uploader}</td>
       <TimeCell value={row.createdAt} />
       <TimeCell value={row.activatedAt} />

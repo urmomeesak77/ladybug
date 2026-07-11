@@ -16,8 +16,10 @@ use Tests\TestCase;
 
 /**
  * The compact moderation row projection (data-model.md): hash, thumbnail, type, username,
- * created_at, activated_at, deleted_at, url — and nothing internal (id/user_id/file, Principle V).
- * The three timestamps are raw MySQL datetimes (Y-m-d H:i:s) or null.
+ * created_at, activated_at, deleted_at — and nothing internal (id/user_id/file, Principle V).
+ * The permalink is not server-supplied: the client builds it from the hash, like every other
+ * permalink in the SPA (review 2026-07-10). The three timestamps are raw MySQL datetimes
+ * (Y-m-d H:i:s) or null.
  * The user column resolves to the account name when user_id resolves, else the stored
  * uploader name (FR-012); the thumbnail resolves the 100-size image variant or the
  * already-stored YouTube still, null when neither exists on the public disk. The
@@ -39,17 +41,16 @@ final class AdminTrashpostResourceTest extends TestCase {
         return (new AdminTrashpostResource($post))->toArray(Request::create('/'));
     }
 
-    public function test_exposes_the_documented_row_shape_and_url(): void {
+    public function test_exposes_the_documented_row_shape(): void {
         $post = Trashpost::factory()->create(['activated_at' => now(), 'deleted_at' => null]);
 
         $row = $this->toArray($post);
 
         $this->assertSame(
-            ['hash', 'thumbnail', 'title', 'type', 'username', 'created_at', 'activated_at', 'deleted_at', 'url'],
+            ['hash', 'thumbnail', 'title', 'type', 'username', 'created_at', 'activated_at', 'deleted_at'],
             array_keys($row),
         );
         $this->assertSame($post->hash, $row['hash']);
-        $this->assertSame("/posts/{$post->hash}", $row['url']);
     }
 
     public function test_omits_internal_fields(): void {

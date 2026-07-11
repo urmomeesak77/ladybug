@@ -33,7 +33,6 @@ class AdminTrashpostResource extends JsonResource {
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'activated_at' => $this->activated_at?->format('Y-m-d H:i:s'),
             'deleted_at' => $this->deleted_at?->format('Y-m-d H:i:s'),
-            'url' => "/posts/{$this->hash}",
         ];
     }
 

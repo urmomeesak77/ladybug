@@ -9,7 +9,6 @@ export type RawModerationRow = {
   created_at: string | null;
   activated_at: string | null;
   deleted_at: string | null;
-  url: string;
 };
 
 // Laravel's paginator meta: enough to derive the numbered page links and the current page.
@@ -31,7 +30,6 @@ export type ModerationRow = {
   createdAt: string | null;
   activatedAt: string | null;
   deletedAt: string | null;
-  url: string;
 };
 
 // The table shows at most this many title characters; the full title moves into a tooltip.
@@ -81,7 +79,6 @@ export class ModerationModel {
       createdAt: raw.created_at,
       activatedAt: raw.activated_at,
       deletedAt: raw.deleted_at,
-      url: raw.url,
     };
   }
 

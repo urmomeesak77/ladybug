@@ -12,7 +12,6 @@ const rawRow: RawModerationRow = {
   created_at: '2026-07-08 20:14:02',
   activated_at: '2026-07-09 08:01:10',
   deleted_at: null,
-  url: '/posts/Ab3-_9xQ12',
 };
 
 const meta: ModerationMeta = { current_page: 2, last_page: 4, per_page: 100, total: 331 };
@@ -30,7 +29,6 @@ describe('ModerationModel.mapRow', () => {
       createdAt: '2026-07-08 20:14:02',
       activatedAt: '2026-07-09 08:01:10',
       deletedAt: null,
-      url: '/posts/Ab3-_9xQ12',
     });
   });
 

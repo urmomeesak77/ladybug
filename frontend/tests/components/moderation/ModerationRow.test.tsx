@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { cleanup, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import ModerationRow from '../../../src/components/moderation/ModerationRow';
@@ -18,13 +18,7 @@ const row: Row = {
   createdAt: '2026-07-08 20:14:02',
   activatedAt: '2026-07-09 08:01:10',
   deletedAt: null,
-  url: '/posts/Ab3-_9xQ12',
 };
-
-function LocationProbe() {
-  const location = useLocation();
-  return <output data-testid="location">{location.pathname}</output>;
-}
 
 // ModerationActions (rendered inside ModerationRow) now raises delete confirms through
 // useNotice(), so a NoticeProvider ancestor is required to render the row at all.
@@ -37,7 +31,6 @@ function renderRow(value: Row) {
             <ModerationRow row={value} onApply={() => {}} onRemove={() => {}} />
           </tbody>
         </table>
-        <LocationProbe />
       </NoticeProvider>
     </MemoryRouter>,
   );
@@ -84,19 +77,19 @@ describe('ModerationRow', () => {
     expect(deletedCell?.hasAttribute('title')).toBe(false);
   });
 
-  it('cuts a long title to 20 characters with the full title as a tooltip', () => {
-    renderRow({ ...row, title: 'Chewbacca Screams in terror' });
+  it('cuts a long title to 20 characters, with the full title as the cell tooltip', () => {
+    const { container } = renderRow({ ...row, title: 'Chewbacca Screams in terror' });
 
-    const title = screen.getByText('Chewbacca Screams in…');
-    expect(title.getAttribute('title')).toBe('Chewbacca Screams in terror');
+    expect(screen.getByRole('link', { name: 'Chewbacca Screams in…' })).toBeTruthy();
+    const titleCell = container.querySelector('td.moderation-title');
+    expect(titleCell?.getAttribute('title')).toBe('Chewbacca Screams in terror');
   });
 
-  it('puts no tooltip on a title that was not cut', () => {
+  it('sets the title cell tooltip to the full title even when it was not cut', () => {
     const { container } = renderRow(row);
 
     const titleCell = container.querySelector('td.moderation-title');
-    expect(titleCell?.textContent).toBe('A funny meme');
-    expect(titleCell?.hasAttribute('title')).toBe(false);
+    expect(titleCell?.getAttribute('title')).toBe('A funny meme');
   });
 
   it('leaves the deleted cell empty when the meme is not deleted', () => {
@@ -107,11 +100,17 @@ describe('ModerationRow', () => {
     expect(deletedCell?.textContent).toBe('');
   });
 
-  it('navigates to the meme page when the row is clicked (FR-018)', () => {
+  it('renders the title as a real link to the meme page (FR-018)', () => {
     renderRow(row);
 
-    fireEvent.click(screen.getByText('alice'));
+    const link = screen.getByRole('link', { name: 'A funny meme' });
+    expect(link.getAttribute('href')).toBe('/posts/Ab3-_9xQ12');
+  });
 
-    expect(screen.getByTestId('location').textContent).toBe('/posts/Ab3-_9xQ12');
+  it('falls back to the hash as the link text when the meme has no title', () => {
+    renderRow({ ...row, title: null });
+
+    const link = screen.getByRole('link', { name: 'Ab3-_9xQ12' });
+    expect(link.getAttribute('href')).toBe('/posts/Ab3-_9xQ12');
   });
 });

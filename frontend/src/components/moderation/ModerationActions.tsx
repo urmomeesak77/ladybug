@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactElement } from 'react';
+import type { ReactElement } from 'react';
 
 import { useNotice } from '../../hooks/useNotice';
 import { ModerationApi } from '../../lib/moderationApi';
@@ -30,11 +30,11 @@ function ActionIcon({ glyph }: { glyph: ActionGlyph }): ReactElement {
   );
 }
 
-// The per-row moderation controls (US3 activation + US4 delete/restore). Every button stops
-// the click from bubbling to the row so acting never navigates to the meme page (FR-018); a
-// successful state change hands the server's updated row back up via `onApply` for an
-// in-place refresh (FR-017), while a successful purge reports the hash via `onRemove` so the
-// page drops the now-nonexistent row.
+// The per-row moderation controls (US3 activation + US4 delete/restore). Navigation lives
+// solely on the title link (FR-018), so these buttons are ordinary siblings that never
+// navigate; a successful state change hands the server's updated row back up via `onApply`
+// for an in-place refresh (FR-017), while a successful purge reports the hash via `onRemove`
+// so the page drops the now-nonexistent row.
 function ModerationActions({ row, onApply, onRemove }: { row: Row; onApply: Apply; onRemove: Remove }) {
   return (
     <div className="moderation-actions">
@@ -72,8 +72,7 @@ class RowPurge {
 function ActivationButton({ row, onApply }: { row: Row; onApply: Apply }) {
   const activated = row.activatedAt !== null;
 
-  function toggle(event: MouseEvent<HTMLButtonElement>): void {
-    event.stopPropagation();
+  function toggle(): void {
     void RowAction.apply(activated ? ModerationApi.deactivate(row.hash) : ModerationApi.activate(row.hash), onApply);
   }
 
@@ -88,14 +87,12 @@ function ActivationButton({ row, onApply }: { row: Row; onApply: Apply }) {
 
 // Deletion, guarded by a blocking modal confirm raised app-level via useNotice (FR-016).
 // A live meme's trash button offers soft delete and permanent delete; a soft-deleted meme
-// shows single-click Restore plus a trash button offering only permanent delete. The modal
-// renders outside the row, so answering it never navigates.
+// shows single-click Restore plus a trash button offering only permanent delete.
 function DeletionControl({ row, onApply, onRemove }: { row: Row; onApply: Apply; onRemove: Remove }) {
   const { ask } = useNotice();
   const deleted = row.deletedAt !== null;
 
-  function restore(event: MouseEvent<HTMLButtonElement>): void {
-    event.stopPropagation();
+  function restore(): void {
     void RowAction.apply(ModerationApi.restore(row.hash), onApply);
   }
 
@@ -107,8 +104,7 @@ function DeletionControl({ row, onApply, onRemove }: { row: Row; onApply: Apply;
     void RowPurge.apply(ModerationApi.purge(row.hash), row.hash, onRemove);
   }
 
-  function askDelete(event: MouseEvent<HTMLButtonElement>): void {
-    event.stopPropagation();
+  function askDelete(): void {
     ask({
       title: 'Delete post?',
       message: ModerationModel.deleteConfirmMessage(row.title),
@@ -119,8 +115,7 @@ function DeletionControl({ row, onApply, onRemove }: { row: Row; onApply: Apply;
     });
   }
 
-  function askPurge(event: MouseEvent<HTMLButtonElement>): void {
-    event.stopPropagation();
+  function askPurge(): void {
     ask({
       title: 'Delete post permanently?',
       message: ModerationModel.purgeConfirmMessage(row.title),
