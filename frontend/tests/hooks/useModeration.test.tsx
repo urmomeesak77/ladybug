@@ -62,7 +62,7 @@ describe('useModeration', () => {
     expect(result.current.empty).toBe(true);
   });
 
-  it('settles into an empty state when the fetch fails', async () => {
+  it('reports a failed fetch as failed, not empty', async () => {
     vi.spyOn(ModerationApi, 'fetchPage').mockResolvedValue({ ok: false });
 
     const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts') });
@@ -70,7 +70,21 @@ describe('useModeration', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.rows).toEqual([]);
     expect(result.current.meta).toBeNull();
-    expect(result.current.empty).toBe(true);
+    expect(result.current.failed).toBe(true);
+    expect(result.current.empty).toBe(false);
+  });
+
+  it('retry refetches the current page', async () => {
+    const fetchPage = vi.spyOn(ModerationApi, 'fetchPage');
+    fetchPage.mockResolvedValueOnce({ ok: false });
+    fetchPage.mockResolvedValueOnce({ ok: true, data: [], meta });
+
+    const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts') });
+    await waitFor(() => expect(result.current.failed).toBe(true));
+
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.failed).toBe(false));
+    expect(fetchPage).toHaveBeenCalledTimes(2);
   });
 
   it('applyRow replaces just the matching row and keeps the current page', async () => {

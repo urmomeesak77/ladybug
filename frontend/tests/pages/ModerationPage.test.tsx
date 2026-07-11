@@ -43,7 +43,16 @@ function renderPage() {
 
 describe('ModerationPage', () => {
   it('renders the table and pagination once loaded', () => {
-    useModerationMock.mockReturnValue({ rows: [row], meta, loading: false, empty: false, applyRow: vi.fn(), removeRow: vi.fn() });
+    useModerationMock.mockReturnValue({
+      rows: [row],
+      meta,
+      loading: false,
+      empty: false,
+      failed: false,
+      retry: vi.fn(),
+      applyRow: vi.fn(),
+      removeRow: vi.fn(),
+    });
 
     const { container } = renderPage();
 
@@ -52,7 +61,16 @@ describe('ModerationPage', () => {
   });
 
   it('renders an explicit no-entries state for an empty corpus (FR-019)', () => {
-    useModerationMock.mockReturnValue({ rows: [], meta: null, loading: false, empty: true, applyRow: vi.fn(), removeRow: vi.fn() });
+    useModerationMock.mockReturnValue({
+      rows: [],
+      meta: null,
+      loading: false,
+      empty: true,
+      failed: false,
+      retry: vi.fn(),
+      applyRow: vi.fn(),
+      removeRow: vi.fn(),
+    });
 
     const { container } = renderPage();
 
@@ -61,10 +79,37 @@ describe('ModerationPage', () => {
   });
 
   it('shows a loading indicator while the page is in flight', () => {
-    useModerationMock.mockReturnValue({ rows: [], meta: null, loading: true, empty: false, applyRow: vi.fn(), removeRow: vi.fn() });
+    useModerationMock.mockReturnValue({
+      rows: [],
+      meta: null,
+      loading: true,
+      empty: false,
+      failed: false,
+      retry: vi.fn(),
+      applyRow: vi.fn(),
+      removeRow: vi.fn(),
+    });
 
     renderPage();
 
     expect(screen.getByText(/loading/i)).toBeTruthy();
+  });
+
+  it('renders an error state with retry on a failed fetch, never the empty message', () => {
+    useModerationMock.mockReturnValue({
+      rows: [],
+      meta: null,
+      loading: false,
+      empty: false,
+      failed: true,
+      retry: vi.fn(),
+      applyRow: vi.fn(),
+      removeRow: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy();
+    expect(screen.queryByText('No entries to moderate.')).toBeNull();
   });
 });
