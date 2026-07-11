@@ -14,7 +14,7 @@ afterEach(cleanup);
 // Verified on purpose: the authenticated-menu assertions below include Upload,
 // which only verified users get.
 const user: AuthUser = {
-  id: 1,
+  hash: 'usr0000001',
   name: 'Ada',
   email: 'ada@example.com',
   emailVerifiedAt: '2026-01-01T00:00:00Z',

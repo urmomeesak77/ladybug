@@ -22,10 +22,10 @@ class UserResourceTest extends TestCase {
         $data = (new UserResource($user))->toArray(Request::create('/'));
 
         $this->assertSame(
-            ['id', 'name', 'email', 'email_verified_at', 'role', 'created_at', 'updated_at'],
+            ['hash', 'name', 'email', 'email_verified_at', 'role', 'created_at', 'updated_at'],
             array_keys($data),
         );
-        $this->assertSame($user->id, $data['id']);
+        $this->assertSame($user->hash, $data['hash']);
         $this->assertSame('Ada Lovelace', $data['name']);
         $this->assertSame('ada@example.com', $data['email']);
         // A default factory account is a member; the payload exposes the enum's value (FR-007).
@@ -39,5 +39,6 @@ class UserResourceTest extends TestCase {
 
         $this->assertArrayNotHasKey('password', $data);
         $this->assertArrayNotHasKey('remember_token', $data);
+        $this->assertArrayNotHasKey('id', $data);
     }
 }

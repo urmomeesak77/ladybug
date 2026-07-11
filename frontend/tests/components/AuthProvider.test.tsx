@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 const ada: AuthUser = {
-  id: 1,
+  hash: 'usr0000001',
   name: 'Ada',
   email: 'ada@example.com',
   emailVerifiedAt: null,

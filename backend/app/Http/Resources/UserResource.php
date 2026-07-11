@@ -11,12 +11,14 @@ class UserResource extends JsonResource {
     /**
      * Transform the user into its safe public representation. Only non-sensitive
      * fields are exposed — never the password hash or remember token (Principle VI).
+     * The DB id never reaches clients — the account's public handle is its 10-char
+     * hash (Principle V).
      *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array {
         return [
-            'id' => $this->id,
+            'hash' => $this->hash,
             'name' => $this->name,
             'email' => $this->email,
             'email_verified_at' => $this->email_verified_at,

@@ -3,7 +3,7 @@ import { Csrf } from './csrf';
 import type { RoleName } from './role';
 
 export type AuthUser = {
-  id: number;
+  hash: string;
   name: string;
   email: string;
   // null until the account's email is verified (008).
@@ -48,7 +48,7 @@ export type ResendResult =
   | { ok: false; kind: 'network' };
 
 type RawUser = {
-  id: number;
+  hash: string;
   name: string;
   email: string;
   email_verified_at: string | null;
@@ -61,7 +61,7 @@ type RawUser = {
 export class AuthApi {
   static mapUser(raw: RawUser): AuthUser {
     return {
-      id: raw.id,
+      hash: raw.hash,
       name: raw.name,
       email: raw.email,
       emailVerifiedAt: raw.email_verified_at,

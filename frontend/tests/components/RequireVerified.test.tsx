@@ -12,7 +12,7 @@ afterEach(cleanup);
 
 function makeUser(emailVerifiedAt: string | null): AuthUser {
   return {
-    id: 1,
+    hash: 'usr0000001',
     name: 'Uploader',
     email: 'uploader@example.com',
     emailVerifiedAt,

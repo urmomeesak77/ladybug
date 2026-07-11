@@ -17,7 +17,7 @@ function stubFetch(response: unknown): ReturnType<typeof vi.fn> {
 }
 
 const rawUser = {
-  id: 7,
+  hash: 'usr0000007',
   name: 'Ada Lovelace',
   email: 'ada@example.com',
   email_verified_at: null,
@@ -40,7 +40,7 @@ afterEach(() => {
 describe('mapUser', () => {
   it('maps the snake_case API payload to a camelCase AuthUser', () => {
     expect(AuthApi.mapUser(rawUser)).toEqual({
-      id: 7,
+      hash: 'usr0000007',
       name: 'Ada Lovelace',
       email: 'ada@example.com',
       emailVerifiedAt: null,

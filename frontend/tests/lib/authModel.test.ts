@@ -110,7 +110,7 @@ describe('clearFieldError', () => {
 
 describe('resolveStatus', () => {
   it('is authenticated when a user is present', () => {
-    const user = { id: 1, name: 'A', email: 'a@b.c', emailVerifiedAt: null, createdAt: '', updatedAt: '' };
+    const user = { hash: 'usr0000001', name: 'A', email: 'a@b.c', emailVerifiedAt: null, createdAt: '', updatedAt: '' };
     expect(AuthModel.resolveStatus(user)).toBe('authenticated');
   });
 
@@ -154,7 +154,7 @@ describe('parseVerifyParams', () => {
 
 describe('verifyViewState', () => {
   const ada = {
-    id: 1,
+    hash: 'usr0000001',
     name: 'Ada',
     email: 'ada@example.com',
     emailVerifiedAt: '2026-07-07T10:00:00Z',

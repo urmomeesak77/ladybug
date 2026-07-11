@@ -61,7 +61,7 @@ function fillCredentials(email: string, password: string) {
 const okResult: AuthResult = {
   ok: true,
   user: {
-    id: 1,
+    hash: 'usr0000001',
     name: 'Ada',
     email: 'ada@example.com',
     emailVerifiedAt: null,

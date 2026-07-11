@@ -37,7 +37,7 @@ class AuthControllerTest extends TestCase {
         $response = $this->postJson('/api/register', $this->registration());
 
         $response->assertCreated();
-        $response->assertJsonStructure(['data' => ['id', 'name', 'email', 'created_at', 'updated_at']]);
+        $response->assertJsonStructure(['data' => ['hash', 'name', 'email', 'created_at', 'updated_at']]);
         $response->assertJsonPath('data.email', 'ada@example.com');
         $this->assertArrayNotHasKey('password', $response->json('data'));
         $this->assertDatabaseHas('users', ['email' => 'ada@example.com']);
