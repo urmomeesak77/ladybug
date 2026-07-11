@@ -8,6 +8,7 @@ use App\Models\Trashpost;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -18,6 +19,9 @@ class CreatePostTest extends TestCase {
         parent::setUp();
         Storage::fake('public');
         $this->withHeader('Origin', 'http://localhost');
+        // TrashpostService::createPost now fetches the YouTube thumbnail up front
+        // (review 2026-07-10); fake it so these tests never make a real network call.
+        Http::fake(['img.youtube.com/*' => Http::response('still-bytes', 200)]);
     }
 
     public function test_anonymous_upload_is_rejected(): void {

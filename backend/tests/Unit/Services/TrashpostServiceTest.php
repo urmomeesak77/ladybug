@@ -11,6 +11,8 @@ use App\Services\TrashpostService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -214,5 +216,29 @@ final class TrashpostServiceTest extends TestCase {
 
         // The reserved row must not linger (not even soft-deleted).
         $this->assertDatabaseCount('trashposts', 0);
+    }
+
+    public function test_creating_a_youtube_post_fetches_its_thumbnail_up_front(): void {
+        Storage::fake('public');
+        Http::fake(['img.youtube.com/*' => Http::response('still-bytes', 200)]);
+        $user = User::factory()->create();
+
+        $post = (new TrashpostService())->createPost($user, 'A video', null, 'dQw4w9WgXcQ');
+
+        // Upload time is when the one-time download happens — the admin index must
+        // never stack remote fetches inside a GET (review 2026-07-10).
+        $this->assertNotNull($post->youtube_thumbnail);
+        Storage::disk('public')->assertExists($post->youtube_thumbnail);
+    }
+
+    public function test_a_failed_thumbnail_fetch_does_not_fail_the_upload(): void {
+        Storage::fake('public');
+        Http::fake(['img.youtube.com/*' => Http::response('', 404)]);
+        $user = User::factory()->create();
+
+        $post = (new TrashpostService())->createPost($user, 'A video', null, 'dQw4w9WgXcQ');
+
+        $this->assertNull($post->youtube_thumbnail);
+        $this->assertTrue($post->exists);
     }
 }

@@ -21,7 +21,10 @@ class TrashpostService {
     /** Retries for the astronomically rare public-hash collision (unique column). */
     private const MAX_HASH_ATTEMPTS = 3;
 
-    public function __construct(private readonly TrashpostImageProcessor $images = new TrashpostImageProcessor()) {
+    public function __construct(
+        private readonly TrashpostImageProcessor $images = new TrashpostImageProcessor(),
+        private readonly YoutubeThumbnailService $thumbnails = new YoutubeThumbnailService(),
+    ) {
     }
 
     /**
@@ -62,6 +65,13 @@ class TrashpostService {
         $post = $this->reserve($user, $title, $youtubeId, $image === null);
         if ($image !== null) {
             $this->attachImage($post, $image);
+        }
+        if ($youtubeId !== null) {
+            // Fetch the still while the video id is fresh — one post, one request —
+            // instead of lazily inside the admin index GET, where a page of 100 new
+            // YouTube rows would stack 100 sequential 5s downloads. Best-effort:
+            // ensure() reports-and-returns-null on failure, never failing the upload.
+            $this->thumbnails->ensure($post);
         }
 
         return $post;

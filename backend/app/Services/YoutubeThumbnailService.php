@@ -7,17 +7,20 @@ namespace App\Services;
 use App\Models\Trashpost;
 use App\Support\MediaPath;
 use App\Utils\Youtube;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * Lazily materializes a YouTube meme's thumbnail: the first time a meme is rendered in
- * the moderation table its still is downloaded once, stored under the dedicated media
- * subtree (MediaPath::youtubeThumbnailRelativePath), and its relative path recorded on
- * the row. Every later render reuses the stored file with no network call (SC-004). The
- * fetch is best-effort — any failure returns null so the caller renders a placeholder
- * (FR-011) rather than erroring.
+ * Materializes a YouTube meme's thumbnail: TrashpostService::createPost calls ensure()
+ * once at upload time, when the video id is fresh, downloading the still, storing it
+ * under the dedicated media subtree (MediaPath::youtubeThumbnailRelativePath), and
+ * recording its relative path on the row. This service stays callable from anywhere,
+ * but the admin index deliberately no longer triggers it — a page of 100 fresh YouTube
+ * rows must never stack 100 sequential downloads inside a GET. The fetch is best-effort
+ * — any failure returns null so the caller renders a placeholder (FR-011) rather than
+ * erroring.
  */
 class YoutubeThumbnailService {
     /** Medium-quality still; always present for a real video and small enough to store. */
@@ -35,7 +38,9 @@ class YoutubeThumbnailService {
         $disk = Storage::disk('public');
 
         if ($post->youtube_thumbnail !== null) {
-            return $disk->url($post->youtube_thumbnail);
+            // A hidden meme's thumbnail has moved off the public disk: report no URL
+            // rather than a URL that 404s (the admin UI shows its placeholder).
+            return $disk->exists($post->youtube_thumbnail) ? $disk->url($post->youtube_thumbnail) : null;
         }
 
         // Re-validate the stored id before composing the remote URL — never fetch raw
@@ -52,7 +57,7 @@ class YoutubeThumbnailService {
      * Download the still once, persist it and its relative path, and return its URL;
      * any HTTP or storage failure yields null and leaves the column unset for a retry.
      */
-    private function fetchAndStore(Trashpost $post, string $id, mixed $disk): ?string {
+    private function fetchAndStore(Trashpost $post, string $id, FilesystemAdapter $disk): ?string {
         try {
             $response = Http::timeout(self::TIMEOUT_SECONDS)->get(sprintf(self::REMOTE_URL, $id));
             if (!$response->successful()) {
@@ -66,6 +71,10 @@ class YoutubeThumbnailService {
             return $disk->url($relativePath);
         }
         catch (Throwable $e) {
+            // Best-effort by design, but never silent: a persistent storage or network
+            // misconfiguration must surface in the log, not as an eternal placeholder.
+            report($e);
+
             return null;
         }
     }

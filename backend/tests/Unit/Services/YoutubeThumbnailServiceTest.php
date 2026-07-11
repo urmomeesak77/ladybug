@@ -99,4 +99,14 @@ final class YoutubeThumbnailServiceTest extends TestCase {
         $this->assertNull($this->service()->ensure($post));
         $this->assertNull($post->fresh()->youtube_thumbnail);
     }
+
+    public function test_a_stored_thumbnail_missing_from_the_public_disk_yields_null(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->create([
+            'type' => 'youtube', 'youtube' => 'dQw4w9WgXcQ',
+            'youtube_thumbnail' => 'image/trash/youtube/d/dQw4w9WgXcQ.jpg',
+        ]);
+
+        $this->assertNull((new YoutubeThumbnailService())->ensure($post));
+    }
 }

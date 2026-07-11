@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
-use App\Services\YoutubeThumbnailService;
 use App\Support\MediaPath;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -52,10 +51,26 @@ class AdminTrashpostResource extends JsonResource {
      */
     private function thumbnailUrl(): ?string {
         if ($this->type === 'youtube') {
-            return app(YoutubeThumbnailService::class)->ensure($this->resource);
+            return $this->youtubeThumbnailUrl();
         }
 
         return $this->imageThumbnailUrl();
+    }
+
+    /**
+     * The stored still's public URL, or null (→ UI placeholder). Fetching happens at
+     * upload time (TrashpostService); the index does zero remote IO — a page of 100
+     * fresh YouTube rows must not stack downloads inside a GET (review 2026-07-10).
+     */
+    private function youtubeThumbnailUrl(): ?string {
+        if ($this->youtube_thumbnail === null) {
+            return null;
+        }
+
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+
+        return $disk->exists($this->youtube_thumbnail) ? $disk->url($this->youtube_thumbnail) : null;
     }
 
     /**

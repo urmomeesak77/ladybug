@@ -19,8 +19,10 @@ use Tests\TestCase;
  * created_at, activated_at, deleted_at, url — and nothing internal (id/user_id/file, Principle V).
  * The three timestamps are raw MySQL datetimes (Y-m-d H:i:s) or null.
  * The user column resolves to the account name when user_id resolves, else the stored
- * uploader name (FR-012); the thumbnail resolves the 100-size image variant or the YouTube
- * still, null when neither exists.
+ * uploader name (FR-012); the thumbnail resolves the 100-size image variant or the
+ * already-stored YouTube still, null when neither exists on the public disk. The
+ * resource is a pure reader — YouTube stills are fetched once at upload time
+ * (TrashpostService), never lazily inside this index (review 2026-07-10).
  */
 final class AdminTrashpostResourceTest extends TestCase {
     use RefreshDatabase;
@@ -116,15 +118,38 @@ final class AdminTrashpostResourceTest extends TestCase {
         $this->assertNull($this->toArray($post)['thumbnail']);
     }
 
-    public function test_youtube_thumbnail_is_resolved_through_the_thumbnail_service(): void {
-        Http::fake(['img.youtube.com/*' => Http::response('IMG', 200)]);
-        $post = Trashpost::factory()->linkOnly()->create(['youtube' => 'dQw4w9WgXcQ', 'youtube_thumbnail' => null]);
+    public function test_youtube_thumbnail_is_the_stored_stills_url_when_present(): void {
+        // The index is a pure reader: it must resolve an already-stored still without
+        // making any HTTP call (fetching happens once, at upload time, in
+        // TrashpostService — review 2026-07-10).
+        Http::fake();
         $rel = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
+        Storage::disk('public')->put($rel, 'IMG');
+        $post = Trashpost::factory()->linkOnly()->create(['youtube' => 'dQw4w9WgXcQ', 'youtube_thumbnail' => $rel]);
 
         /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
         $disk = Storage::disk('public');
         $this->assertSame($disk->url($rel), $this->toArray($post)['thumbnail']);
-        $disk->assertExists($rel);
+        Http::assertNothingSent();
+    }
+
+    public function test_youtube_thumbnail_is_null_when_nothing_was_stored_at_upload_time(): void {
+        Http::fake();
+        $post = Trashpost::factory()->linkOnly()->create(['youtube' => 'dQw4w9WgXcQ', 'youtube_thumbnail' => null]);
+
+        $this->assertNull($this->toArray($post)['thumbnail']);
+        Http::assertNothingSent();
+    }
+
+    public function test_youtube_thumbnail_is_null_when_the_stored_file_is_off_the_public_disk(): void {
+        // MediaVisibilityService moves a hidden meme's files to the local disk; the
+        // admin row must show the UI placeholder, not a 404ing URL.
+        Http::fake();
+        $rel = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
+        $post = Trashpost::factory()->linkOnly()->create(['youtube' => 'dQw4w9WgXcQ', 'youtube_thumbnail' => $rel]);
+
+        $this->assertNull($this->toArray($post)['thumbnail']);
+        Http::assertNothingSent();
     }
 
     public function test_title_is_the_raw_stored_title(): void {
