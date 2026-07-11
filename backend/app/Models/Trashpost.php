@@ -28,16 +28,11 @@ class Trashpost extends Model {
      * @var list<string>
      */
     protected $fillable = [
-        'hash',
         'title',
-        'type',
         'file',
-        'youtube',
-        'youtube_thumbnail',
-        'user_id',
-        'username',
-        'comment',
+        'type',
         'metadata',
+        'comment',
     ];
 
     /**

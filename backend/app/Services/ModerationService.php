@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Trashpost;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -106,8 +107,7 @@ class ModerationService {
         $post = $this->find($hash);
         $paths = $this->media->ownedPaths($post);
         $post->forceDelete();
-        Storage::disk('public')->delete($paths);
-        Storage::disk('local')->delete($paths);
+        $this->deleteEverywhere($paths);
     }
 
     /**
@@ -116,5 +116,24 @@ class ModerationService {
      */
     private function find(string $hash): Trashpost {
         return Trashpost::withTrashed()->where('hash', $hash)->firstOrFail();
+    }
+
+    /**
+     * Best-effort file cleanup after the row is gone. A failure cannot resurrect the
+     * post, but an orphaned PUBLIC file stays fetchable, so every leftover is logged
+     * loudly enough to be found and swept by hand.
+     *
+     * @param list<string> $paths
+     */
+    private function deleteEverywhere(array $paths): void {
+        foreach (['public', 'local'] as $diskName) {
+            $disk = Storage::disk($diskName);
+            $disk->delete($paths);
+            foreach ($paths as $path) {
+                if ($disk->exists($path)) {
+                    Log::warning('moderation.purge: could not delete file', ['disk' => $diskName, 'path' => $path]);
+                }
+            }
+        }
     }
 }

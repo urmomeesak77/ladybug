@@ -20,7 +20,7 @@ final class TrashpostTest extends TestCase {
         $fillable = (new Trashpost())->getFillable();
 
         $this->assertSame(
-            ['hash', 'title', 'type', 'file', 'youtube', 'youtube_thumbnail', 'user_id', 'username', 'comment', 'metadata'],
+            ['title', 'file', 'type', 'metadata', 'comment'],
             $fillable,
         );
     }
@@ -45,7 +45,12 @@ final class TrashpostTest extends TestCase {
 
     public function test_belongs_to_an_owning_user(): void {
         $user = User::factory()->create();
-        $post = Trashpost::create(['hash' => 'owned00001', 'user_id' => $user->id]);
+        // hash/user_id are identity/ownership, not content — no longer mass
+        // assignable (see $fillable), so they are set explicitly here too.
+        $post = new Trashpost();
+        $post->hash = 'owned00001';
+        $post->user_id = $user->id;
+        $post->save();
 
         $this->assertTrue($post->user->is($user));
     }

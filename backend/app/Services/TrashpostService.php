@@ -83,14 +83,16 @@ class TrashpostService {
      */
     private function reserve(User $user, ?string $title, ?string $youtubeId, bool $activate): Trashpost {
         for ($attempt = 1; ; $attempt++) {
-            $post = new Trashpost([
-                'hash' => $this->mintHash(),
-                'title' => $title,
-                'user_id' => $user->id,
-                'username' => $user->name,
-                'type' => $youtubeId === null ? null : 'youtube',
-                'youtube' => $youtubeId,
-            ]);
+            // Identity and ownership are assigned explicitly, never mass-assigned —
+            // $fillable stays limited to content fields so no future controller can
+            // smuggle a hash/user_id through fill() (mass-assignment guard).
+            $post = new Trashpost();
+            $post->hash = $this->mintHash();
+            $post->title = $title;
+            $post->user_id = $user->id;
+            $post->username = $user->name;
+            $post->type = $youtubeId === null ? null : 'youtube';
+            $post->youtube = $youtubeId;
             if ($activate) {
                 $post->activated_at = now();
             }

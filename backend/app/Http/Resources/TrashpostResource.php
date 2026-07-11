@@ -17,8 +17,9 @@ class TrashpostResource extends JsonResource {
      * the on-disk image URLs (`original`/`default`/`sizes`) resolved per post.
      *
      * Deliberately omitted: the DB `id` (the hash is the public identifier,
-     * Principle V), `user_id`, `deleted_at`, and `comment` — internal bookkeeping
-     * that would leak posting volume, owner ids, and schema details.
+     * Principle V), `user_id`, `deleted_at`, `comment`, and `updated_at` — internal
+     * bookkeeping that would leak posting volume, owner ids, schema details, and
+     * internal edit/moderation timing for no client benefit.
      *
      * @return array<string, mixed>
      */
@@ -34,7 +35,6 @@ class TrashpostResource extends JsonResource {
             'username' => $this->username,
             'metadata' => $this->metadata,
             'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
             'activated_at' => $this->activated_at,
             'url' => "/posts/{$this->hash}",
             'url_api' => route('api.posts.show', ['hash' => $this->hash]),

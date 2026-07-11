@@ -33,7 +33,7 @@ final class TrashpostsApiControllerTest extends TestCase {
             'data' => [[
                 'hash', 'title', 'type', 'file', 'youtube',
                 'username', 'metadata',
-                'created_at', 'updated_at', 'activated_at',
+                'created_at', 'activated_at',
                 'url', 'url_api', 'original', 'default', 'sizes',
             ]],
         ]);

@@ -43,9 +43,9 @@ final class SeedMediaCommand extends Command {
         return $report['ok'] ? self::SUCCESS : self::FAILURE;
     }
 
-    /** Resolve --source → MEDIA_SEED_SOURCE → default; null (with error) if it is not a dir. */
+    /** Resolve --source → media.seed_source config (MEDIA_SEED_SOURCE env) → default; null (with error) if it is not a dir. */
     private function resolveSource(): ?string {
-        $source = $this->option('source') ?: env('MEDIA_SEED_SOURCE') ?: self::DEFAULT_SOURCE;
+        $source = $this->option('source') ?: config('media.seed_source') ?: self::DEFAULT_SOURCE;
 
         if (! File::isDirectory($source)) {
             $this->error("Source directory not found: {$source}");

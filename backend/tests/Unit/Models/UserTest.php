@@ -90,8 +90,15 @@ final class UserTest extends TestCase {
 
     public function test_posts_returns_the_users_trashposts(): void {
         $user = User::factory()->create();
-        $post = Trashpost::create(['hash' => 'mine000001', 'user_id' => $user->id]);
-        Trashpost::create(['hash' => 'other00001']);
+        // hash/user_id are no longer mass assignable (see Trashpost::$fillable),
+        // so they are set explicitly here.
+        $post = new Trashpost();
+        $post->hash = 'mine000001';
+        $post->user_id = $user->id;
+        $post->save();
+        $other = new Trashpost();
+        $other->hash = 'other00001';
+        $other->save();
 
         $posts = $user->posts;
 
