@@ -7,8 +7,10 @@ namespace Tests\Unit\Services;
 use App\Models\Trashpost;
 use App\Services\MediaVisibilityService;
 use App\Support\MediaPath;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 /**
@@ -100,6 +102,26 @@ final class MediaVisibilityServiceTest extends TestCase {
 
         // Yanking the shared still would break the other, live meme's thumbnail.
         Storage::disk('public')->assertExists($thumb);
+    }
+
+    public function test_a_failed_target_write_never_deletes_the_source(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->deleted()->create([
+            'file' => 'abc.jpg', 'type' => 'image',
+        ]);
+        $path = MediaPath::imageRelativePath('original', 'abc', 'jpg');
+        Storage::disk('public')->put($path, 'bytes');
+        // Simulate a full/unwritable private disk: both disks are throw=false, so a
+        // failed put() surfaces as a false return, not an exception.
+        $target = Mockery::mock(FilesystemAdapter::class);
+        $target->shouldReceive('put')->atLeast()->once()->andReturn(false);
+        Storage::set('local', $target);
+
+        $this->service()->sync($post);
+
+        // A failed copy must never destroy the only copy.
+        Storage::disk('public')->assertExists($path);
+        $this->assertSame('bytes', Storage::disk('public')->get($path));
     }
 
     public function test_owned_paths_lists_every_variant_and_the_unshared_thumbnail(): void {

@@ -75,9 +75,15 @@ class MediaVisibilityService {
         if ($stream === null) {
             return;
         }
-        $to->put($path, $stream);
+        $copied = $to->put($path, $stream);
         if (is_resource($stream)) {
             fclose($stream);
+        }
+        // Both disks are throw=false, so a failed write (full disk, permissions)
+        // surfaces as a false return. A failed copy must never destroy the only
+        // copy — keep the source; a later sync() will retry the move.
+        if ($copied === false) {
+            return;
         }
         $from->delete($path);
     }

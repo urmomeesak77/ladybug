@@ -19,6 +19,15 @@ use Tests\TestCase;
 final class ModerationControllerTest extends TestCase {
     use RefreshDatabase;
 
+    protected function setUp(): void {
+        parent::setUp();
+        // Every moderation transition now syncs media between disks, so any test
+        // hitting those endpoints does storage I/O — fake both disks up front so
+        // no test can ever touch the real bind-mounted media tree.
+        Storage::fake('public');
+        Storage::fake('local');
+    }
+
     private function admin(): User {
         return User::factory()->admin()->create();
     }
@@ -181,7 +190,6 @@ final class ModerationControllerTest extends TestCase {
     }
 
     public function test_purge_returns_204_and_removes_the_row_and_files(): void {
-        Storage::fake('public');
         $post = Trashpost::factory()->create();
         $code = pathinfo($post->file, PATHINFO_FILENAME);
         $ext = pathinfo($post->file, PATHINFO_EXTENSION);
@@ -197,7 +205,6 @@ final class ModerationControllerTest extends TestCase {
     }
 
     public function test_purge_works_on_a_soft_deleted_meme(): void {
-        Storage::fake('public');
         $post = Trashpost::factory()->deleted()->create();
 
         $this->actingAs($this->admin())

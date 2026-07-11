@@ -20,6 +20,15 @@ use Tests\TestCase;
 final class ModerationServiceTest extends TestCase {
     use RefreshDatabase;
 
+    protected function setUp(): void {
+        parent::setUp();
+        // Every state transition now syncs media, so most tests here do storage
+        // I/O — fake both disks up front so no test can ever touch the real
+        // bind-mounted media tree.
+        Storage::fake('public');
+        Storage::fake('local');
+    }
+
     private function service(): ModerationService {
         return new ModerationService();
     }
@@ -173,7 +182,6 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_purge_removes_the_row_entirely(): void {
-        Storage::fake('public');
         $post = Trashpost::factory()->create();
 
         $this->service()->purge($post->hash);
@@ -182,7 +190,6 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_purge_deletes_every_image_size_variant(): void {
-        Storage::fake('public');
         $post = Trashpost::factory()->create();
         $paths = $this->seedImageVariants($post);
 
@@ -194,7 +201,6 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_purge_leaves_another_posts_files_alone(): void {
-        Storage::fake('public');
         $post = Trashpost::factory()->create();
         $other = Trashpost::factory()->create();
         $otherPaths = $this->seedImageVariants($other);
@@ -207,7 +213,6 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_purge_works_on_a_soft_deleted_post(): void {
-        Storage::fake('public');
         $post = Trashpost::factory()->deleted()->create();
 
         $this->service()->purge($post->hash);
@@ -217,7 +222,6 @@ final class ModerationServiceTest extends TestCase {
 
     public function test_purge_succeeds_when_the_files_are_already_missing(): void {
         // No variants were ever seeded on the fake disk; the purge must still remove the row.
-        Storage::fake('public');
         $post = Trashpost::factory()->create();
 
         $this->service()->purge($post->hash);
@@ -226,7 +230,6 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_purge_deletes_a_last_reference_youtube_thumbnail(): void {
-        Storage::fake('public');
         $thumbnail = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
         Storage::disk('public')->put($thumbnail, 'stub');
         $post = Trashpost::factory()->linkOnly()->create(['youtube_thumbnail' => $thumbnail]);
@@ -239,7 +242,6 @@ final class ModerationServiceTest extends TestCase {
     public function test_purge_keeps_a_youtube_thumbnail_shared_with_another_post(): void {
         // Thumbnails are stored once per video id; another post embedding the same video
         // must keep its image when this one is purged.
-        Storage::fake('public');
         $thumbnail = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
         Storage::disk('public')->put($thumbnail, 'stub');
         $post = Trashpost::factory()->linkOnly()->create(['youtube_thumbnail' => $thumbnail]);
@@ -252,7 +254,6 @@ final class ModerationServiceTest extends TestCase {
 
     public function test_purge_keeps_a_thumbnail_referenced_by_a_soft_deleted_post(): void {
         // "Referenced" includes trashed rows — a soft-deleted post may be restored later.
-        Storage::fake('public');
         $thumbnail = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
         Storage::disk('public')->put($thumbnail, 'stub');
         $post = Trashpost::factory()->linkOnly()->create(['youtube_thumbnail' => $thumbnail]);
@@ -264,16 +265,12 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_purge_of_an_unknown_hash_throws_model_not_found(): void {
-        Storage::fake('public');
-
         $this->expectException(ModelNotFoundException::class);
 
         $this->service()->purge('Nonexist99');
     }
 
     public function test_delete_moves_the_memes_media_off_the_public_disk(): void {
-        Storage::fake('public');
-        Storage::fake('local');
         $post = Trashpost::factory()->create([
             'activated_at' => now(), 'file' => 'abc.jpg', 'type' => 'image',
         ]);
@@ -287,8 +284,6 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_restore_moves_the_memes_media_back_to_the_public_disk(): void {
-        Storage::fake('public');
-        Storage::fake('local');
         $post = Trashpost::factory()->deleted()->create([
             'activated_at' => now(), 'file' => 'abc.jpg', 'type' => 'image',
         ]);
@@ -302,8 +297,6 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_deactivate_hides_media_and_activate_re_exposes_it(): void {
-        Storage::fake('public');
-        Storage::fake('local');
         $post = Trashpost::factory()->create([
             'activated_at' => now(), 'file' => 'abc.jpg', 'type' => 'image',
         ]);
@@ -320,8 +313,6 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_purge_removes_files_from_both_disks(): void {
-        Storage::fake('public');
-        Storage::fake('local');
         $post = Trashpost::factory()->deleted()->create([
             'file' => 'abc.jpg', 'type' => 'image',
         ]);
