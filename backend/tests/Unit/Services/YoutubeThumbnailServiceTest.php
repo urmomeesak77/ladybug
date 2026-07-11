@@ -101,6 +101,7 @@ final class YoutubeThumbnailServiceTest extends TestCase {
     }
 
     public function test_a_stored_thumbnail_missing_from_the_public_disk_yields_null(): void {
+        Http::fake();
         Storage::fake('public');
         $post = Trashpost::factory()->create([
             'type' => 'youtube', 'youtube' => 'dQw4w9WgXcQ',
@@ -108,5 +109,8 @@ final class YoutubeThumbnailServiceTest extends TestCase {
         ]);
 
         $this->assertNull((new YoutubeThumbnailService())->ensure($post));
+        // Guards the unconditional early return: a recorded-but-missing thumbnail must
+        // never fall through to a re-download (fetchAndStore would mask it as null).
+        Http::assertNothingSent();
     }
 }
