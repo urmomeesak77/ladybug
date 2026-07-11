@@ -125,7 +125,7 @@ describe('useModeration', () => {
     const { result } = renderHook(() => useModeration(), { wrapper: wrapperFor('/admin/trashposts') });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    act(() => result.current.removeRow('missing0000'));
+    act(() => result.current.removeRow('missing000'));
 
     expect(result.current.rows).toEqual([row]);
   });

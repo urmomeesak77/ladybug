@@ -34,7 +34,7 @@ describe('usePost', () => {
       error: { kind: 'notFound', status: 404 },
     });
 
-    const { result } = renderHook(() => usePost('missing0000'));
+    const { result } = renderHook(() => usePost('missing000'));
 
     await waitFor(() => expect(result.current.state.status).toBe('notFound'));
   });

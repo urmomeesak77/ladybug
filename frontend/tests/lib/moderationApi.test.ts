@@ -113,7 +113,7 @@ describe('ModerationApi.activate / deactivate', () => {
   it('reports failure on a non-2xx response (e.g. 404 unknown hash)', async () => {
     stubFetch(async () => ({ ok: false, status: 404, json: async () => ({}) }));
 
-    const result = await ModerationApi.activate('missing0000');
+    const result = await ModerationApi.activate('missing000');
 
     expect(result.ok).toBe(false);
   });
@@ -195,7 +195,7 @@ describe('ModerationApi.purge', () => {
   it('reports failure on a non-2xx response (e.g. 404 unknown hash)', async () => {
     stubFetch(async () => ({ ok: false, status: 404 }));
 
-    const result = await ModerationApi.purge('missing0000');
+    const result = await ModerationApi.purge('missing000');
 
     expect(result.ok).toBe(false);
   });
