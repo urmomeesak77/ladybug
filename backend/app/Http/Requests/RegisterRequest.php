@@ -17,6 +17,12 @@ class RegisterRequest extends FormRequest {
      * (min 8, mixed case, a number); the compromised-password check is deferred as
      * it requires an external service (research D3/D4).
      *
+     * `unique:users,email` means a 422 confirms an account's existence — an accepted,
+     * deliberate tradeoff (unlike login's generic 401): registration cannot proceed
+     * against a taken address anyway, and the 5/min/IP throttle blunts bulk probing.
+     * The enumeration-free alternative (accept the submission and email "you already
+     * have an account") needs mail-product buy-in; revisit alongside password reset.
+     *
      * @return array<string, mixed>
      */
     public function rules(): array {
