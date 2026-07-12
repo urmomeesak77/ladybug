@@ -111,6 +111,36 @@ describe('ModerationModel.deleteConfirmMessage', () => {
   });
 });
 
+describe('ModerationModel.replaceRow', () => {
+  const rowA = ModerationModel.mapRow(rawRow);
+  const rowB = ModerationModel.mapRow({ ...rawRow, hash: 'Zz9-_0000A', activated_at: null });
+
+  it('replaces the row with a matching hash and leaves the rest untouched', () => {
+    const updated = { ...rowB, activatedAt: '2026-07-09 08:01:10' };
+
+    expect(ModerationModel.replaceRow([rowA, rowB], updated)).toEqual([rowA, updated]);
+  });
+
+  it('is a no-op when the updated row is not on the page', () => {
+    const stray = { ...rowA, hash: 'missing0000' };
+
+    expect(ModerationModel.replaceRow([rowA, rowB], stray)).toEqual([rowA, rowB]);
+  });
+});
+
+describe('ModerationModel.dropRow', () => {
+  const rowA = ModerationModel.mapRow(rawRow);
+  const rowB = ModerationModel.mapRow({ ...rawRow, hash: 'Zz9-_0000A' });
+
+  it('drops the row with the given hash', () => {
+    expect(ModerationModel.dropRow([rowA, rowB], rowB.hash)).toEqual([rowA]);
+  });
+
+  it('is a no-op when the hash is not on the page', () => {
+    expect(ModerationModel.dropRow([rowA, rowB], 'missing0000')).toEqual([rowA, rowB]);
+  });
+});
+
 describe('ModerationModel.purgeConfirmMessage', () => {
   it('states the post is already hidden and the removal is forever, naming it by title', () => {
     expect(ModerationModel.purgeConfirmMessage('A funny meme')).toBe(

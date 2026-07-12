@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { MouseEvent, ReactElement } from 'react';
 
 import { useNotice } from '../../hooks/useNotice';
 import { ModerationApi } from '../../lib/moderationApi';
@@ -85,6 +85,36 @@ function ActivationButton({ row, onApply }: { row: Row; onApply: Apply }) {
   );
 }
 
+// The two controls a soft-deleted meme offers: single-click restore, and a trash
+// button whose confirm offers only permanent deletion (soft delete is moot).
+function DeletedRowControls({ onRestore, onAskPurge }: {
+  onRestore: (event: MouseEvent<HTMLButtonElement>) => void;
+  onAskPurge: (event: MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        className="moderation-actions__button"
+        onClick={onRestore}
+        aria-label="Restore"
+        title="Restore"
+      >
+        <ActionIcon glyph="restore" />
+      </button>
+      <button
+        type="button"
+        className="moderation-actions__button"
+        onClick={onAskPurge}
+        aria-label="Delete permanently"
+        title="Delete permanently"
+      >
+        <ActionIcon glyph="delete" />
+      </button>
+    </>
+  );
+}
+
 // Deletion, guarded by a blocking modal confirm raised app-level via useNotice (FR-016).
 // A live meme's trash button offers soft delete and permanent delete; a soft-deleted meme
 // shows single-click Restore plus a trash button offering only permanent delete.
@@ -124,22 +154,7 @@ function DeletionControl({ row, onApply, onRemove }: { row: Row; onApply: Apply;
   }
 
   if (deleted) {
-    return (
-      <>
-        <button type="button" className="moderation-actions__button" onClick={restore} aria-label="Restore" title="Restore">
-          <ActionIcon glyph="restore" />
-        </button>
-        <button
-          type="button"
-          className="moderation-actions__button"
-          onClick={askPurge}
-          aria-label="Delete permanently"
-          title="Delete permanently"
-        >
-          <ActionIcon glyph="delete" />
-        </button>
-      </>
-    );
+    return <DeletedRowControls onRestore={restore} onAskPurge={askPurge} />;
   }
 
   return (

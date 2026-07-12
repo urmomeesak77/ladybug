@@ -94,4 +94,15 @@ export class ModerationModel {
     const page = Number(raw);
     return Number.isInteger(page) && page >= 1 ? page : 1;
   }
+
+  // Replace one row in place after a moderation action (FR-017); a no-op when the
+  // row is not on the page.
+  static replaceRow(rows: ModerationRow[], updated: ModerationRow): ModerationRow[] {
+    return rows.map((row) => (row.hash === updated.hash ? updated : row));
+  }
+
+  // Drop a purged row (the server returned 204 — it no longer exists).
+  static dropRow(rows: ModerationRow[], hash: string): ModerationRow[] {
+    return rows.filter((row) => row.hash !== hash);
+  }
 }
