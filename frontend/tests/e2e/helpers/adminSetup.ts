@@ -12,7 +12,9 @@ import { fileURLToPath } from 'node:url';
 export class AdminSetup {
   private static readonly COMPOSE_FILE = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
-    '../../../docker-compose.e2e.yml',
+    // From tests/e2e/helpers/ up to the repo root is four levels
+    // (helpers → e2e → tests → frontend → root).
+    '../../../../docker-compose.e2e.yml',
   );
 
   static promoteToSuperuser(email: string): void {

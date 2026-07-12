@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url';
 export class MailLog {
   private static readonly LOG_PATH = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
-    '../../../backend/storage/logs/laravel.log',
+    // From tests/e2e/helpers/ up to the repo root is four levels
+    // (helpers → e2e → tests → frontend → root).
+    '../../../../backend/storage/logs/laravel.log',
   );
 
   // The newest /verify-email/... link in the log, optionally scoped to the most
