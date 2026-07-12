@@ -20,11 +20,13 @@ export function useAuthForm<T extends Record<string, string>>(
   const [submitting, setSubmitting] = useState(false);
 
   function handleChange(field: keyof T & string, value: string): void {
-    setValues({ ...values, [field]: value });
-    // A field's prior verdict — client or server — no longer applies once its value
-    // changes; the next blur/submit revalidates it fresh.
+    const nextValues = { ...values, [field]: value };
+    setValues(nextValues);
+    // Revalidate touched fields with the new value: a client error clears only when the
+    // value actually becomes valid, never just because the user started typing.
+    setClientErrors(validate(nextValues, touched));
+    // A field's server verdict no longer applies once its value changes.
     setServerErrors(AuthModel.clearFieldError(serverErrors, field));
-    setClientErrors(AuthModel.clearFieldError(clientErrors, field));
   }
 
   function handleBlur(field: string): void {
