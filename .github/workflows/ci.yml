@@ -23,10 +23,10 @@ jobs:
     # phpunit.xml and enforced by Tests\TestCase). Injecting real DB_* env vars
     # here would override that force and run the suite against a real database.
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.3'
           extensions: bcmath, mbstring, gd
@@ -34,7 +34,7 @@ jobs:
           tools: composer
 
       - name: Cache Composer packages
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: backend/vendor
           key: composer-${{ hashFiles('backend/composer.lock') }}
@@ -69,10 +69,10 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '20'
           cache: npm
@@ -91,10 +91,10 @@ jobs:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '20'
           cache: npm
@@ -113,7 +113,7 @@ jobs:
       # checkout must carry vendor/ (locally the dev tree already has it). Same
       # install and cache key as the backend job, so this is usually a cache hit.
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.3'
           extensions: bcmath, mbstring, gd
@@ -121,7 +121,7 @@ jobs:
           tools: composer
 
       - name: Cache Composer packages
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: backend/vendor
           key: composer-${{ hashFiles('backend/composer.lock') }}
@@ -183,7 +183,7 @@ jobs:
       # error-context.md page snapshots per failed spec — shows what the page rendered.
       - name: Upload Playwright artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-results
           path: |
