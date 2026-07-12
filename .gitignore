@@ -9,3 +9,6 @@ temp/
 
 # Playwright run artifacts
 test-results/
+
+# Agent workflow artifacts (review diffs, progress notes)
+.superpowers/
