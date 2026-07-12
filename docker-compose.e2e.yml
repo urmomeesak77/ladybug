@@ -55,7 +55,7 @@ services:
       # No C:/docker_permanent/ladybug-storage mount: e2e doesn't need the media library, only a working
       # storage skeleton (sessions/cache/logs) which the repo already ships.
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     depends_on:
       mysql-e2e:
         condition: service_healthy
@@ -71,6 +71,6 @@ services:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "5174:5173"
+      - "127.0.0.1:5174:5173"
     depends_on:
       - backend-e2e

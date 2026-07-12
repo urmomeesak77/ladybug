@@ -21,7 +21,9 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-trashdb}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
     ports:
-      - "${MYSQL_HOST_PORT:-4444}:3306" # host port (default 4444) -> container 3306
+      # Loopback-only: this is a root/root dev DB holding the real media library --
+      # published on 0.0.0.0 it is open to anyone on the same network.
+      - "127.0.0.1:${MYSQL_HOST_PORT:-4444}:3306" # host port (default 4444) -> container 3306
     volumes:
       # DB datadir on a host bind-mount OUTSIDE the repo (real NTFS), so the
       # database survives not just Docker teardown but also uninstalling Docker
@@ -64,7 +66,7 @@ services:
       # This nested mount shadows the repo's storage skeleton inside /app.
       - ${LADYBUG_DATA_ROOT:-C:/docker_permanent}/ladybug-storage:/app/storage
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       mysql:
         condition: service_healthy
@@ -79,6 +81,6 @@ services:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     depends_on:
       - backend
