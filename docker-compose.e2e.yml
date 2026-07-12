@@ -24,9 +24,10 @@ services:
     healthcheck:
       # Ping over TCP (-h127.0.0.1), not the default socket: while the entrypoint
       # initializes the fresh tmpfs datadir it runs a temporary, socket-only server
-      # that a socket ping declares "healthy" before MySQL actually listens on 3306,
-      # letting backend-e2e's migrate:fresh race ahead into "connection refused".
-      test: ["CMD", "mysqladmin", "ping", "-h127.0.0.1", "-proot"]
+      # that a socket ping declares "healthy" before MySQL actually listens on 3306.
+      # No -p: ping succeeds even on Access denied, and an inline password would
+      # leak into `docker inspect` (same rationale as the dev compose healthcheck).
+      test: ["CMD", "mysqladmin", "ping", "-h127.0.0.1"]
       interval: 5s
       timeout: 5s
       retries: 15

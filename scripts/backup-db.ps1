@@ -100,9 +100,9 @@ try {
     # why an earlier version of this line failed at runtime even though it
     # parsed fine. The whole $dump literal stays single-quoted PowerShell (no
     # interpolation) so $MYSQL_ROOT_PASSWORD / $MYSQL_DATABASE expand INSIDE
-    # the container's sh, not on the host. -p"$VAR" (no space after -p) is the
-    # mysql client's inline-password form.
-    $dump = 'docker compose exec -T mysql sh -c "mysqldump -uroot -p\"$MYSQL_ROOT_PASSWORD\" --single-transaction --no-tablespaces --databases \"$MYSQL_DATABASE\""'
+    # the container's sh, not on the host. MYSQL_PWD moves the password out of
+    # the process argv (visible to ps) into the client's env.
+    $dump = 'docker compose exec -T mysql sh -c "MYSQL_PWD=\"$MYSQL_ROOT_PASSWORD\" mysqldump -uroot --single-transaction --no-tablespaces --databases \"$MYSQL_DATABASE\""'
     cmd /c "$dump > `"$outFile`""
 
     $size = (Get-Item $outFile).Length

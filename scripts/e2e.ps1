@@ -34,7 +34,13 @@ try {
     $envE2e = Join-Path $repoRoot 'backend\.env.e2e'
     if (-not (Test-Path $envE2e)) {
         Write-Host "e2e: creating backend/.env.e2e from template..."
-        $key = 'base64:' + [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+        # Cryptographic RNG: the key only guards a throwaway tmpfs stack, but the
+        # Get-Random pattern must not exist where it could be copied somewhere real.
+        $bytes = New-Object byte[] 32
+        $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+        $rng.GetBytes($bytes)
+        $rng.Dispose()
+        $key = 'base64:' + [Convert]::ToBase64String($bytes)
         (Get-Content (Join-Path $repoRoot 'backend\.env.e2e.example')) `
             -replace '^APP_KEY=$', "APP_KEY=$key" |
             Set-Content -Encoding utf8 $envE2e
