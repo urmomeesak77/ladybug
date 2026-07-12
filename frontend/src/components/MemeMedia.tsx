@@ -22,6 +22,9 @@ function MemeMedia({ media, linkTo }: { media: FeedMedia; linkTo?: string }) {
           loading="lazy"
           allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
+          // Belt-and-braces: the src is always a rebuilt nocookie embed URL, but the
+          // sandbox caps what any embedded document could ever do (Principle VI).
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
         />
       </div>
     );

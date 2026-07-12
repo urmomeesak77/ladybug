@@ -46,8 +46,8 @@ function ConfirmDialog({ message, title, actions, onChoose, onCancel }: {
       <p>{message}</p>
       <div className="notice-dialog__buttons">
         <button type="button" onClick={onCancel}>Cancel</button>
-        {actions.map((action) => (
-          <ActionButton key={action.caption} action={action} onChoose={onChoose} />
+        {actions.map((action, index) => (
+          <ActionButton key={index} action={action} onChoose={onChoose} />
         ))}
       </div>
     </dialog>

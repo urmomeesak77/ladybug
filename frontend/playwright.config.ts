@@ -5,9 +5,10 @@ import { defineConfig, devices } from '@playwright/test';
 // the live dev stack on 5173/8000 whose backend writes to trashdb. Launch it with
 // `scripts\e2e.ps1`, which brings up docker-compose.e2e.yml and sets E2E_BASE_URL below.
 // There is no managed webServer here (the script owns the stack lifecycle). Vitest unit
-// specs live under tests/ and are excluded by scoping Playwright to e2e/.
+// specs use the *.test.* suffix, Playwright the *.spec.* suffix, so sharing tests/ is
+// collision-free.
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './tests/e2e',
   // One shared dev server + API: run serially so parallel cold-transform loads do not
   // race past the data-fetch timeout. The feed loads asynchronously, so assertions get a
   // generous timeout for the first batch to arrive.
