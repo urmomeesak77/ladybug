@@ -197,5 +197,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/010-admin-meme-moderation/plan.md` (feature: Admin Meme Moderation Table).
+`specs/011-user-rating-auto-activation/plan.md` (feature: User Rating & Auto-Activation).
 <!-- SPECKIT END -->
