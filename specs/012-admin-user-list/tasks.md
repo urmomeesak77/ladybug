@@ -40,8 +40,8 @@ Decoupled two-app layout (plan.md → Project Structure): `backend/` is the Lara
 **Purpose**: Confirm the working baseline before changing anything. No dependency is added by
 this feature (Principle I), so there is nothing to install.
 
-- [ ] T001 Confirm the stack runs and the existing suites are green before any edit: `docker compose up -d`, then `docker compose exec backend vendor/bin/pint --test`, `docker compose exec backend php artisan test`, and `cd frontend; npm run lint; npm run test` — record the passing output as the baseline
-- [ ] T002 Re-read the binding gates that constrain this feature: `.specify/memory/constitution.md` and `docs/CODING_CONVENTIONS.md` (PSR-12 + `declare(strict_types=1)` + PHP functions < 30 lines; 2-space TS, semicolons, `lib/` modules as single classes of `static` methods)
+- [X] T001 Confirm the stack runs and the existing suites are green before any edit: `docker compose up -d`, then `docker compose exec backend vendor/bin/pint --test`, `docker compose exec backend php artisan test`, and `cd frontend; npm run lint; npm run test` — record the passing output as the baseline
+- [X] T002 Re-read the binding gates that constrain this feature: `.specify/memory/constitution.md` and `docs/CODING_CONVENTIONS.md` (PSR-12 + `declare(strict_types=1)` + PHP functions < 30 lines; 2-space TS, semicolons, `lib/` modules as single classes of `static` methods)
 
 **Checkpoint**: Baseline green; no lockfile in either stack will change for the rest of this feature.
 
@@ -56,21 +56,21 @@ every user story below builds on.
 
 ### Tests (write first, confirm failing)
 
-- [ ] T003 [P] Extend `backend/tests/Feature/Database/SchemaTest.php` with assertions that `users` has nullable `disabled_at` and `disabled_by` columns, both defaulting to null (data-model §1)
-- [ ] T004 [P] Add a `User::isDisabled()` / `disabledBy()` unit test in `backend/tests/Unit/Models/UserTest.php` covering: null `disabled_at` ⇒ false, set ⇒ true, `disabled_at` cast to a datetime, and `disabledBy` resolving to the acting user and to null (data-model INV-3 "unresolvable actor")
-- [ ] T005 [P] Add a test in `backend/tests/Unit/Models/UserTest.php` asserting neither `disabled_at` nor `disabled_by` appears in `User::$fillable`, so no request body can reach them (data-model INV-2, Principle VI)
-- [ ] T006 [P] Add `frontend/tests/lib/adminPaging.test.ts` covering `AdminPaging.parsePage` (absent, non-numeric, `0`, negative, valid ⇒ fallback to 1 where required) and `AdminPaging.pageLinks` (single page, first page, middle, last page) per research D8
+- [X] T003 [P] Extend `backend/tests/Feature/Database/SchemaTest.php` with assertions that `users` has nullable `disabled_at` and `disabled_by` columns, both defaulting to null (data-model §1)
+- [X] T004 [P] Add a `User::isDisabled()` / `disabledBy()` unit test in `backend/tests/Unit/Models/UserTest.php` covering: null `disabled_at` ⇒ false, set ⇒ true, `disabled_at` cast to a datetime, and `disabledBy` resolving to the acting user and to null (data-model INV-3 "unresolvable actor")
+- [X] T005 [P] Add a test in `backend/tests/Unit/Models/UserTest.php` asserting neither `disabled_at` nor `disabled_by` appears in `User::$fillable`, so no request body can reach them (data-model INV-2, Principle VI)
+- [X] T006 [P] Add `frontend/tests/lib/adminPaging.test.ts` covering `AdminPaging.parsePage` (absent, non-numeric, `0`, negative, valid ⇒ fallback to 1 where required) and `AdminPaging.pageLinks` (single page, first page, middle, last page) per research D8
 
 ### Implementation
 
-- [ ] T007 Create the migration `backend/database/migrations/2026_07_20_000002_add_disabled_to_users_table.php` adding nullable `disabled_at` (timestamp) and nullable `disabled_by` (`foreignId` → `users.id`, `nullOnDelete`); `down()` MUST drop the foreign key before dropping the columns, and the whole migration must run on SQLite `:memory:` because tests never touch a real database
-- [ ] T008 Update `backend/app/Models/User.php`: cast `disabled_at` to `datetime`, add `disabledBy(): BelongsTo` (self-reference on `disabled_by`), add `isDisabled(): bool`; leave both columns out of `$fillable`
-- [ ] T009 [P] Add a `disabled()` state to `backend/database/factories/UserFactory.php` that sets `disabled_at` and accepts an optional acting user for `disabled_by`, so every later test can build disabled accounts
-- [ ] T010 [P] Create `frontend/src/lib/adminPaging.ts` — class `AdminPaging` with the `PageMeta` type plus `static parsePage` and `static pageLinks`, moved verbatim from `moderationModel.ts` (research D8)
-- [ ] T011 [P] Create `frontend/src/components/admin/AdminPagination.tsx` — the shared numbered page-link component (props `meta`, `label`), with `aria-current` on the active page, extracted from `ModerationPagination.tsx`
-- [ ] T012 Rewrite `frontend/src/lib/moderationModel.ts` `pageLinks`/`parsePage` as thin delegations to `AdminPaging`, keeping the existing names and signatures so no 010 caller or test changes (research D8 — the extraction is additive)
-- [ ] T013 Rewrite `frontend/src/components/moderation/ModerationPagination.tsx` as a thin wrapper over `AdminPagination`, preserving its current props and rendered markup; run `cd frontend; npm run test -- moderation` and confirm the shipped 010 tests still pass unchanged
-- [ ] T014 Run `docker compose exec backend php artisan migrate` and `docker compose exec backend php artisan test --filter=Schema` and confirm T003–T005 now pass
+- [X] T007 Create the migration `backend/database/migrations/2026_07_20_000002_add_disabled_to_users_table.php` adding nullable `disabled_at` (timestamp) and nullable `disabled_by` (`foreignId` → `users.id`, `nullOnDelete`); `down()` MUST drop the foreign key before dropping the columns, and the whole migration must run on SQLite `:memory:` because tests never touch a real database
+- [X] T008 Update `backend/app/Models/User.php`: cast `disabled_at` to `datetime`, add `disabledBy(): BelongsTo` (self-reference on `disabled_by`), add `isDisabled(): bool`; leave both columns out of `$fillable`
+- [X] T009 [P] Add a `disabled()` state to `backend/database/factories/UserFactory.php` that sets `disabled_at` and accepts an optional acting user for `disabled_by`, so every later test can build disabled accounts
+- [X] T010 [P] Create `frontend/src/lib/adminPaging.ts` — class `AdminPaging` with the `PageMeta` type plus `static parsePage` and `static pageLinks`, moved verbatim from `moderationModel.ts` (research D8)
+- [X] T011 [P] Create `frontend/src/components/admin/AdminPagination.tsx` — the shared numbered page-link component (props `meta`, `label`), with `aria-current` on the active page, extracted from `ModerationPagination.tsx`
+- [X] T012 Rewrite `frontend/src/lib/moderationModel.ts` `pageLinks`/`parsePage` as thin delegations to `AdminPaging`, keeping the existing names and signatures so no 010 caller or test changes (research D8 — the extraction is additive)
+- [X] T013 Rewrite `frontend/src/components/moderation/ModerationPagination.tsx` as a thin wrapper over `AdminPagination`, preserving its current props and rendered markup; run `cd frontend; npm run test -- moderation` and confirm the shipped 010 tests still pass unchanged
+- [X] T014 Run `docker compose exec backend php artisan migrate` and `docker compose exec backend php artisan test --filter=Schema` and confirm T003–T005 now pass
 
 **Checkpoint**: Schema, model, factory, and shared paging ready — user stories can begin.
 

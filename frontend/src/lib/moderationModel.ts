@@ -1,3 +1,6 @@
+import type { PageMeta } from './adminPaging';
+import { AdminPaging } from './adminPaging';
+
 // The raw moderation row as the admin API serializes it (AdminTrashpostResource). Snake_case
 // mirrors the JSON; the render-ready ModerationRow below is the camelCase shape the UI reads.
 export type RawModerationRow = {
@@ -14,13 +17,9 @@ export type RawModerationRow = {
   deleted_at: string | null;
 };
 
-// Laravel's paginator meta: enough to derive the numbered page links and the current page.
-export type ModerationMeta = {
-  current_page: number;
-  last_page: number;
-  per_page: number;
-  total: number;
-};
+// Laravel's paginator meta. The shape is shared across the admin consoles, so this is now
+// an alias of PageMeta — the 010 name is kept so no existing import changes.
+export type ModerationMeta = PageMeta;
 
 export type ModerationRow = {
   hash: string;
@@ -94,17 +93,14 @@ export class ModerationModel {
     };
   }
 
-  // Every page number 1..last_page — the table pages 100 rows at a time, so the count
-  // stays small enough to list in full.
+  // Page-link math is shared with the other admin consoles (012); these two keep their
+  // names and signatures so no 010 caller changes, and delegate to AdminPaging.
   static pageLinks(meta: ModerationMeta): number[] {
-    return Array.from({ length: meta.last_page }, (_unused, index) => index + 1);
+    return AdminPaging.pageLinks(meta);
   }
 
-  // The ?page query value as a 1-based page number; absent, non-numeric, or below 1 all
-  // fall back to page 1 so a hand-edited URL never breaks the fetch (FR-005).
   static parsePage(raw: string | null): number {
-    const page = Number(raw);
-    return Number.isInteger(page) && page >= 1 ? page : 1;
+    return AdminPaging.parsePage(raw);
   }
 
   // Replace one row in place after a moderation action (FR-017); a no-op when the

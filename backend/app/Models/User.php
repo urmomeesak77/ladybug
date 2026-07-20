@@ -8,6 +8,7 @@ use App\Enums\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -74,6 +75,22 @@ class User extends Authenticatable implements MustVerifyEmail {
     }
 
     /**
+     * The moderator who disabled this account, or null when the account is active
+     * or the acting account has since been deleted (nullOnDelete — INV-3).
+     */
+    public function disabledBy(): BelongsTo {
+        return $this->belongsTo(self::class, 'disabled_by');
+    }
+
+    /**
+     * Whether access is currently revoked. The timestamp's presence is the state —
+     * there is no separate boolean flag to fall out of step with it.
+     */
+    public function isDisabled(): bool {
+        return $this->disabled_at !== null;
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -81,6 +98,7 @@ class User extends Authenticatable implements MustVerifyEmail {
     protected function casts(): array {
         return [
             'email_verified_at' => 'datetime',
+            'disabled_at' => 'datetime',
             'password' => 'hashed',
             'role' => Role::class,
         ];

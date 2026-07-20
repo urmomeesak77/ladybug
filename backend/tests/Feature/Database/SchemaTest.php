@@ -30,6 +30,22 @@ final class SchemaTest extends TestCase {
         ]));
     }
 
+    public function test_users_table_has_the_disabled_columns(): void {
+        $this->assertTrue(Schema::hasColumns('users', ['disabled_at', 'disabled_by']));
+    }
+
+    public function test_users_disabled_columns_default_to_null(): void {
+        // A row inserted without either column is an ACTIVE account: disabling is
+        // opt-in state, so the absence of a timestamp is what "enabled" means
+        // (data-model §1). A non-null default would disable every account.
+        $this->insertUser('active@x.io', 'u000000003');
+
+        $row = DB::table('users')->where('hash', 'u000000003')->first();
+
+        $this->assertNull($row->disabled_at);
+        $this->assertNull($row->disabled_by);
+    }
+
     public function test_trashposts_has_a_composite_feed_index_on_activated_at_and_id(): void {
         // The feed keyset orders by (activated_at DESC, id DESC) and seeks by the
         // same tuple; without this index every page degrades to a filesort.
