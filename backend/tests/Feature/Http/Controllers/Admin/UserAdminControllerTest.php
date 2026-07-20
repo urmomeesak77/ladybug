@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Controllers\Admin;
 
+use App\Models\Trashpost;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -11,14 +12,60 @@ use Tests\TestCase;
 /**
  * The account-list index endpoint as an admin (US1): the documented paginator envelope over
  * every account, newest-first, 100/page. A non-numeric, missing or below-1 page falls back
- * to page 1; a page beyond the last is an empty page, not an error. Access-control cases
- * (guest/member/superuser) and the disable/enable actions land in US2/US3.
+ * to page 1; a page beyond the last is an empty page, not an error.
+ *
+ * US2 adds the access boundary: the whole admin group is gated by auth:sanctum then
+ * role:admin, so a guest is refused before any row is emitted and a member is refused after
+ * authenticating — the boundary protects the DATA, not just the SPA page (Principle VI). The
+ * disable/enable action routes mount inside the same group in US3, so they inherit this same
+ * boundary; only the mounted index endpoint is swept here.
  */
 final class UserAdminControllerTest extends TestCase {
     use RefreshDatabase;
 
     private function admin(): User {
         return User::factory()->admin()->create();
+    }
+
+    public function test_index_refuses_a_guest_with_401(): void {
+        $this->getJson('/api/admin/users')->assertUnauthorized();
+    }
+
+    public function test_index_refuses_a_member_with_403(): void {
+        $member = User::factory()->create();
+
+        $this->actingAs($member)->getJson('/api/admin/users')->assertForbidden();
+    }
+
+    public function test_index_admits_an_admin(): void {
+        $this->actingAs($this->admin())->getJson('/api/admin/users')->assertOk();
+    }
+
+    public function test_index_admits_a_superuser(): void {
+        $superuser = User::factory()->superuser()->create();
+
+        $this->actingAs($superuser)->getJson('/api/admin/users')->assertOk();
+    }
+
+    public function test_public_payloads_never_expose_email_or_role(): void {
+        // FR-018: this feature must not add e-mail or role to any public or member-facing
+        // payload as a side effect. Guard the two read-side endpoints that carry post data.
+        $owner = User::factory()->create();
+        // Attach the owner so assertDontSee($owner->email) actually guards a leak path:
+        // if the resource ever joined the owner in, this real e-mail would surface.
+        $post = Trashpost::factory()->create(['user_id' => $owner->id]);
+
+        $feed = $this->getJson('/api/posts');
+        $feed->assertOk()->assertDontSee($owner->email);
+        foreach ($feed->json('data') as $row) {
+            $this->assertArrayNotHasKey('email', $row);
+            $this->assertArrayNotHasKey('role', $row);
+        }
+
+        $single = $this->getJson("/api/posts/{$post->hash}");
+        $single->assertOk()->assertDontSee($owner->email);
+        $this->assertArrayNotHasKey('email', $single->json('data'));
+        $this->assertArrayNotHasKey('role', $single->json('data'));
     }
 
     public function test_index_returns_the_documented_row_shape_and_meta(): void {

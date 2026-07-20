@@ -4,7 +4,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Role } from '../lib/role';
 
-type MenuGlyph = 'home' | 'person' | 'upload' | 'logout' | 'moderation';
+type MenuGlyph = 'home' | 'person' | 'upload' | 'logout' | 'moderation' | 'users';
 
 // Prototype-style flat glyphs on a 25x25 grid. House and person are copied verbatim
 // from the prototype's LeftMenu; upload (arrow into tray) and logout (door + arrow)
@@ -43,6 +43,15 @@ const GLYPHS: Record<MenuGlyph, ReactElement> = {
       <polygon points="3,18 22,18 22,22 3,22" />
     </g>
   ),
+  // Two people: the account roster, drawn in the same flat style as the person glyph.
+  users: (
+    <g>
+      <circle cx="9" cy="9" r="5" />
+      <ellipse cx="9" cy="24" rx="9" ry="5" />
+      <circle cx="19" cy="10" r="4" />
+      <ellipse cx="20" cy="24" rx="7" ry="4" />
+    </g>
+  ),
 };
 
 // Decorative only: the adjacent link/button text is the accessible name (Principle IV).
@@ -75,16 +84,18 @@ function AnonymousLinks() {
   );
 }
 
-// Upload is verified-only (the API rejects unverified posts with 403); Moderation is
-// admin-only (the API gates it with role:admin). Hiding each entry keeps the menu honest
+// Upload is verified-only (the API rejects unverified posts with 403); Moderation and Users
+// are admin-only (the API gates both with role:admin). Hiding each entry keeps the menu honest
 // about what the user can actually do right now.
 function AuthenticatedLinks({
   showUpload,
   showModeration,
+  showUsers,
   onLogout,
 }: {
   showUpload: boolean;
   showModeration: boolean;
+  showUsers: boolean;
   onLogout: () => void;
 }) {
   return (
@@ -108,6 +119,14 @@ function AuthenticatedLinks({
           <NavLink to="/admin/trashposts">
             <MenuIcon glyph="moderation" />
             Trashposts
+          </NavLink>
+        </li>
+      ) : null}
+      {showUsers ? (
+        <li>
+          <NavLink to="/admin/users">
+            <MenuIcon glyph="users" />
+            Users
           </NavLink>
         </li>
       ) : null}
@@ -149,6 +168,7 @@ function LeftMenu() {
           <AuthenticatedLinks
             showUpload={user.emailVerifiedAt !== null}
             showModeration={isAdmin}
+            showUsers={isAdmin}
             onLogout={() => void handleLogout()}
           />
         ) : (

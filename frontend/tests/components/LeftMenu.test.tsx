@@ -117,6 +117,31 @@ describe('LeftMenu', () => {
     expect(screen.queryByRole('link', { name: 'Trashposts' })).toBeNull();
   });
 
+  it('shows the Users link to an admin', () => {
+    renderMenu(authValue({ status: 'authenticated', user, role: 'admin' }));
+
+    const link = screen.getByRole('link', { name: 'Users' });
+    expect(link.getAttribute('href')).toBe('/admin/users');
+  });
+
+  it('shows the Users link to a superuser', () => {
+    renderMenu(authValue({ status: 'authenticated', user, role: 'superuser' }));
+
+    expect(screen.getByRole('link', { name: 'Users' })).toBeTruthy();
+  });
+
+  it('hides the Users link from a member', () => {
+    renderMenu(authValue({ status: 'authenticated', user, role: 'member' }));
+
+    expect(screen.queryByRole('link', { name: 'Users' })).toBeNull();
+  });
+
+  it('hides the Users link from anonymous visitors', () => {
+    renderMenu(authValue({ status: 'anonymous', role: 'guest' }));
+
+    expect(screen.queryByRole('link', { name: 'Users' })).toBeNull();
+  });
+
   it('logs out and navigates home', async () => {
     const value = authValue({ status: 'authenticated', user });
     renderMenu(value, '/account');

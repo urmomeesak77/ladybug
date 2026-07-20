@@ -126,17 +126,17 @@ only for admin+.
 
 ### Tests for User Story 2 (write first, confirm failing)
 
-- [ ] T034 [P] [US2] Add access-boundary cases to `backend/tests/Feature/Http/Controllers/Admin/UserAdminControllerTest.php`: guest ⇒ `401`, member ⇒ `403`, admin ⇒ `200`, superuser ⇒ `200`, applied to **all three** endpoints (contract §"Shared access boundary")
-- [ ] T035 [P] [US2] Add a test to `backend/tests/Feature/Http/Controllers/Admin/UserAdminControllerTest.php` asserting no e-mail or role field leaks into any public or member-facing payload as a side effect of this feature (FR-018) — assert against the public feed and single-post responses
-- [ ] T036 [P] [US2] Extend `frontend/tests/components/LeftMenu.test.tsx` — the "Users" entry is absent for a guest and for a member, present for an admin and a superuser (FR-003)
-- [ ] T037 [P] [US2] Extend `frontend/tests/App.test.tsx` — `/admin/users` is wrapped in `RequireRole role="admin"` and a member is redirected away
+- [X] T034 [P] [US2] Add access-boundary cases to `backend/tests/Feature/Http/Controllers/Admin/UserAdminControllerTest.php`: guest ⇒ `401`, member ⇒ `403`, admin ⇒ `200`, superuser ⇒ `200`, applied to **all three** endpoints (contract §"Shared access boundary")
+- [X] T035 [P] [US2] Add a test to `backend/tests/Feature/Http/Controllers/Admin/UserAdminControllerTest.php` asserting no e-mail or role field leaks into any public or member-facing payload as a side effect of this feature (FR-018) — assert against the public feed and single-post responses
+- [X] T036 [P] [US2] Extend `frontend/tests/components/LeftMenu.test.tsx` — the "Users" entry is absent for a guest and for a member, present for an admin and a superuser (FR-003)
+- [X] T037 [P] [US2] Extend `frontend/tests/App.test.tsx` — `/admin/users` is wrapped in `RequireRole role="admin"` and a member is redirected away
 
 ### Implementation for User Story 2
 
-- [ ] T038 [US2] Confirm (and adjust if needed) that all three routes in `backend/routes/api.php` sit inside the `auth:sanctum` + `role:admin` group so the guest→401 / member→403 boundary is inherited with no new middleware
-- [ ] T039 [P] [US2] Add the admin-only "Users" entry linking to `/admin/users` in `frontend/src/components/LeftMenu.tsx`, gated on the viewer's role exactly as the existing moderation entry is
-- [ ] T040 [US2] Register the `/admin/users` route in `frontend/src/App.tsx` wrapped in `<RequireRole role="admin">`
-- [ ] T041 [US2] Verify with real output: `docker compose exec backend php artisan test --filter=UserAdmin` plus `curl -i http://localhost:8000/api/admin/users` with no session returning `401`
+- [X] T038 [US2] Confirm (and adjust if needed) that all three routes in `backend/routes/api.php` sit inside the `auth:sanctum` + `role:admin` group so the guest→401 / member→403 boundary is inherited with no new middleware
+- [X] T039 [P] [US2] Add the admin-only "Users" entry linking to `/admin/users` in `frontend/src/components/LeftMenu.tsx`, gated on the viewer's role exactly as the existing moderation entry is
+- [X] T040 [US2] Register the `/admin/users` route in `frontend/src/App.tsx` wrapped in `<RequireRole role="admin">`
+- [X] T041 [US2] Verify with real output: `docker compose exec backend php artisan test --filter=UserAdmin` plus `curl -i http://localhost:8000/api/admin/users` with no session returning `401`
 
 **Checkpoint**: The data boundary — not just the page — is enforced and proven.
 
