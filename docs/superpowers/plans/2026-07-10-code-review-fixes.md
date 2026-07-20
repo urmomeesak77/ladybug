@@ -35,7 +35,7 @@ The current hash is base64 of `random_int(2,114) . unixtime . microseconds`. `cr
 **Interfaces:**
 - Produces: `Str::createUniqueHash(int $length = 10): string` — same signature, same charset, now uniform-random per character. All existing callers (`UserService`, `TrashpostService`) are unaffected.
 
-- [ ] **Step 1: Write the failing test**
+- [X] **Step 1: Write the failing test**
 
 Append to `backend/tests/Unit/Utils/StrTest.php` (inside the class):
 
@@ -63,12 +63,12 @@ Append to `backend/tests/Unit/Utils/StrTest.php` (inside the class):
     }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [X] **Step 2: Run test to verify it fails**
 
 Run: `docker compose exec backend php artisan test --filter=StrTest`
 Expected: FAIL — `test_single_char_hashes_cover_the_full_charmap_including_zero` (missing `'0'`). The uniqueness test passes on both implementations.
 
-- [ ] **Step 3: Write the implementation**
+- [X] **Step 3: Write the implementation**
 
 Replace the whole body of `backend/app/Utils/Str.php` with:
 
@@ -106,12 +106,12 @@ class Str {
 
 (The private `getTimeBasedUniqueNumber()` helper is deleted; nothing else used it.)
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [X] **Step 4: Run tests to verify they pass**
 
 Run: `docker compose exec backend php artisan test --filter=StrTest`
 Expected: PASS (6 tests). Then run the callers' suites: `docker compose exec backend php artisan test --filter='UserServiceTest|TrashpostServiceTest'` — expected PASS.
 
-- [ ] **Step 5: Lint and commit**
+- [X] **Step 5: Lint and commit**
 
 ```bash
 docker compose exec backend ./vendor/bin/pint --test
@@ -134,7 +134,7 @@ git commit -m "fix(review): mint public hashes from a CSPRNG, not creation time"
 - Produces: `MediaVisibilityService::sync(Trashpost $post): void` (moves files to the disk matching visibility, idempotent) and `MediaVisibilityService::ownedPaths(Trashpost $post): array` (list of relative paths the meme owns outright — image variants + unshared YouTube thumbnail). Task 6's purge logging consumes `ownedPaths`.
 - Consumes: `MediaPath::imageSizes()`, `MediaPath::imageRelativePath()` (unchanged).
 
-- [ ] **Step 1: Write the failing tests**
+- [X] **Step 1: Write the failing tests**
 
 Create `backend/tests/Unit/Services/MediaVisibilityServiceTest.php`:
 
@@ -331,12 +331,12 @@ Append to `backend/tests/Unit/Services/ModerationServiceTest.php` (add `use App\
 
 NOTE: the existing purge tests in this file already cover public-disk deletion and the shared-thumbnail guard; leave them in place. If any of them call the (about to be removed) private helpers via reflection, update them to call `MediaVisibilityService::ownedPaths` instead.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [X] **Step 2: Run tests to verify they fail**
 
 Run: `docker compose exec backend php artisan test --filter='MediaVisibilityServiceTest|ModerationServiceTest'`
 Expected: FAIL — `Class "App\Services\MediaVisibilityService" not found` and the new ModerationService assertions failing (files still on public disk).
 
-- [ ] **Step 3: Create `MediaVisibilityService`**
+- [X] **Step 3: Create `MediaVisibilityService`**
 
 Create `backend/app/Services/MediaVisibilityService.php`:
 
@@ -440,7 +440,7 @@ class MediaVisibilityService {
 }
 ```
 
-- [ ] **Step 4: Wire it into `ModerationService`**
+- [X] **Step 4: Wire it into `ModerationService`**
 
 In `backend/app/Services/ModerationService.php`:
 
@@ -474,18 +474,18 @@ In `backend/app/Services/ModerationService.php`:
 
 4. Update the class docblock's last sentence to mention that soft-delete/deactivate also remove media from public reach. Drop the `use App\Support\MediaPath;` import if nothing in the file still references it.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [X] **Step 5: Run tests to verify they pass**
 
 Run: `docker compose exec backend php artisan test --filter='MediaVisibilityServiceTest|ModerationServiceTest|ModerationControllerTest'`
 Expected: PASS. If an existing `ModerationControllerTest` purge case seeded files only on `public` for a soft-deleted post, it still passes (delete on a missing path is a no-op).
 
-- [ ] **Step 6: Record the guarantee in the 010 spec**
+- [X] **Step 6: Record the guarantee in the 010 spec**
 
 In `specs/010-admin-meme-moderation/spec.md`, find the FR describing soft delete (search for `soft delete`) and append one sentence to it:
 
 > Soft-deleting or deactivating a meme also removes its media files from public reach (they move to private storage and return on restore/activation); purge removes them permanently.
 
-- [ ] **Step 7: Lint and commit**
+- [X] **Step 7: Lint and commit**
 
 ```bash
 docker compose exec backend ./vendor/bin/pint --test
@@ -506,12 +506,12 @@ The one place the "no DB ids reach clients" rule is broken. `users.hash` already
 **Interfaces:**
 - Produces: API user payload key `hash` (string, 10 chars) replacing `id`; frontend `AuthUser.hash: string` replacing `AuthUser.id: number`.
 
-- [ ] **Step 1: Verify the factory mints a hash**
+- [X] **Step 1: Verify the factory mints a hash**
 
 Run: `grep -n "hash" backend/database/factories/UserFactory.php`
 Expected: a `'hash' => ...` line in `definition()` (feature tests already create users, and the column is NOT NULL + unique, so it must be there). If absent, add `'hash' => Str::createUniqueHash(),` with `use App\Utils\Str;`.
 
-- [ ] **Step 2: Update the backend test to the new contract**
+- [X] **Step 2: Update the backend test to the new contract**
 
 In `backend/tests/Unit/Http/Resources/UserResourceTest.php` replace the key-order assertion and the id assertion:
 
@@ -529,12 +529,12 @@ Add to the second test (never-exposes test):
         $this->assertArrayNotHasKey('id', $data);
 ```
 
-- [ ] **Step 3: Run to verify it fails**
+- [X] **Step 3: Run to verify it fails**
 
 Run: `docker compose exec backend php artisan test --filter=UserResourceTest`
 Expected: FAIL (payload still has `id`).
 
-- [ ] **Step 4: Change the resource**
+- [X] **Step 4: Change the resource**
 
 In `backend/app/Http/Resources/UserResource.php` replace the `'id'` line:
 
@@ -544,12 +544,12 @@ In `backend/app/Http/Resources/UserResource.php` replace the `'id'` line:
 
 Also extend the docblock's first paragraph with: `The DB id never reaches clients — the account's public handle is its 10-char hash (Principle V).`
 
-- [ ] **Step 5: Backend green**
+- [X] **Step 5: Backend green**
 
 Run: `docker compose exec backend php artisan test --filter='UserResourceTest|AuthControllerTest|EmailVerificationControllerTest'`
 Expected: PASS. If a controller test asserted an `id` key in the user envelope, update it to `hash`.
 
-- [ ] **Step 6: Update the frontend type + mapping**
+- [X] **Step 6: Update the frontend type + mapping**
 
 In `frontend/src/lib/authApi.ts`:
 
@@ -557,12 +557,12 @@ In `frontend/src/lib/authApi.ts`:
 - `RawUser`: replace `id: number;` with `hash: string;`.
 - `AuthApi.mapUser`: replace `id: raw.id,` with `hash: raw.hash,`.
 
-- [ ] **Step 7: Fix frontend fixtures and consumers**
+- [X] **Step 7: Fix frontend fixtures and consumers**
 
 Run: `grep -rn "id: *[0-9]" frontend/tests frontend/src | grep -iv "hash"` and `grep -rn "\.id\b" frontend/src frontend/tests`
 Expected: hits only in test fixtures building `RawUser`/`AuthUser` objects (no `src/` component reads `.id`). In each fixture, replace `id: <number>` with `hash: 'usr0000001'` (any 10-char `[A-Za-z0-9_-]` literal).
 
-- [ ] **Step 8: Frontend green, commit**
+- [X] **Step 8: Frontend green, commit**
 
 Run: `docker compose exec frontend npx vitest run` — expected PASS.
 
@@ -587,7 +587,7 @@ git commit -m "fix(review): expose the account hash instead of the DB id"
 - Consumes: `YoutubeThumbnailService::ensure(Trashpost $post): ?string` (unchanged signature).
 - Produces: `TrashpostService::createPost` now also populates `youtube_thumbnail` for YouTube posts (best-effort); `AdminTrashpostResource` does zero remote IO.
 
-- [ ] **Step 1: Write the failing test**
+- [X] **Step 1: Write the failing test**
 
 Append to `backend/tests/Unit/Services/TrashpostServiceTest.php` (imports needed: `Illuminate\Support\Facades\Http`, `Illuminate\Support\Facades\Storage`, `App\Models\User`):
 
@@ -617,12 +617,12 @@ Append to `backend/tests/Unit/Services/TrashpostServiceTest.php` (imports needed
     }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [X] **Step 2: Run to verify it fails**
 
 Run: `docker compose exec backend php artisan test --filter=TrashpostServiceTest`
 Expected: FAIL — `youtube_thumbnail` is null (nothing fetches at upload time yet).
 
-- [ ] **Step 3: Wire the fetch into `TrashpostService`**
+- [X] **Step 3: Wire the fetch into `TrashpostService`**
 
 In `backend/app/Services/TrashpostService.php`:
 
@@ -648,7 +648,7 @@ In `backend/app/Services/TrashpostService.php`:
         }
 ```
 
-- [ ] **Step 4: Harden `YoutubeThumbnailService`**
+- [X] **Step 4: Harden `YoutubeThumbnailService`**
 
 In `backend/app/Services/YoutubeThumbnailService.php`:
 
@@ -678,7 +678,7 @@ In `backend/app/Services/YoutubeThumbnailService.php`:
 
 5. Update the class docblock: the fetch now happens at upload time (TrashpostService); this service stays callable from anywhere but the admin index no longer triggers it.
 
-- [ ] **Step 5: Make `AdminTrashpostResource` a pure reader**
+- [X] **Step 5: Make `AdminTrashpostResource` a pure reader**
 
 In `backend/app/Http/Resources/AdminTrashpostResource.php`: remove `use App\Services\YoutubeThumbnailService;` and replace `thumbnailUrl()`'s youtube branch:
 
@@ -708,7 +708,7 @@ In `backend/app/Http/Resources/AdminTrashpostResource.php`: remove `use App\Serv
     }
 ```
 
-- [ ] **Step 6: Update tests that assumed lazy fetching**
+- [X] **Step 6: Update tests that assumed lazy fetching**
 
 Run: `grep -rln "Http::fake" backend/tests` and inspect hits touching the admin index/resource. Any test asserting that *rendering the admin index* downloads a thumbnail must flip: the index now returns `null` thumbnail for a row without a stored still, and never calls `Http`. Keep `YoutubeThumbnailServiceTest` — it tests `ensure()` directly and still passes; add one case there if missing:
 
@@ -724,7 +724,7 @@ Run: `grep -rln "Http::fake" backend/tests` and inspect hits touching the admin 
     }
 ```
 
-- [ ] **Step 7: Run, lint, commit**
+- [X] **Step 7: Run, lint, commit**
 
 Run: `docker compose exec backend php artisan test` — expected: full suite PASS.
 
@@ -743,7 +743,7 @@ Two review items are resolved by *documenting decisions*: registration's email-e
 **Files:**
 - Modify: `backend/app/Http/Requests/RegisterRequest.php`, `backend/.env.example`
 
-- [ ] **Step 1: Record the enumeration tradeoff where it lives**
+- [X] **Step 1: Record the enumeration tradeoff where it lives**
 
 In `backend/app/Http/Requests/RegisterRequest.php`, extend the `rules()` docblock with:
 
@@ -755,7 +755,7 @@ In `backend/app/Http/Requests/RegisterRequest.php`, extend the `rules()` docbloc
      * have an account") needs mail-product buy-in; revisit alongside password reset.
 ```
 
-- [ ] **Step 2: Production guidance in `.env.example`**
+- [X] **Step 2: Production guidance in `.env.example`**
 
 In `backend/.env.example`:
 
@@ -780,14 +780,14 @@ APP_URL=http://localhost:8000
 # SESSION_SECURE_COOKIE=true
 ```
 
-- [ ] **Step 3: Sanity-check the dev stack still boots with the template**
+- [X] **Step 3: Sanity-check the dev stack still boots with the template**
 
 Run: `docker compose exec backend php artisan config:clear` then `curl -s http://localhost:8000/api/health`
 Expected: the health probe answers 200. (The template only gained comments and a truthful dev APP_URL; `public` disk URLs derive from APP_URL — the old `online-trash.com` value was wrong for dev anyway.)
 
 NOTE: your real `backend/.env` is untouched; if its `APP_URL` still says `online-trash.com`, fix it there too (not committed).
 
-- [ ] **Step 4: Commit**
+- [X] **Step 4: Commit**
 
 ```bash
 git add backend/app/Http/Requests/RegisterRequest.php backend/.env.example
@@ -805,7 +805,7 @@ Six small findings, one commit.
 - Create: `backend/config/media.php`, `backend/database/migrations/<timestamp>_add_youtube_thumbnail_index_to_trashposts.php`
 - Test: existing suites (behavior-preserving), `backend/tests/Unit/Http/Resources/TrashpostResourceTest.php`
 
-- [ ] **Step 1: Explicit assignment in `TrashpostService::reserve`, then shrink `$fillable`**
+- [X] **Step 1: Explicit assignment in `TrashpostService::reserve`, then shrink `$fillable`**
 
 In `backend/app/Services/TrashpostService.php`, replace the `new Trashpost([...])` block in `reserve()`:
 
@@ -836,7 +836,7 @@ In `backend/app/Models/Trashpost.php`, shrink `$fillable` to exactly what `fill(
 
 Run: `docker compose exec backend php artisan test` — expected PASS (factories bypass `$fillable` via `forceCreate`-style state, but verify; if `TrashpostFactory` relies on mass assignment for `hash`/`user_id`, factories call `fill` internally *unguarded*, so they are unaffected).
 
-- [ ] **Step 2: Kill the stock welcome page**
+- [X] **Step 2: Kill the stock welcome page**
 
 Replace the route body in `backend/routes/web.php`:
 
@@ -848,11 +848,11 @@ Route::get('/', static function () {
 });
 ```
 
-- [ ] **Step 3: Drop `updated_at` from the public feed payload**
+- [X] **Step 3: Drop `updated_at` from the public feed payload**
 
 In `backend/app/Http/Resources/TrashpostResource.php`: delete the `'updated_at' => $this->updated_at,` line and add `updated_at` to the docblock's "Deliberately omitted" list (it reveals internal edit/moderation timing for no client benefit). Update `TrashpostResourceTest` key expectations accordingly. The frontend never reads it (`grep -rn "updated_at" frontend/src/lib/feedModel.ts frontend/src/lib/postModel.ts` → no hits).
 
-- [ ] **Step 4: Log purge leftovers**
+- [X] **Step 4: Log purge leftovers**
 
 In `backend/app/Services/ModerationService.php` (as left by Task 2), add `use Illuminate\Support\Facades\Log;` and replace the two delete lines in `purge()` with `$this->deleteEverywhere($paths);`, adding:
 
@@ -877,7 +877,7 @@ In `backend/app/Services/ModerationService.php` (as left by Task 2), add `use Il
     }
 ```
 
-- [ ] **Step 5: Index the shared-thumbnail lookup**
+- [X] **Step 5: Index the shared-thumbnail lookup**
 
 Run: `docker compose exec backend php artisan make:migration add_youtube_thumbnail_index_to_trashposts --table=trashposts`, then fill in:
 
@@ -899,7 +899,7 @@ Run: `docker compose exec backend php artisan make:migration add_youtube_thumbna
 
 (Ensure the file has `declare(strict_types=1);` per convention.) Run `docker compose exec backend php artisan migrate` against dev.
 
-- [ ] **Step 6: Route the seed source through config**
+- [X] **Step 6: Route the seed source through config**
 
 Create `backend/config/media.php`:
 
@@ -917,7 +917,7 @@ return [
 
 In `backend/app/Console/Commands/SeedMediaCommand.php` line ~48, replace `env('MEDIA_SEED_SOURCE')` with `config('media.seed_source')` (and update the docblock above it: `--source → media.seed_source config (MEDIA_SEED_SOURCE env) → default`).
 
-- [ ] **Step 7: Full backend suite, lint, commit**
+- [X] **Step 7: Full backend suite, lint, commit**
 
 Run: `docker compose exec backend php artisan test` and `docker compose exec backend ./vendor/bin/pint --test`
 Expected: PASS. Fix any resource-test key lists that still expect `updated_at`.
@@ -939,12 +939,12 @@ git commit -m "fix(review): backend cleanup (fillable, welcome 404, updated_at, 
 - Delete: `frontend/src/lib/publicCode.ts`, `frontend/tests/lib/publicCode.test.ts`
 - Modify: `frontend/tests/hooks/useModeration.test.tsx:128`, `frontend/tests/hooks/usePost.test.tsx:37`, `frontend/tests/lib/moderationApi.test.ts:116,198`
 
-- [ ] **Step 1: Confirm it is dead**
+- [X] **Step 1: Confirm it is dead**
 
 Run: `grep -rn "PublicCode\|publicCode" frontend/src frontend/tests --include="*.ts*" | grep -v "publicCode.test\|src/lib/publicCode"`
 Expected: no hits. (If there are, stop and list them — the delete is then wrong.)
 
-- [ ] **Step 2: Delete and fix fixtures**
+- [X] **Step 2: Delete and fix fixtures**
 
 ```bash
 git rm frontend/src/lib/publicCode.ts frontend/tests/lib/publicCode.test.ts
@@ -952,7 +952,7 @@ git rm frontend/src/lib/publicCode.ts frontend/tests/lib/publicCode.test.ts
 
 In the three test files, replace every `'missing0000'` (11 chars) with `'missing000'` (10 chars — the real contract).
 
-- [ ] **Step 3: Verify, commit**
+- [X] **Step 3: Verify, commit**
 
 Run: `docker compose exec frontend npx vitest run` — expected PASS, and the coverage gate no longer counts the dead module.
 
@@ -974,7 +974,7 @@ git commit -m "fix(review): drop the wrong-contract publicCode module and 11-cha
 **Interfaces:**
 - Produces: `Csrf.ensure(): Promise<string>` — returns the cookie token, priming `/sanctum/csrf-cookie` first when absent. All three API clients consume it; `AuthApi.csrf()` is removed.
 
-- [ ] **Step 1: Write the failing test**
+- [X] **Step 1: Write the failing test**
 
 In `frontend/tests/lib/csrf.test.ts` (create if missing; mirror the fetch-mocking style of `tests/lib/authApi.test.ts`):
 
@@ -1012,12 +1012,12 @@ describe('Csrf.ensure', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [X] **Step 2: Run to verify it fails**
 
 Run: `docker compose exec frontend npx vitest run tests/lib/csrf.test.ts`
 Expected: FAIL — `Csrf.ensure is not a function`.
 
-- [ ] **Step 3: Implement `Csrf.ensure`**
+- [X] **Step 3: Implement `Csrf.ensure`**
 
 Replace `frontend/src/lib/csrf.ts`:
 
@@ -1051,13 +1051,13 @@ export class Csrf {
 
 (`api.ts` does not import `csrf.ts`, so no cycle.)
 
-- [ ] **Step 4: Use it in all three clients**
+- [X] **Step 4: Use it in all three clients**
 
 - `frontend/src/lib/authApi.ts`: delete the now-redundant `static async csrf()` method; in `postJson`, change the header to `'X-XSRF-TOKEN': await Csrf.ensure(),` and make the method `private static async postJson(...)` returning `fetch(...)`'s awaited value (add `await` before `fetch` or keep returning the promise — simplest is `const token = await Csrf.ensure();` before the `return fetch(...)`).
 - `frontend/src/lib/moderationApi.ts`: in `act()` and `purge()`, hoist `const token = await Csrf.ensure();` above the `fetch` and use `'X-XSRF-TOKEN': token`.
 - `frontend/src/lib/uploadApi.ts`: in `send()`, replace `'X-XSRF-TOKEN': Csrf.token(),` with `'X-XSRF-TOKEN': await Csrf.ensure(),`.
 
-- [ ] **Step 5: Keep existing client tests deterministic**
+- [X] **Step 5: Keep existing client tests deterministic**
 
 The three clients' tests mock `fetch`; without a cookie, `ensure()` now inserts a priming call that would shift `mock.calls` indexes. In each affected test file's `beforeEach`, set the cookie so `ensure()` short-circuits:
 
@@ -1067,7 +1067,7 @@ The three clients' tests mock `fetch`; without a cookie, `ensure()` now inserts 
 
 (and clear it in `afterEach` as in Step 1). Update any assertion expecting the token value accordingly.
 
-- [ ] **Step 6: Run, commit**
+- [X] **Step 6: Run, commit**
 
 Run: `docker compose exec frontend npx vitest run` — expected PASS.
 
@@ -1089,7 +1089,7 @@ Any failed fetch currently renders "No entries to moderate." — in a destructiv
 **Interfaces:**
 - Produces: `useModeration()` additionally returns `failed: boolean` and `retry(): void`.
 
-- [ ] **Step 1: Write the failing tests**
+- [X] **Step 1: Write the failing tests**
 
 In `frontend/tests/hooks/useModeration.test.tsx`, add (mirroring the file's existing mocking of `ModerationApi.fetchPage`):
 
@@ -1119,12 +1119,12 @@ In `frontend/tests/hooks/useModeration.test.tsx`, add (mirroring the file's exis
 
 (`fetchPageMock`, `wrapper`, `someMeta` = whatever names the existing file already uses for the mocked API, the router wrapper, and a meta fixture — reuse them.)
 
-- [ ] **Step 2: Run to verify they fail**
+- [X] **Step 2: Run to verify they fail**
 
 Run: `docker compose exec frontend npx vitest run tests/hooks/useModeration.test.tsx`
 Expected: FAIL — `failed`/`retry` undefined.
 
-- [ ] **Step 3: Implement in the hook**
+- [X] **Step 3: Implement in the hook**
 
 In `frontend/src/hooks/useModeration.ts`:
 
@@ -1165,7 +1165,7 @@ type Loaded = { page: number; rows: ModerationRow[]; meta: ModerationMeta | null
 
 4. Rewrite the hook's header comment: a failed fetch now settles into an explicit `failed` state with retry; it is no longer conflated with the empty corpus.
 
-- [ ] **Step 4: Render it on the page**
+- [X] **Step 4: Render it on the page**
 
 In `frontend/src/pages/ModerationPage.tsx`: import `ErrorState from '../components/states/ErrorState';`, destructure `failed, retry`, and add between the loading and empty lines:
 
@@ -1175,7 +1175,7 @@ In `frontend/src/pages/ModerationPage.tsx`: import `ErrorState from '../componen
 
 Also change `{empty && ...}` guard—already excludes failed via the hook. Update the page's header comment (failure ≠ empty). Add a page-level test: mock a failed fetch, assert the Retry button renders and "No entries to moderate." does not.
 
-- [ ] **Step 5: Run, commit**
+- [X] **Step 5: Run, commit**
 
 Run: `docker compose exec frontend npx vitest run` — expected PASS.
 
@@ -1194,15 +1194,15 @@ Drop the server-supplied `url` field (client builds `/posts/{hash}` everywhere e
 - Modify: `backend/app/Http/Resources/AdminTrashpostResource.php`, `frontend/src/lib/moderationModel.ts`, `frontend/src/components/moderation/ModerationRow.tsx`, the moderation stylesheet (find with `grep -rln "moderation-title" frontend/src/styles`)
 - Test: backend admin resource/controller tests, `frontend/tests/components/moderation/ModerationRow.test.tsx` (or equivalent), `frontend/tests/lib/moderationModel.test.ts`
 
-- [ ] **Step 1: Backend — drop the `url` field**
+- [X] **Step 1: Backend — drop the `url` field**
 
 In `AdminTrashpostResource::toArray`, delete the `'url' => "/posts/{$this->hash}",` line. Fix any backend test asserting that key. Run: `docker compose exec backend php artisan test --filter='AdminTrashpost|ModerationController'` — expected PASS after test updates.
 
-- [ ] **Step 2: Frontend model — drop `url`**
+- [X] **Step 2: Frontend model — drop `url`**
 
 In `frontend/src/lib/moderationModel.ts`: remove `url: string;` from both `RawModerationRow` and `ModerationRow`, and `url: raw.url,` from `mapRow`. Fix fixtures in the moderation test files (grep `url:` in `frontend/tests/lib/moderationModel.test.ts`, `moderationApi.test.ts`, component tests).
 
-- [ ] **Step 3: Rework the row**
+- [X] **Step 3: Rework the row**
 
 Replace `ModerationRow.tsx`'s row + title cell (the `TimeCell` stays):
 
@@ -1273,11 +1273,11 @@ Add to the moderation stylesheet, next to the existing `.moderation-title` rule:
 }
 ```
 
-- [ ] **Step 4: Update tests**
+- [X] **Step 4: Update tests**
 
 Row tests asserting `role="link"` on the `<tr>` now assert a real link: `screen.getByRole('link', { name: <title or hash> })` with `href="/posts/<hash>"`, and keyboard navigation asserts the anchor is focusable. e2e: `grep -rn "role=.link.\|moderation" frontend/e2e/moderation.spec.ts` and update selectors that clicked the row to click the title link.
 
-- [ ] **Step 5: Run everything, commit**
+- [X] **Step 5: Run everything, commit**
 
 Run: `docker compose exec frontend npx vitest run` and `docker compose exec backend php artisan test --filter='AdminTrashpost|ModerationController'`
 Expected: PASS. (Playwright e2e runs in the final verification task.)
@@ -1301,7 +1301,7 @@ git commit -m "fix(review): moderation row uses a real client-built title link"
 **Interfaces:**
 - Produces: `useAuthForm<T extends Record<string, string>>(initial: T, validate: (values: T, touched?: Set<string>) => FieldErrors)` returning `{ values, errors, hasErrors, submitting, setSubmitting, setServerErrors, handleChange, handleBlur, startSubmit }`; `ModerationModel.replaceRow(rows, updated)` and `ModerationModel.dropRow(rows, hash)`.
 
-- [ ] **Step 1: Extract the shared auth-form state hook (write its test first)**
+- [X] **Step 1: Extract the shared auth-form state hook (write its test first)**
 
 Create `frontend/tests/hooks/useAuthForm.test.ts`:
 
@@ -1400,7 +1400,7 @@ export function useAuthForm<T extends Record<string, string>>(
 
 Run the new test — expected PASS.
 
-- [ ] **Step 2: Rewrite `RegisterPage` on top of it**
+- [X] **Step 2: Rewrite `RegisterPage` on top of it**
 
 Replace `frontend/src/pages/RegisterPage.tsx`:
 
@@ -1506,7 +1506,7 @@ NOTE: `AuthModel.validateRegister` must accept `(values: RegisterValues, touched
 
 Run: `docker compose exec frontend npx vitest run tests/pages` (or the register/login test paths) — expected PASS unchanged.
 
-- [ ] **Step 3: Rewrite `LoginPage` the same way**
+- [X] **Step 3: Rewrite `LoginPage` the same way**
 
 Same pattern: `type LoginValues = { email: string; password: string };`, a two-entry `FIELDS` roster (`email`/`current-password` autocompletes), `LoginFields({ form })`, and `LoginPage` keeping its extra `formError` state:
 
@@ -1526,7 +1526,7 @@ Same pattern: `type LoginValues = { email: string; password: string };`, a two-e
 
 Preserve the `role="alert"` form error paragraph and all copy exactly. Run the login page tests — expected PASS unchanged.
 
-- [ ] **Step 4: Split `VerifyEmailPage`**
+- [X] **Step 4: Split `VerifyEmailPage`**
 
 In `frontend/src/pages/VerifyEmailPage.tsx`, move the status-text map and the outcome links out of the page function:
 
@@ -1568,7 +1568,7 @@ function VerifyOutcome({ view, status, resending, onResend }: {
 
 The page function keeps its state + effect and renders `<VerifyOutcome view={view} status={status} resending={resending} onResend={() => void handleResend()} />`. All copy and the `role="status"` paragraph stay identical; the effect body is unchanged. Run the page's tests — expected PASS unchanged.
 
-- [ ] **Step 5: Split `DeletionControl`**
+- [X] **Step 5: Split `DeletionControl`**
 
 In `ModerationActions.tsx`, extract the deleted-branch JSX:
 
@@ -1614,7 +1614,7 @@ function DeletedRowControls({ onRestore, onAskPurge }: {
 
 Run the moderation component tests — expected PASS unchanged.
 
-- [ ] **Step 6: Split `useFeed` and slim `useModeration`**
+- [X] **Step 6: Split `useFeed` and slim `useModeration`**
 
 `useFeed.ts`: move the snapshot-persist effect into a sibling hook in the same file (above `useFeed`):
 
@@ -1669,7 +1669,7 @@ and call it from `useFeed` as `usePersistSnapshot(state, cacheKey, readCursor);`
   }
 ```
 
-- [ ] **Step 7: Verify lengths, run everything, commit**
+- [X] **Step 7: Verify lengths, run everything, commit**
 
 Spot-check no function body exceeds its budget (count lines between a function's opening and closing brace). Run: `docker compose exec frontend npx vitest run` and `docker compose exec frontend npm run lint` — expected PASS.
 
@@ -1687,7 +1687,7 @@ The binding "always use semicolons" rule is hand-reviewed today; `eslint.config.
 **Files:**
 - Modify: `frontend/eslint.config.js`
 
-- [ ] **Step 1: Rewrite the config**
+- [X] **Step 1: Rewrite the config**
 
 ```js
 import js from '@eslint/js';
@@ -1720,7 +1720,7 @@ export default defineConfig([
 ]);
 ```
 
-- [ ] **Step 2: Verify and commit**
+- [X] **Step 2: Verify and commit**
 
 Run: `docker compose exec frontend npm run lint`
 Expected: clean (the codebase already uses semicolons). Fix any stragglers it finds.
@@ -1738,7 +1738,7 @@ git commit -m "chore(review): lint-enforce the semicolon convention"
 - Modify: `frontend/src/components/MemeMedia.tsx`, `frontend/src/components/ConfirmDialog.tsx`, `frontend/playwright.config.ts`
 - Move: `frontend/e2e/` → `frontend/tests/e2e/`
 
-- [ ] **Step 1: Sandbox the YouTube iframe**
+- [X] **Step 1: Sandbox the YouTube iframe**
 
 In `MemeMedia.tsx`, add to the `<iframe ...>` attributes:
 
@@ -1750,7 +1750,7 @@ In `MemeMedia.tsx`, add to the `<iframe ...>` attributes:
 
 (place the comment above the `<iframe>`, JSX attributes can't carry `//` comments inline — put it on the line above the element).
 
-- [ ] **Step 2: Stable dialog keys**
+- [X] **Step 2: Stable dialog keys**
 
 In `ConfirmDialog.tsx`, the actions list is static per dialog, so the index is a stable key while captions may repeat:
 
@@ -1760,7 +1760,7 @@ In `ConfirmDialog.tsx`, the actions list is static per dialog, so the index is a
         ))}
 ```
 
-- [ ] **Step 3: Move e2e under `tests/` (Constitution Principle VII)**
+- [X] **Step 3: Move e2e under `tests/` (Constitution Principle VII)**
 
 ```bash
 git mv frontend/e2e frontend/tests/e2e
@@ -1768,7 +1768,7 @@ git mv frontend/e2e frontend/tests/e2e
 
 In `frontend/playwright.config.ts`: `testDir: './tests/e2e',` and update the header comment's last sentence to: `Vitest unit specs use the *.test.* suffix, Playwright the *.spec.* suffix, so sharing tests/ is collision-free.` Vitest's include (`tests/**/*.test.{ts,tsx}`) does not match `*.spec.ts`, so no exclude is needed. Check CI for hardcoded paths: `grep -n "e2e" .github/workflows/ci.yml` — the Playwright invocation is directory-relative (`npx playwright test`), so only update if a literal `e2e/` path appears.
 
-- [ ] **Step 4: Verify, commit**
+- [X] **Step 4: Verify, commit**
 
 Run: `docker compose exec frontend npx vitest run` and `docker compose exec frontend npm run lint` — expected PASS (unit tests unaffected; Playwright config change is exercised in the final verification task).
 
@@ -1788,7 +1788,7 @@ Dev MySQL (root/root, real data) currently listens on 0.0.0.0 — reachable by a
 **Files:**
 - Modify: `docker-compose.yml`, `docker-compose.e2e.yml`
 
-- [ ] **Step 1: Edit the port mappings**
+- [X] **Step 1: Edit the port mappings**
 
 `docker-compose.yml` (add a why-comment on the mysql one):
 
@@ -1802,7 +1802,7 @@ Dev MySQL (root/root, real data) currently listens on 0.0.0.0 — reachable by a
 Backend: `- "127.0.0.1:8000:8000"`. Frontend: `- "127.0.0.1:5173:5173"`.
 `docker-compose.e2e.yml`: `- "127.0.0.1:8001:8000"` and `- "127.0.0.1:5174:5173"`.
 
-- [ ] **Step 2: Verify the stack still works**
+- [X] **Step 2: Verify the stack still works**
 
 ```bash
 docker compose up -d
@@ -1810,7 +1810,7 @@ curl -s http://localhost:8000/api/health
 ```
 Expected: 200 health JSON; the SPA loads on http://localhost:5173. (Everything in scripts/CI addresses `localhost`, so nothing else changes.)
 
-- [ ] **Step 3: Commit**
+- [X] **Step 3: Commit**
 
 ```bash
 git add docker-compose.yml docker-compose.e2e.yml
@@ -1827,7 +1827,7 @@ Two empty artifact dirs from mangled shell commands sit at the repo root; one ha
 - Delete: `backend;C/`, `C:projectsladybug.superpowerssdd/` (repo root)
 - Modify: `.gitignore`
 
-- [ ] **Step 1: Confirm they are empty and untracked, then delete (use Git Bash — the colon-named dir defeats Windows path parsing)**
+- [X] **Step 1: Confirm they are empty and untracked, then delete (use Git Bash — the colon-named dir defeats Windows path parsing)**
 
 ```bash
 ls -la 'backend;C' 'C:projectsladybug.superpowerssdd' && git ls-files 'backend;C' 'C:projectsladybug.superpowerssdd'
@@ -1836,7 +1836,7 @@ rm -rf 'backend;C' 'C:projectsladybug.superpowerssdd'
 
 Expected: both listings empty, `git ls-files` prints nothing, deletion succeeds. **If either contains files, STOP and report instead of deleting.**
 
-- [ ] **Step 2: Ignore `.superpowers/` at the root**
+- [X] **Step 2: Ignore `.superpowers/` at the root**
 
 Append to `.gitignore`:
 
@@ -1845,7 +1845,7 @@ Append to `.gitignore`:
 .superpowers/
 ```
 
-- [ ] **Step 3: Verify, commit**
+- [X] **Step 3: Verify, commit**
 
 Run: `git status` — clean apart from `.gitignore`.
 
@@ -1861,7 +1861,7 @@ git commit -m "chore(review): drop stray junk dirs, gitignore .superpowers/"
 **Files:**
 - Modify: `docker-compose.e2e.yml`, `scripts/backup-db.ps1`, `scripts/e2e.ps1`
 
-- [ ] **Step 1: e2e healthcheck without an inline password**
+- [X] **Step 1: e2e healthcheck without an inline password**
 
 In `docker-compose.e2e.yml`, the `-h127.0.0.1` flag alone achieves the TCP-vs-socket goal (`ping` exits 0 even on Access denied). Replace the healthcheck test line and trim the comment's last clause:
 
@@ -1874,7 +1874,7 @@ In `docker-compose.e2e.yml`, the `-h127.0.0.1` flag alone achieves the TCP-vs-so
       test: ["CMD", "mysqladmin", "ping", "-h127.0.0.1"]
 ```
 
-- [ ] **Step 2: `MYSQL_PWD` instead of inline `-p` in the backup script**
+- [X] **Step 2: `MYSQL_PWD` instead of inline `-p` in the backup script**
 
 In `scripts/backup-db.ps1` line ~105, change the dump command (password moves from the argv — visible to `ps` in the container — into the child's env):
 
@@ -1884,7 +1884,7 @@ In `scripts/backup-db.ps1` line ~105, change the dump command (password moves fr
 
 Update the long comment above it: the `-p"$VAR"` sentence becomes `MYSQL_PWD moves the password out of the process argv (visible to ps) into the client's env.`
 
-- [ ] **Step 3: CSPRNG for the e2e `APP_KEY`**
+- [X] **Step 3: CSPRNG for the e2e `APP_KEY`**
 
 In `scripts/e2e.ps1` (~line 37), replace the `Get-Random` line:
 
@@ -1898,12 +1898,12 @@ In `scripts/e2e.ps1` (~line 37), replace the `Get-Random` line:
         $key = 'base64:' + [Convert]::ToBase64String($bytes)
 ```
 
-- [ ] **Step 4: Verify the backup script end-to-end**
+- [X] **Step 4: Verify the backup script end-to-end**
 
 Run: `powershell -File scripts\backup-db.ps1`
 Expected: `backup-db: wrote ...ladybug-backups\trashdb_<timestamp>.sql (N bytes)` with N > 1024.
 
-- [ ] **Step 5: Commit**
+- [X] **Step 5: Commit**
 
 ```bash
 git add docker-compose.e2e.yml scripts/backup-db.ps1 scripts/e2e.ps1
@@ -1919,7 +1919,7 @@ Low urgency (workflow has `contents: read` and no secrets); do last or defer.
 **Files:**
 - Modify: `.github/workflows/ci.yml`
 
-- [ ] **Step 1: Resolve each action tag to its commit SHA at execution time**
+- [X] **Step 1: Resolve each action tag to its commit SHA at execution time**
 
 For each `uses:` in ci.yml (`actions/checkout@v6`, `actions/cache@v5`, `actions/setup-node@v6`, `actions/upload-artifact@v4`, `shivammathur/setup-php@v2`):
 
@@ -1928,13 +1928,13 @@ gh api repos/shivammathur/setup-php/git/ref/tags/v2 --jq '.object.sha'
 # (dereference annotated tags if object.type == "tag": gh api repos/<owner>/<repo>/git/tags/<sha> --jq '.object.sha')
 ```
 
-- [ ] **Step 2: Replace tags with SHAs, keeping the tag as a comment**
+- [X] **Step 2: Replace tags with SHAs, keeping the tag as a comment**
 
 ```yaml
         uses: shivammathur/setup-php@<resolved-sha> # v2
 ```
 
-- [ ] **Step 3: Commit and confirm CI still passes after push**
+- [X] **Step 3: Commit and confirm CI still passes after push**
 
 ```bash
 git add .github/workflows/ci.yml
@@ -1945,11 +1945,13 @@ git commit -m "chore(review): pin CI actions by commit SHA"
 
 ## Final verification (run after the last task)
 
-- [ ] Backend: `docker compose exec backend ./vendor/bin/pint --test` → clean; `docker compose exec backend php artisan test` → full PASS; coverage gate ≥90% (run the CI coverage command if in doubt).
-- [ ] Frontend: `docker compose exec frontend npm run lint` → clean; `docker compose exec frontend npx vitest run --coverage` → PASS with lines ≥90%.
-- [ ] E2E: `powershell -File scripts\e2e.ps1` → all Playwright specs pass against the isolated stack (exercises the moved `tests/e2e` dir, the CSRF priming, the moderation link rework, and the loopback e2e ports).
-- [ ] Manual smoke: soft-delete a meme in the moderation table, then request one of its old image URLs (`/storage/image/trash/original/...`) → 404; restore it → 200 again.
-- [ ] `git status` clean; all commits pushed if the standing push grant applies.
+Verified 2026-07-20, all 17 tasks confirmed already committed on `master` (base commit `da7af11`):
+
+- [X] Backend: `pint --test` clean (97 files); `php artisan test` → 283 passed (664 assertions); coverage 98.7% (≥90% gate).
+- [X] Frontend: `npm run lint` clean; `vitest run --coverage` → 60 files / 466 tests passed; coverage 98.65% lines (≥90% gate).
+- [X] E2E: `powershell -File scripts\e2e.ps1` → 16 passed, 1 skipped (`logo-parity.spec.ts`, unrelated to this plan), 0 failed.
+- [X] Manual smoke: soft-deleted a live image post via `ModerationService::delete` → its `/storage/...` URL went from 200 to 403 (dev server's `php artisan serve` returns 403, not 404, for any missing storage path — confirmed by probing a path that never existed; production web servers return 404 here). Restored via `ModerationService::restore` → 200 again. Media-visibility guarantee holds; the plan's expected status code was written for a generic web server, not this dev server.
+- [X] `git status` clean; `master` up to date with `origin/master`.
 
 ## Explicitly deferred (documented, not fixed)
 
