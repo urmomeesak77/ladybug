@@ -216,5 +216,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/011-user-rating-auto-activation/plan.md` (feature: User Rating & Auto-Activation).
+`specs/012-admin-user-list/plan.md` (feature: Admin User List).
 <!-- SPECKIT END -->
