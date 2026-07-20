@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Admin\ModerationController;
+use App\Http\Controllers\Admin\UserAdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\TrashpostsApiController;
@@ -51,6 +52,10 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::delete('/posts/{hash}', [ModerationController::class, 'destroy'])->name('api.admin.posts.destroy');
     Route::delete('/posts/{hash}/purge', [ModerationController::class, 'purge'])->name('api.admin.posts.purge');
     Route::post('/posts/{hash}/restore', [ModerationController::class, 'restore'])->name('api.admin.posts.restore');
+
+    // Admin account console (012). One 100-row page of every account, newest-first; the
+    // disable/enable action routes land in US3. Same admin+ boundary as the posts routes.
+    Route::get('/users', [UserAdminController::class, 'index'])->name('api.admin.users.index');
 });
 
 // Email verification (008). {hash} is sha1 of the recipient's email — never a DB
