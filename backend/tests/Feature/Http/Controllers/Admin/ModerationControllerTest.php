@@ -8,6 +8,7 @@ use App\Models\Trashpost;
 use App\Models\User;
 use App\Support\MediaPath;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -268,5 +269,30 @@ final class ModerationControllerTest extends TestCase {
         $this->actingAs($admin)->postJson("/api/admin/posts/{$post->hash}/activate")->assertOk();
 
         $this->assertSame(1, $owner->fresh()->rating);
+    }
+
+    public function test_activating_a_pending_upload_publishes_it_and_credits_its_owner(): void {
+        // US2 §3: the moderator's activate is the release valve for every upload that
+        // did not clear the trust threshold — it publishes the row, moves the media
+        // back onto the public disk, and pays the same +1 as any other activation.
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->postJson('/api/posts', [
+            // Large enough that every size variant is actually generated, so the
+            // move back onto the public disk is asserted over the full set.
+            'image' => UploadedFile::fake()->image('m.jpg', 1000, 500),
+        ])->assertCreated();
+        $post = Trashpost::where('user_id', $owner->id)->firstOrFail();
+        $this->assertNull($post->activated_at);
+
+        $this->actingAs($this->admin())->postJson("/api/admin/posts/{$post->hash}/activate")->assertOk();
+
+        $this->assertNotNull($post->fresh()->activated_at);
+        $this->assertSame(1, $owner->fresh()->rating);
+        $this->getJson("/api/posts/{$post->hash}")->assertOk();
+        $code = pathinfo((string) $post->fresh()->file, PATHINFO_FILENAME);
+        $ext = pathinfo((string) $post->fresh()->file, PATHINFO_EXTENSION);
+        foreach (MediaPath::imageSizes() as $size) {
+            Storage::disk('public')->assertExists(MediaPath::imageRelativePath($size, $code, $ext));
+        }
     }
 }

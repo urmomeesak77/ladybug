@@ -204,4 +204,39 @@ final class RatingServiceTest extends TestCase {
 
         $this->assertSame(3, $post->user->fresh()->rating);
     }
+
+    /**
+     * A member at the given rating. The rating is assigned, not mass-assigned (FR-003).
+     */
+    private function memberAt(int $rating): User {
+        $user = User::factory()->create();
+        $user->rating = $rating;
+        $user->save();
+
+        return $user;
+    }
+
+    public function test_a_member_one_below_the_threshold_does_not_auto_activate(): void {
+        // FR-016's boundary is inclusive at 15, so 14 is the last rating that waits.
+        $this->assertFalse($this->service()->shouldAutoActivate($this->memberAt(14)));
+    }
+
+    public function test_a_member_at_the_threshold_auto_activates(): void {
+        $this->assertTrue($this->service()->shouldAutoActivate($this->memberAt(RatingService::TRUST_THRESHOLD)));
+    }
+
+    public function test_a_member_above_the_threshold_auto_activates(): void {
+        $this->assertTrue($this->service()->shouldAutoActivate($this->memberAt(40)));
+    }
+
+    public function test_the_threshold_is_read_before_the_new_uploads_own_credit(): void {
+        // FR-020: the decision is made against the rating as it stands, never against
+        // the rating the upload is about to earn — otherwise a member at 14 would
+        // bootstrap themselves over the line with the credit of the very post being
+        // judged, publishing one upload early.
+        $member = $this->memberAt(14);
+
+        $this->assertFalse($this->service()->shouldAutoActivate($member));
+        $this->assertSame(14, $member->fresh()->rating);
+    }
 }

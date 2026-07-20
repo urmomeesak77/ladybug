@@ -36,6 +36,15 @@ class RatingService {
     public const MAX = 32767;
 
     /**
+     * Whether this account's next upload publishes without waiting for a moderator
+     * (FR-016). Read BEFORE the upload exists, so the +1 that upload may earn can
+     * never push its own author over the line (FR-020).
+     */
+    public function shouldAutoActivate(User $user): bool {
+        return $user->rating >= self::TRUST_THRESHOLD;
+    }
+
+    /**
      * Activation credit: the meme starts earning its owner +1 (FR-005). A second call
      * on an already-credited meme moves nothing (FR-006, FR-014).
      */

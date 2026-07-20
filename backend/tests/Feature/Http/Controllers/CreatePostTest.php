@@ -6,6 +6,8 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Models\Trashpost;
 use App\Models\User;
+use App\Services\RatingService;
+use App\Support\MediaPath;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -18,6 +20,10 @@ class CreatePostTest extends TestCase {
     protected function setUp(): void {
         parent::setUp();
         Storage::fake('public');
+        // Pending uploads park their media on the private disk (011/research D4), so
+        // both sides of the move must be faked for the visibility assertions to mean
+        // anything.
+        Storage::fake('local');
         $this->withHeader('Origin', 'http://localhost');
         // TrashpostService::createPost now fetches the YouTube thumbnail up front
         // (review 2026-07-10); fake it so these tests never make a real network call.
@@ -29,8 +35,21 @@ class CreatePostTest extends TestCase {
         $response->assertStatus(401);
     }
 
-    public function test_authenticated_image_upload_creates_a_visible_post(): void {
+    /**
+     * A member at the given rating. Assigned, not mass-assigned (FR-003).
+     */
+    private function memberAt(int $rating): User {
         $user = User::factory()->create();
+        $user->rating = $rating;
+        $user->save();
+
+        return $user;
+    }
+
+    public function test_authenticated_image_upload_creates_a_visible_post(): void {
+        // Trusted uploader: since 011 a fresh account's upload waits for a moderator,
+        // so the "goes live immediately" path needs a rating at the threshold.
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD);
 
         $response = $this->actingAs($user)->postJson('/api/posts', [
             'title' => 'My meme',
@@ -114,5 +133,67 @@ class CreatePostTest extends TestCase {
             'image' => UploadedFile::fake()->create('doc.pdf', 100, 'application/pdf'),
         ]);
         $response->assertStatus(422)->assertJsonValidationErrors('image');
+    }
+
+    public function test_a_below_threshold_upload_still_returns_201(): void {
+        // Waiting for a moderator is not an error: the upload succeeded (FR-018).
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'image' => UploadedFile::fake()->image('m.jpg', 200, 200),
+        ]);
+
+        $response->assertCreated();
+        $post = Trashpost::where('hash', $response->json('data.hash'))->first();
+        $this->assertNotNull($post);
+        $this->assertNull($post->activated_at);
+    }
+
+    public function test_a_pending_uploads_image_variants_are_not_on_the_public_disk(): void {
+        // Research D4 — the moderation bypass this feature would otherwise ship. The
+        // image processor writes every size variant to the PUBLIC disk, which was
+        // harmless only while every upload activated. A pending row hidden from the
+        // JSON while its bytes stay URL-addressable is no moderation at all.
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'image' => UploadedFile::fake()->image('m.jpg', 1000, 500),
+        ]);
+
+        $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
+        $this->assertNotNull($post->file);
+        $code = pathinfo($post->file, PATHINFO_FILENAME);
+        $ext = pathinfo($post->file, PATHINFO_EXTENSION);
+        foreach (MediaPath::imageSizes() as $size) {
+            $path = MediaPath::imageRelativePath($size, $code, $ext);
+            Storage::disk('public')->assertMissing($path);
+            Storage::disk('local')->assertExists($path);
+        }
+    }
+
+    public function test_a_pending_youtube_uploads_thumbnail_is_not_on_the_public_disk(): void {
+        // The thumbnail is written LAST, after the row is saved, so a visibility sync
+        // placed anywhere earlier in createPost() would miss it — the exact leak D4
+        // identified.
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
+
+        $response = $this->actingAs($user)->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ']);
+
+        $response->assertCreated();
+        $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
+        $this->assertNotNull($post->youtube_thumbnail);
+        Storage::disk('public')->assertMissing($post->youtube_thumbnail);
+        Storage::disk('local')->assertExists($post->youtube_thumbnail);
+    }
+
+    public function test_a_pending_upload_is_absent_from_the_public_views(): void {
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
+
+        $hash = $this->actingAs($user)
+            ->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ'])
+            ->json('data.hash');
+
+        $this->getJson("/api/posts/{$hash}")->assertNotFound();
+        $this->getJson('/api/posts')->assertOk()->assertJsonCount(0, 'data');
     }
 }
