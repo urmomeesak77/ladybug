@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Controllers;
 
 use App\Models\User;
+use App\Services\UserAdminService;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -165,6 +166,51 @@ class AuthControllerTest extends TestCase {
         $response->assertStatus(401);
         // Identical message to the wrong-password case — no account enumeration (D5).
         $response->assertExactJson(['message' => 'These credentials do not match our records.']);
+    }
+
+    public function test_login_on_a_disabled_account_is_refused_with_403_and_no_session(): void {
+        // FR-013, research D4: credentials verify FIRST, then the disabled state is disclosed
+        // with a distinct 403 — so only the true owner ever learns the account is disabled,
+        // and the login form is not an account-state oracle. No session is left behind.
+        $actor = User::factory()->admin()->create();
+        $target = User::factory()->create(['email' => 'ada@example.com']);
+        app(UserAdminService::class)->disable($actor, $target->hash);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password']);
+
+        $response->assertStatus(403);
+        $response->assertExactJson(['message' => 'This account is disabled.']);
+        $this->assertGuest();
+    }
+
+    public function test_login_on_a_disabled_account_with_wrong_credentials_still_gives_the_generic_401(): void {
+        // The disabled check runs only after credentials verify, so a wrong password on a
+        // disabled account is indistinguishable from any other bad-credential attempt (D4).
+        $actor = User::factory()->admin()->create();
+        $target = User::factory()->create(['email' => 'ada@example.com']);
+        app(UserAdminService::class)->disable($actor, $target->hash);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'wrong-password']);
+
+        $response->assertStatus(401);
+        $response->assertExactJson(['message' => 'These credentials do not match our records.']);
+        $this->assertGuest();
+    }
+
+    public function test_a_re_enabled_account_signs_in_with_its_original_password(): void {
+        // FR-015/SC-006: re-enabling restores sign-in with the EXISTING credentials — no
+        // re-registration, no re-verification. Disabling never mutated the password.
+        $actor = User::factory()->admin()->create();
+        $target = User::factory()->create(['email' => 'ada@example.com']);
+        $service = app(UserAdminService::class);
+        $service->disable($actor, $target->hash);
+        $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password'])->assertStatus(403);
+
+        $service->enable($actor, $target->hash);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password']);
+        $response->assertOk();
+        $this->assertAuthenticated();
     }
 
     public function test_login_rejects_a_malformed_request(): void {

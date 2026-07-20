@@ -53,9 +53,12 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::delete('/posts/{hash}/purge', [ModerationController::class, 'purge'])->name('api.admin.posts.purge');
     Route::post('/posts/{hash}/restore', [ModerationController::class, 'restore'])->name('api.admin.posts.restore');
 
-    // Admin account console (012). One 100-row page of every account, newest-first; the
-    // disable/enable action routes land in US3. Same admin+ boundary as the posts routes.
+    // Admin account console (012). One 100-row page of every account, newest-first, plus the
+    // per-row access transitions. Same admin+ boundary as the posts routes; both transitions
+    // are set-to-target (idempotent), and the {hash} is the public handle — never a DB id.
     Route::get('/users', [UserAdminController::class, 'index'])->name('api.admin.users.index');
+    Route::post('/users/{hash}/disable', [UserAdminController::class, 'disable'])->name('api.admin.users.disable');
+    Route::post('/users/{hash}/enable', [UserAdminController::class, 'enable'])->name('api.admin.users.enable');
 });
 
 // Email verification (008). {hash} is sha1 of the recipient's email — never a DB

@@ -812,3 +812,26 @@ main {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+
+/* The per-row Disable/Enable control, styled like the moderation action buttons so both
+   admin consoles read as one family. Dims while its request is in flight (disabled). */
+.user-actions__button {
+  padding: var(--space-xs) var(--space-sm);
+  font: inherit;
+  white-space: nowrap;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.user-actions__button:hover,
+.user-actions__button:focus-visible {
+  background-color: var(--color-menu-hover);
+}
+
+.user-actions__button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

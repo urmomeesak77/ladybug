@@ -9,12 +9,14 @@ use App\Http\Resources\AdminUserResource;
 use App\Services\UserAdminService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Admin account console API. The whole controller mounts behind auth:sanctum + role:admin
  * (routes/api.php), so every method here already has an admin-or-higher caller — the boundary
- * protects the DATA, not just the SPA page (Principle VI). The disable/enable transitions
- * arrive in US3.
+ * protects the DATA, not just the SPA page (Principle VI). The disable/enable transitions take
+ * the actor from the session, never the request body (FR-008b), and return the updated row so
+ * the SPA refreshes it in place without leaving the current page (FR-016).
  */
 class UserAdminController extends Controller {
     public function __construct(private readonly UserAdminService $service) {
@@ -29,5 +31,20 @@ class UserAdminController extends Controller {
         $page = max(1, (int) $request->query('page', '1'));
 
         return AdminUserResource::collection($this->service->paginate($page));
+    }
+
+    /**
+     * POST /api/admin/users/{hash}/disable — revoke the account's access and return the
+     * updated row. Unknown hash → 404. The actor is the signed-in admin, not the body.
+     */
+    public function disable(Request $request, string $hash): JsonResource {
+        return new AdminUserResource($this->service->disable($request->user(), $hash));
+    }
+
+    /**
+     * POST /api/admin/users/{hash}/enable — restore the account's access; returns the row.
+     */
+    public function enable(Request $request, string $hash): JsonResource {
+        return new AdminUserResource($this->service->enable($request->user(), $hash));
     }
 }

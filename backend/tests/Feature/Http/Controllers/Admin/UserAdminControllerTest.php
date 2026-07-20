@@ -136,4 +136,47 @@ final class UserAdminControllerTest extends TestCase {
 
         $response->assertOk()->assertJsonPath('meta.current_page', 1);
     }
+
+    public function test_disable_returns_the_updated_row_with_the_actors_name(): void {
+        $actor = User::factory()->admin()->create(['name' => 'Root']);
+        $target = User::factory()->create();
+
+        $response = $this->actingAs($actor)->postJson("/api/admin/users/{$target->hash}/disable");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.hash', $target->hash);
+        $this->assertNotNull($response->json('data.disabled_at'));
+        $response->assertJsonPath('data.disabled_by', 'Root');
+    }
+
+    public function test_enable_returns_the_updated_row_cleared(): void {
+        $actor = User::factory()->admin()->create();
+        $target = User::factory()->disabled($actor)->create();
+
+        $response = $this->actingAs($actor)->postJson("/api/admin/users/{$target->hash}/enable");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.hash', $target->hash);
+        $response->assertJsonPath('data.disabled_at', null);
+        $response->assertJsonPath('data.disabled_by', null);
+    }
+
+    public function test_disable_of_an_unknown_hash_is_404(): void {
+        $this->actingAs($this->admin())->postJson('/api/admin/users/nonexistent/disable')->assertNotFound();
+    }
+
+    public function test_enable_of_an_unknown_hash_is_404(): void {
+        $this->actingAs($this->admin())->postJson('/api/admin/users/nonexistent/enable')->assertNotFound();
+    }
+
+    public function test_disable_refuses_to_address_a_row_by_its_database_id(): void {
+        // FR-020: the public handle is the hash; the auto-increment id is not addressable.
+        $target = User::factory()->create();
+
+        $this->actingAs($this->admin())
+            ->postJson("/api/admin/users/{$target->id}/disable")
+            ->assertNotFound();
+        $target->refresh();
+        $this->assertFalse($target->isDisabled());
+    }
 }

@@ -44,10 +44,23 @@ class AuthController extends Controller {
     /**
      * Log a user in via the Sanctum SPA session. On bad credentials returns a single
      * generic 401 that does not reveal whether the email or password was wrong (D5).
+     *
+     * The disabled-account check runs AFTER credentials verify (research D4): only the true
+     * owner ever learns the account is disabled, so the login form is not an account-state
+     * oracle. A disabled account gets a distinct 403 and its just-established session torn
+     * down; re-enabling restores sign-in with the same credentials (FR-013/FR-015).
      */
     public function login(LoginRequest $request): JsonResponse {
         if (! Auth::attempt($request->validated())) {
             return response()->json(['message' => 'These credentials do not match our records.'], 401);
+        }
+
+        if ($request->user()->isDisabled()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return response()->json(['message' => 'This account is disabled.'], 403);
         }
 
         // Rotate the session id after authenticating to prevent session fixation.

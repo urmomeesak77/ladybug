@@ -79,3 +79,72 @@ describe('UserAdminApi.fetchPage', () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe('UserAdminApi.disable / enable', () => {
+  const activeRaw = page.data[0];
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  });
+
+  it('POSTs to the disable endpoint with the CSRF header and maps the updated row', async () => {
+    document.cookie = 'XSRF-TOKEN=tok123';
+    const updated = { ...activeRaw, disabled_at: '2026-07-20 10:00:00', disabled_by: 'Root' };
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: updated }) }));
+
+    const result = await UserAdminApi.disable('a1B2c3D4e5');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/users\/a1B2c3D4e5\/disable$/),
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        headers: expect.objectContaining({ 'X-XSRF-TOKEN': 'tok123' }),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.row.disabledAt).toBe('2026-07-20 10:00:00');
+      expect(result.row.disabledBy).toBe('Root');
+      expect(result.row.isDisabled).toBe(true);
+    }
+  });
+
+  it('POSTs to the enable endpoint and maps the cleared row', async () => {
+    document.cookie = 'XSRF-TOKEN=tok123';
+    const updated = { ...activeRaw, disabled_at: null, disabled_by: null };
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: updated }) }));
+
+    const result = await UserAdminApi.enable('a1B2c3D4e5');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/users\/a1B2c3D4e5\/enable$/),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.row.isDisabled).toBe(false);
+    }
+  });
+
+  it('reports failure on a non-2xx response (e.g. 403 rank guard or 404 unknown hash)', async () => {
+    document.cookie = 'XSRF-TOKEN=tok123';
+    stubFetch(async () => ({ ok: false, status: 403, json: async () => ({}) }));
+
+    const result = await UserAdminApi.disable('a1B2c3D4e5');
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('reports failure when fetch rejects (offline)', async () => {
+    document.cookie = 'XSRF-TOKEN=tok123';
+    stubFetch(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+
+    const result = await UserAdminApi.enable('a1B2c3D4e5');
+
+    expect(result.ok).toBe(false);
+  });
+});

@@ -23,21 +23,21 @@ const rowB: Row = { ...row, hash: 'Zz9Yy8Xx7w', name: 'Spammer' };
 
 describe('UserTable', () => {
   it('renders a captioned table with seven column headers', () => {
-    const { container } = render(<UserTable rows={[row]} />);
+    const { container } = render(<UserTable rows={[row]} onApply={() => {}} />);
 
     expect(container.querySelector('caption')).toBeTruthy();
     expect(container.querySelectorAll('th[scope="col"]')).toHaveLength(7);
   });
 
   it('renders one row per account', () => {
-    render(<UserTable rows={[row, rowB]} />);
+    render(<UserTable rows={[row, rowB]} onApply={() => {}} />);
 
     expect(screen.getByText('Ada')).toBeTruthy();
     expect(screen.getByText('Spammer')).toBeTruthy();
   });
 
   it('wraps the wide table in an overflow-x scroll container so the page never scrolls sideways', () => {
-    const { container } = render(<UserTable rows={[row]} />);
+    const { container } = render(<UserTable rows={[row]} onApply={() => {}} />);
 
     const scroll = container.querySelector('.user-table__scroll');
     expect(scroll).toBeTruthy();

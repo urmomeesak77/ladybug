@@ -23,7 +23,7 @@ function renderRow(value: Row) {
   return render(
     <table>
       <tbody>
-        <UserRow row={value} />
+        <UserRow row={value} onApply={() => {}} />
       </tbody>
     </table>,
   );

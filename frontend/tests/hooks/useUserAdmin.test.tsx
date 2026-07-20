@@ -106,6 +106,21 @@ describe('useUserAdmin', () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it('leaves every row untouched when applyRow targets a row not on the page (failed action)', async () => {
+    // A failed disable/enable never calls applyRow; and applyRow itself is a no-op for a row
+    // that is not on the current page — either way the loaded rows stay exactly as they were
+    // (contract §5: never paint state the server did not confirm).
+    vi.spyOn(UserAdminApi, 'fetchPage').mockResolvedValue({ ok: true, data: [row], meta });
+
+    const { result } = renderHook(() => useUserAdmin(), { wrapper: wrapperFor('/admin/users') });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const before = result.current.rows;
+
+    act(() => result.current.applyRow({ ...row, hash: 'notonpage9', isDisabled: true }));
+
+    expect(result.current.rows).toEqual(before);
+  });
+
   it('drops a response that resolves after the hook unmounts', async () => {
     let resolveFetch: (result: { ok: true; data: UserRow[]; meta: typeof meta }) => void = () => undefined;
     const pending = new Promise<{ ok: true; data: UserRow[]; meta: typeof meta }>((resolve) => {
