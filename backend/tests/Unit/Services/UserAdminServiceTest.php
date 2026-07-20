@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\UserAdminService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 /**
@@ -107,6 +108,83 @@ final class UserAdminServiceTest extends TestCase {
         $post->refresh();
         $this->assertNotNull($post->activated_at);
         $this->assertNull($post->deleted_at);
+    }
+
+    public function test_admin_cannot_disable_a_peer_admin(): void {
+        $admin = User::factory()->admin()->create();
+        $peer = User::factory()->admin()->create();
+
+        $this->assertRefused(fn () => $this->service()->disable($admin, $peer->hash), $peer);
+    }
+
+    public function test_admin_cannot_disable_a_superuser(): void {
+        $admin = User::factory()->admin()->create();
+        $superuser = User::factory()->superuser()->create();
+
+        $this->assertRefused(fn () => $this->service()->disable($admin, $superuser->hash), $superuser);
+    }
+
+    public function test_admin_cannot_disable_itself(): void {
+        // A role never outranks itself, so the peer guard is also the self-lockout guard —
+        // no separate id-comparison branch is needed (research D5).
+        $admin = User::factory()->admin()->create();
+
+        $this->assertRefused(fn () => $this->service()->disable($admin, $admin->hash), $admin);
+    }
+
+    public function test_superuser_cannot_disable_a_peer_superuser(): void {
+        $superuser = User::factory()->superuser()->create();
+        $peer = User::factory()->superuser()->create();
+
+        $this->assertRefused(fn () => $this->service()->disable($superuser, $peer->hash), $peer);
+    }
+
+    public function test_admin_can_disable_a_member(): void {
+        $admin = User::factory()->admin()->create();
+        $member = User::factory()->create();
+
+        $this->assertTrue($this->service()->disable($admin, $member->hash)->isDisabled());
+    }
+
+    public function test_superuser_can_disable_an_admin(): void {
+        $superuser = User::factory()->superuser()->create();
+        $admin = User::factory()->admin()->create();
+
+        $this->assertTrue($this->service()->disable($superuser, $admin->hash)->isDisabled());
+    }
+
+    public function test_the_guard_reads_the_current_stored_role_not_the_stale_rendered_one(): void {
+        // FR-012: the target's role was raised above the actor's after the page was rendered.
+        // The guard runs against freshly loaded rows inside the transaction, so the action is
+        // refused on the CURRENT stored role — the stale client view buys nothing.
+        $admin = User::factory()->admin()->create();
+        $nowSuperuser = User::factory()->superuser()->create();
+
+        $this->assertRefused(fn () => $this->service()->disable($admin, $nowSuperuser->hash), $nowSuperuser);
+    }
+
+    public function test_the_sole_superuser_cannot_be_disabled_by_anyone(): void {
+        // Nobody outranks the only superuser, so the US4 rule already protects it with no
+        // special "last superuser" case — an admin is refused, and no peer exists to try.
+        $superuser = User::factory()->superuser()->create();
+        $admin = User::factory()->admin()->create();
+
+        $this->assertRefused(fn () => $this->service()->disable($admin, $superuser->hash), $superuser);
+    }
+
+    /**
+     * A refused transition throws a 403 and leaves the target untouched (still active).
+     */
+    private function assertRefused(callable $action, User $target): void {
+        try {
+            $action();
+            $this->fail('Expected the transition to be refused with a 403.');
+        }
+        catch (HttpException $e) {
+            $this->assertSame(403, $e->getStatusCode());
+        }
+        $target->refresh();
+        $this->assertFalse($target->isDisabled());
     }
 
     public function test_paginates_at_one_hundred_per_page(): void {

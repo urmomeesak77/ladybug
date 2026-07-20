@@ -179,4 +179,40 @@ final class UserAdminControllerTest extends TestCase {
         $target->refresh();
         $this->assertFalse($target->isDisabled());
     }
+
+    public function test_disable_of_a_peer_admin_is_403_and_leaves_the_target_untouched(): void {
+        // FR-011: an actor can act only on accounts ranked strictly below their own.
+        $peer = User::factory()->admin()->create();
+
+        $this->actingAs($this->admin())->postJson("/api/admin/users/{$peer->hash}/disable")->assertForbidden();
+        $peer->refresh();
+        $this->assertFalse($peer->isDisabled());
+    }
+
+    public function test_disable_of_a_higher_rank_is_403(): void {
+        $superuser = User::factory()->superuser()->create();
+
+        $this->actingAs($this->admin())->postJson("/api/admin/users/{$superuser->hash}/disable")->assertForbidden();
+        $superuser->refresh();
+        $this->assertFalse($superuser->isDisabled());
+    }
+
+    public function test_disable_of_the_actors_own_account_is_403(): void {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)->postJson("/api/admin/users/{$admin->hash}/disable")->assertForbidden();
+        $admin->refresh();
+        $this->assertFalse($admin->isDisabled());
+    }
+
+    public function test_enable_of_a_peer_is_403_and_leaves_the_disabled_target_untouched(): void {
+        // The guard runs before the state check, so enabling a peer is refused too — and the
+        // already-disabled target stays disabled.
+        $someActor = User::factory()->superuser()->create();
+        $peer = User::factory()->disabled($someActor)->create(['role' => 'admin']);
+
+        $this->actingAs($this->admin())->postJson("/api/admin/users/{$peer->hash}/enable")->assertForbidden();
+        $peer->refresh();
+        $this->assertTrue($peer->isDisabled());
+    }
 }

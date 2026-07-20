@@ -3,7 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import UserActions from '../../../src/components/users/UserActions';
+import { AuthContext } from '../../../src/hooks/useAuth';
+import type { AuthContextValue } from '../../../src/hooks/useAuth';
 import { UserAdminApi } from '../../../src/lib/userAdminApi';
+import type { RoleName } from '../../../src/lib/role';
 import type { UserRow as Row } from '../../../src/lib/userAdminModel';
 
 afterEach(() => {
@@ -25,18 +28,34 @@ const active: Row = {
 
 const disabled: Row = { ...active, disabledAt: '2026-07-19 11:20:00', disabledBy: 'Root', isDisabled: true };
 
-// The control lives inside a table row in production; render it in that shape.
-function renderInRow(row: Row, onApply: (updated: Row) => void = () => {}) {
+function authValue(role: RoleName): AuthContextValue {
+  return {
+    status: 'authenticated',
+    user: null,
+    role,
+    register: vi.fn(),
+    login: vi.fn(),
+    logout: vi.fn(),
+    refresh: vi.fn(),
+  };
+}
+
+// The control lives inside a table row in production, under the app's auth context (it reads
+// the viewer's role from useAuth to mirror the server's rank guard). Default viewer is an
+// admin, who outranks a member row so the control renders.
+function renderInRow(row: Row, onApply: (updated: Row) => void = () => {}, viewerRole: RoleName = 'admin') {
   return render(
-    <table>
-      <tbody>
-        <tr>
-          <td>
-            <UserActions row={row} onApply={onApply} />
-          </td>
-        </tr>
-      </tbody>
-    </table>,
+    <AuthContext.Provider value={authValue(viewerRole)}>
+      <table>
+        <tbody>
+          <tr>
+            <td>
+              <UserActions row={row} onApply={onApply} />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </AuthContext.Provider>,
   );
 }
 
@@ -101,5 +120,38 @@ describe('UserActions', () => {
 
     await waitFor(() => expect(button.disabled).toBe(true));
     resolve({ ok: true, row: { ...active, isDisabled: true } });
+  });
+});
+
+describe('UserActions rank guard (research D6)', () => {
+  const adminRow: Row = { ...active, role: 'admin' };
+  const superuserRow: Row = { ...active, role: 'superuser' };
+
+  it('renders no control for a peer of equal rank, only a short reason', () => {
+    renderInRow(adminRow, () => {}, 'admin');
+
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByText(/no permission/i)).toBeTruthy();
+  });
+
+  it('renders no control for a higher rank', () => {
+    renderInRow(superuserRow, () => {}, 'admin');
+
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByText(/no permission/i)).toBeTruthy();
+  });
+
+  it("renders no control on the viewer's own equal-rank row", () => {
+    // The viewer's own account carries the viewer's role, so the strict-rank check removes
+    // the control exactly as it does for any peer — no separate self check is needed.
+    renderInRow(adminRow, () => {}, 'admin');
+
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('still renders the control for a strictly lower rank', () => {
+    renderInRow(active, () => {}, 'admin');
+
+    expect(screen.getByRole('button', { name: /^disable$/i })).toBeTruthy();
   });
 });

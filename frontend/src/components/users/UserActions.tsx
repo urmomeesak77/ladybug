@@ -1,5 +1,8 @@
 import { useState } from 'react';
 
+import { useAuth } from '../../hooks/useAuth';
+import { Role } from '../../lib/role';
+import type { RoleName } from '../../lib/role';
 import { UserAdminApi } from '../../lib/userAdminApi';
 import type { UserRow as Row } from '../../lib/userAdminModel';
 
@@ -8,9 +11,14 @@ import type { UserRow as Row } from '../../lib/userAdminModel';
 // no modal (FR-016). The button is disabled while its request is in flight so a double-click
 // cannot fire two transitions. On success the server's updated row is pushed up via `onApply`
 // for an in-place refresh; a failed action leaves the row exactly as it was (never paints
-// unconfirmed state). The US4 rank guard, which hides this control on peers/higher ranks and
-// the viewer's own row, wraps it in a later slice.
+// unconfirmed state).
+//
+// Strict-rank guard (research D6): an actor may act only on accounts ranked strictly below
+// their own. Because outranks is strict, peers, higher ranks and the viewer's own row all
+// lose the control — a short textual reason renders in its place. The server re-checks every
+// request, so no `can_disable` field is added to the payload and a tampered client gains nothing.
 function UserActions({ row, onApply }: { row: Row; onApply: (updated: Row) => void }) {
+  const { role } = useAuth();
   const [pending, setPending] = useState(false);
   const label = row.isDisabled ? 'Enable' : 'Disable';
 
@@ -21,6 +29,10 @@ function UserActions({ row, onApply }: { row: Row; onApply: (updated: Row) => vo
     if (result.ok) {
       onApply(result.row);
     }
+  }
+
+  if (!Role.outranks(role, row.role as RoleName)) {
+    return <span className="user-actions__none">No permission</span>;
   }
 
   return (

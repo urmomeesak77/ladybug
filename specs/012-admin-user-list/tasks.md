@@ -190,17 +190,17 @@ another superuser cannot.
 
 ### Tests for User Story 4 (write first, confirm failing)
 
-- [ ] T059 [P] [US4] Add rank-guard cases to `backend/tests/Unit/Services/UserAdminServiceTest.php`: admin→admin refused, admin→superuser refused, admin→self refused, superuser→superuser refused, admin→member allowed, superuser→admin allowed — and in every refusal the target row is **unchanged** (FR-011, research D5)
-- [ ] T060 [P] [US4] Add a "role change mid-view" case to `backend/tests/Unit/Services/UserAdminServiceTest.php`: the target's role is raised above the actor's after the page was rendered, and the subsequently submitted action is refused on the **current stored** role, not the stale one (FR-012)
-- [ ] T061 [P] [US4] Add the "last superuser" case to `backend/tests/Unit/Services/UserAdminServiceTest.php`: the sole remaining superuser cannot be disabled by anyone, because nobody outranks it — asserting the US4 rule already produces this with no special case
-- [ ] T062 [P] [US4] Add `403` endpoint cases to `backend/tests/Feature/Http/Controllers/Admin/UserAdminControllerTest.php` for disable and enable against a peer, a higher rank, and the actor's own hash, asserting the target is untouched afterwards
-- [ ] T063 [P] [US4] Extend `frontend/tests/components/users/UserActions.test.tsx`: no control renders when `Role.outranks(viewerRole, row.role)` is false — for a peer, a higher rank, and the viewer's own row — and a short textual reason renders in its place (research D6)
+- [X] T059 [P] [US4] Add rank-guard cases to `backend/tests/Unit/Services/UserAdminServiceTest.php`: admin→admin refused, admin→superuser refused, admin→self refused, superuser→superuser refused, admin→member allowed, superuser→admin allowed — and in every refusal the target row is **unchanged** (FR-011, research D5)
+- [X] T060 [P] [US4] Add a "role change mid-view" case to `backend/tests/Unit/Services/UserAdminServiceTest.php`: the target's role is raised above the actor's after the page was rendered, and the subsequently submitted action is refused on the **current stored** role, not the stale one (FR-012)
+- [X] T061 [P] [US4] Add the "last superuser" case to `backend/tests/Unit/Services/UserAdminServiceTest.php`: the sole remaining superuser cannot be disabled by anyone, because nobody outranks it — asserting the US4 rule already produces this with no special case
+- [X] T062 [P] [US4] Add `403` endpoint cases to `backend/tests/Feature/Http/Controllers/Admin/UserAdminControllerTest.php` for disable and enable against a peer, a higher rank, and the actor's own hash, asserting the target is untouched afterwards
+- [X] T063 [P] [US4] Extend `frontend/tests/components/users/UserActions.test.tsx`: no control renders when `Role.outranks(viewerRole, row.role)` is false — for a peer, a higher rank, and the viewer's own row — and a short textual reason renders in its place (research D6)
 
 ### Implementation for User Story 4
 
-- [ ] T064 [US4] Add the strict-rank guard to `transition()` in `backend/app/Services/UserAdminService.php`: proceed only when `$actor->role->outranks($target->role)`, evaluated inside the transaction against freshly loaded rows; otherwise abort `403` leaving the target unchanged. Because a role never outranks itself, this single comparison delivers the peer, higher-rank and self-lockout guards together (research D5)
-- [ ] T065 [US4] Gate the control in `frontend/src/components/users/UserActions.tsx` on `Role.outranks(viewerRole, row.role)` — with the viewer's role from `useAuth()` — rendering a short textual reason when it is false. No `can_disable` field is added to the payload; the server re-checks regardless (research D6)
-- [ ] T066 [US4] Verify with real output that a forced request is refused independently of the UI: with an admin session, `curl -i -X POST http://localhost:8000/api/admin/users/<ADMIN_HASH>/disable` returns `403` and the target is unchanged on reload (quickstart S4)
+- [X] T064 [US4] Add the strict-rank guard to `transition()` in `backend/app/Services/UserAdminService.php`: proceed only when `$actor->role->outranks($target->role)`, evaluated inside the transaction against freshly loaded rows; otherwise abort `403` leaving the target unchanged. Because a role never outranks itself, this single comparison delivers the peer, higher-rank and self-lockout guards together (research D5)
+- [X] T065 [US4] Gate the control in `frontend/src/components/users/UserActions.tsx` on `Role.outranks(viewerRole, row.role)` — with the viewer's role from `useAuth()` — rendering a short textual reason when it is false. No `can_disable` field is added to the payload; the server re-checks regardless (research D6)
+- [X] T066 [US4] Verify with real output that a forced request is refused independently of the UI: with an admin session, `curl -i -X POST http://localhost:8000/api/admin/users/<ADMIN_HASH>/disable` returns `403` and the target is unchanged on reload (quickstart S4)
 
 **Checkpoint**: All four user stories are independently functional.
 

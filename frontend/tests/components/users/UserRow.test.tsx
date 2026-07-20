@@ -3,9 +3,23 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import UserRow from '../../../src/components/users/UserRow';
+import { AuthContext } from '../../../src/hooks/useAuth';
+import type { AuthContextValue } from '../../../src/hooks/useAuth';
 import type { UserRow as Row } from '../../../src/lib/userAdminModel';
 
 afterEach(cleanup);
+
+// UserRow renders UserActions, which reads the viewer's role from useAuth; a superuser
+// outranks every row so the action control always renders under this provider.
+const auth = {
+  status: 'authenticated',
+  user: null,
+  role: 'superuser',
+  register: () => {},
+  login: () => {},
+  logout: () => {},
+  refresh: () => {},
+} as unknown as AuthContextValue;
 
 const row: Row = {
   hash: 'a1B2c3D4e5',
@@ -21,11 +35,13 @@ const row: Row = {
 
 function renderRow(value: Row) {
   return render(
-    <table>
-      <tbody>
-        <UserRow row={value} onApply={() => {}} />
-      </tbody>
-    </table>,
+    <AuthContext.Provider value={auth}>
+      <table>
+        <tbody>
+          <UserRow row={value} onApply={() => {}} />
+        </tbody>
+      </table>
+    </AuthContext.Provider>,
   );
 }
 

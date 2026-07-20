@@ -4,7 +4,21 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import UserAdminPage from '../../src/pages/UserAdminPage';
+import { AuthContext } from '../../src/hooks/useAuth';
+import type { AuthContextValue } from '../../src/hooks/useAuth';
 import type { UserRow } from '../../src/lib/userAdminModel';
+
+// The page's rows render UserActions, which reads the viewer's role from useAuth; a superuser
+// outranks every row so the controls render under this provider.
+const auth = {
+  status: 'authenticated',
+  user: null,
+  role: 'superuser',
+  register: () => {},
+  login: () => {},
+  logout: () => {},
+  refresh: () => {},
+} as unknown as AuthContextValue;
 
 const useUserAdminMock = vi.fn();
 
@@ -30,9 +44,11 @@ const meta = { current_page: 1, last_page: 2, per_page: 100, total: 130 };
 
 function renderPage(initialPath = '/admin/users') {
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <UserAdminPage />
-    </MemoryRouter>,
+    <AuthContext.Provider value={auth}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <UserAdminPage />
+      </MemoryRouter>
+    </AuthContext.Provider>,
   );
 }
 

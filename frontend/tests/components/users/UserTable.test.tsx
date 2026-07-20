@@ -3,9 +3,31 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import UserTable from '../../../src/components/users/UserTable';
+import { AuthContext } from '../../../src/hooks/useAuth';
+import type { AuthContextValue } from '../../../src/hooks/useAuth';
 import type { UserRow as Row } from '../../../src/lib/userAdminModel';
 
 afterEach(cleanup);
+
+// UserTable → UserRow → UserActions reads the viewer's role from useAuth; a superuser
+// outranks every row so each action control renders under this provider.
+const auth = {
+  status: 'authenticated',
+  user: null,
+  role: 'superuser',
+  register: () => {},
+  login: () => {},
+  logout: () => {},
+  refresh: () => {},
+} as unknown as AuthContextValue;
+
+function renderTable(rows: Row[]) {
+  return render(
+    <AuthContext.Provider value={auth}>
+      <UserTable rows={rows} onApply={() => {}} />
+    </AuthContext.Provider>,
+  );
+}
 
 const row: Row = {
   hash: 'a1B2c3D4e5',
@@ -23,21 +45,21 @@ const rowB: Row = { ...row, hash: 'Zz9Yy8Xx7w', name: 'Spammer' };
 
 describe('UserTable', () => {
   it('renders a captioned table with seven column headers', () => {
-    const { container } = render(<UserTable rows={[row]} onApply={() => {}} />);
+    const { container } = renderTable([row]);
 
     expect(container.querySelector('caption')).toBeTruthy();
     expect(container.querySelectorAll('th[scope="col"]')).toHaveLength(7);
   });
 
   it('renders one row per account', () => {
-    render(<UserTable rows={[row, rowB]} onApply={() => {}} />);
+    renderTable([row, rowB]);
 
     expect(screen.getByText('Ada')).toBeTruthy();
     expect(screen.getByText('Spammer')).toBeTruthy();
   });
 
   it('wraps the wide table in an overflow-x scroll container so the page never scrolls sideways', () => {
-    const { container } = render(<UserTable rows={[row]} onApply={() => {}} />);
+    const { container } = renderTable([row]);
 
     const scroll = container.querySelector('.user-table__scroll');
     expect(scroll).toBeTruthy();
