@@ -10,9 +10,12 @@
 /.idea
 /.nova
 /.phpunit.cache
-/coverage
-/coverage.clover
-/coverage.xml
+# Unanchored: a stray nested backend/backend/coverage.clover slipped past the
+# leading-slash forms once already, when the coverage command was run from a
+# working directory that resolved one level deeper.
+coverage
+coverage.clover
+coverage.xml
 /database/*.sqlite
 /.vscode
 /.zed
