@@ -33,6 +33,12 @@ class User extends Authenticatable implements MustVerifyEmail {
      * (FR-004) — `role` is deliberately absent from $fillable so no request body
      * can set or escalate it (privilege-escalation guard, Principle VI).
      *
+     * `rating` is absent from $fillable for the same reason (FR-003): it is the
+     * sole input to auto-activation, so a request body that could reach it via
+     * fill() would let anyone hand themselves the trust threshold and bypass
+     * moderation. Only RatingService writes it. Its DB default (0) covers new
+     * rows, so it needs no entry here.
+     *
      * @var array<string, mixed>
      */
     protected $attributes = [

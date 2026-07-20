@@ -48,13 +48,13 @@ them.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T003 [P] Create migration `backend/database/migrations/2026_07_20_000000_add_rating_to_users_table.php` — up: `$table->smallInteger('rating')->default(0)->after('role');`, down: `$table->dropColumn('rating');` (signed per FR-011; `default(0)` backfills existing accounts per FR-002)
-- [ ] T004 [P] Create migration `backend/database/migrations/2026_07_20_000001_add_rating_flags_to_trashposts_table.php` — up: `boolean('rating_credited')->default(false)->after('activated_at')` and `boolean('rating_penalized')->default(false)->after('rating_credited')`, down: `dropColumn(['rating_credited','rating_penalized'])`
-- [ ] T005 Run the migrations and confirm reversibility: `docker compose exec backend php artisan migrate` then confirm `backend/tests/Feature/Database/` `MigrationReversibilityTest` still passes
-- [ ] T006 [P] Update `backend/app/Models/User.php` — add a `why` comment beside the existing `role` guard stating that `rating` is deliberately absent from `$fillable` so no request body can reach it via `fill()` (FR-003); do **not** add a cast (smallint hydrates as `int`)
-- [ ] T007 [P] Update `backend/app/Models/Trashpost.php` — cast `rating_credited` and `rating_penalized` to `'boolean'` in `$casts`, keep both out of `$fillable` (written only by `RatingService`)
-- [ ] T008 [P] Extend `backend/tests/Unit/Models/UserTest.php` — assert a freshly created user has `rating === 0` (FR-001) and that `User::fill(['rating' => 999])` leaves the rating at 0 (FR-003)
-- [ ] T009 [P] Extend `backend/tests/Unit/Models/TrashpostTest.php` — assert both rating flags default to `false`, hydrate as PHP booleans, and are not mass-assignable
+- [X] T003 [P] Create migration `backend/database/migrations/2026_07_20_000000_add_rating_to_users_table.php` — up: `$table->smallInteger('rating')->default(0)->after('role');`, down: `$table->dropColumn('rating');` (signed per FR-011; `default(0)` backfills existing accounts per FR-002)
+- [X] T004 [P] Create migration `backend/database/migrations/2026_07_20_000001_add_rating_flags_to_trashposts_table.php` — up: `boolean('rating_credited')->default(false)->after('activated_at')` and `boolean('rating_penalized')->default(false)->after('rating_credited')`, down: `dropColumn(['rating_credited','rating_penalized'])`
+- [X] T005 Run the migrations and confirm reversibility: `docker compose exec backend php artisan migrate` then confirm `backend/tests/Feature/Database/` `MigrationReversibilityTest` still passes
+- [X] T006 [P] Update `backend/app/Models/User.php` — add a `why` comment beside the existing `role` guard stating that `rating` is deliberately absent from `$fillable` so no request body can reach it via `fill()` (FR-003); do **not** add a cast (smallint hydrates as `int`)
+- [X] T007 [P] Update `backend/app/Models/Trashpost.php` — cast `rating_credited` and `rating_penalized` to `'boolean'` in `$casts`, keep both out of `$fillable` (written only by `RatingService`)
+- [X] T008 [P] Extend `backend/tests/Unit/Models/UserTest.php` — assert a freshly created user has `rating === 0` (FR-001) and that `User::fill(['rating' => 999])` leaves the rating at 0 (FR-003)
+- [X] T009 [P] Extend `backend/tests/Unit/Models/TrashpostTest.php` — assert both rating flags default to `false`, hydrate as PHP booleans, and are not mass-assignable
 
 **Checkpoint**: Columns exist, are guarded, and are proven un-mass-assignable. User stories may begin.
 
