@@ -172,6 +172,26 @@ final class UserAdminServiceTest extends TestCase {
         $this->assertRefused(fn () => $this->service()->disable($admin, $superuser->hash), $superuser);
     }
 
+    public function test_repeated_disable_then_enable_leaves_no_residual_actor(): void {
+        // Repeated-toggle edge case: after disable→enable→disable→enable the account is cleanly
+        // active again with no leftover disabled_by reference.
+        $actor = User::factory()->admin()->create();
+        $target = User::factory()->create();
+        $service = $this->service();
+
+        $service->disable($actor, $target->hash);
+        $service->enable($actor, $target->hash);
+        $service->disable($actor, $target->hash);
+        $result = $service->enable($actor, $target->hash);
+
+        $this->assertFalse($result->isDisabled());
+        $this->assertNull($result->disabled_at);
+        $this->assertNull($result->disabled_by);
+        $target->refresh();
+        $this->assertNull($target->disabled_at);
+        $this->assertNull($target->disabled_by);
+    }
+
     /**
      * A refused transition throws a 403 and leaves the target untouched (still active).
      */

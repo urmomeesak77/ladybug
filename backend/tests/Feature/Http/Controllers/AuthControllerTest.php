@@ -213,6 +213,20 @@ class AuthControllerTest extends TestCase {
         $this->assertAuthenticated();
     }
 
+    public function test_registration_with_a_disabled_accounts_email_is_refused_and_does_not_reactivate(): void {
+        // Contract §4.3: no recovery path clears disabled_at. The unique-email rule refuses the
+        // address whatever the account's state, so there is no new row and disabled_at is untouched.
+        $actor = User::factory()->admin()->create();
+        $disabled = User::factory()->create(['email' => 'ada@example.com']);
+        app(UserAdminService::class)->disable($actor, $disabled->hash);
+
+        $response = $this->postJson('/api/register', $this->registration(['email' => 'ada@example.com']));
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('email');
+        $this->assertNotNull($disabled->fresh()->disabled_at);
+    }
+
     public function test_login_rejects_a_malformed_request(): void {
         $response = $this->postJson('/api/login', ['email' => 'not-an-email', 'password' => '']);
 

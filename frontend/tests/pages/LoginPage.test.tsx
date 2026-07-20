@@ -139,6 +139,17 @@ describe('LoginPage', () => {
     expect(await screen.findByText('Email or password is incorrect.')).toBeTruthy();
   });
 
+  it('shows the distinct disabled message when the account is disabled (FR-013)', async () => {
+    renderLogin({ ok: false, kind: 'disabled' });
+
+    fillCredentials('ada@example.com', 'Password1');
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+
+    // Visibly different from the wrong-credentials message: the owner is told the account
+    // is disabled, not that their password is wrong (acceptance scenario 3).
+    expect(await screen.findByText('This account is disabled.')).toBeTruthy();
+  });
+
   it('merges server 422 field errors into the form', async () => {
     renderLogin({ ok: false, kind: 'validation', errors: { email: ['Server says no.'] } });
 

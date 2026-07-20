@@ -78,6 +78,12 @@ function LoginPage() {
       setFormError('Email or password is incorrect.');
       return;
     }
+    // A disabled account: the owner proved their credentials, so tell them plainly why they
+    // cannot get in — distinct from the wrong-credentials message (FR-013).
+    if (result.kind === 'disabled') {
+      setFormError('This account is disabled.');
+      return;
+    }
     show({ message: 'Failed to log in. Please try again.' });
   }
 

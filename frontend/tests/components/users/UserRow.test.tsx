@@ -79,6 +79,14 @@ describe('UserRow', () => {
     expect(created.getAttribute('title')).toBe('2026-07-18 09:30:44');
   });
 
+  it('leaves the created cell empty when the timestamp is null', () => {
+    const { container } = renderRow({ ...row, createdAt: null });
+
+    const created = container.querySelector('td.user-time:not(.user-disabled)');
+    expect(created?.textContent).toBe('');
+    expect(created?.hasAttribute('title')).toBe(false);
+  });
+
   it('leaves the disabled cell empty for an active account', () => {
     const { container } = renderRow(row);
 

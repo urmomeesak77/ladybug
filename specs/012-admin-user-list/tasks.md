@@ -208,13 +208,13 @@ another superuser cannot.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T067 [P] Create `frontend/tests/e2e/users.spec.ts` — Playwright slice covering the admin browsing `/admin/users`, paging via the URL, disabling a member row, that member being refused at sign-in, and then the admin re-enabling the row and that member signing in again with the same credentials (mirrors the shipped `moderation.spec.ts` shape)
-- [ ] T068 [P] Cover the remaining spec edge cases with named tests: empty list, out-of-range page, concurrent action converging without error, repeated disable→enable leaving no residual `disabled_by`, and the three recovery flows of contract §4.3 — registration ⇒ `422`, verification resend ⇒ `401`, and a signed verification link still verifying (`email_verified_at` set) while `disabled_at` stays non-null and sign-in stays refused (spec → Edge Cases)
-- [ ] T069 Run the real CI gates and record the output: `docker compose exec backend vendor/bin/pint --test`; `docker compose exec backend php artisan test --coverage-clover coverage.xml`; `python .github/scripts/check_coverage.py coverage.xml`; `cd frontend; npm run lint; npm run test -- --coverage` — both stacks must clear ≥90%
-- [ ] T070 Confirm no dependency was added: `git diff master -- backend/composer.json backend/composer.lock frontend/package.json frontend/package-lock.json` must be empty (Principle I)
+- [X] T067 [P] Create `frontend/tests/e2e/users.spec.ts` — Playwright slice covering the admin browsing `/admin/users`, paging via the URL, disabling a member row, that member being refused at sign-in, and then the admin re-enabling the row and that member signing in again with the same credentials (mirrors the shipped `moderation.spec.ts` shape)
+- [X] T068 [P] Cover the remaining spec edge cases with named tests: empty list, out-of-range page, concurrent action converging without error, repeated disable→enable leaving no residual `disabled_by`, and the three recovery flows of contract §4.3 — registration ⇒ `422`, verification resend ⇒ `401`, and a signed verification link still verifying (`email_verified_at` set) while `disabled_at` stays non-null and sign-in stays refused (spec → Edge Cases)
+- [X] T069 Run the real CI gates and record the output: `docker compose exec backend vendor/bin/pint --test`; `docker compose exec backend php artisan test --coverage-clover coverage.xml`; `python .github/scripts/check_coverage.py coverage.xml`; `cd frontend; npm run lint; npm run test -- --coverage` — both stacks must clear ≥90%
+- [X] T070 Confirm no dependency was added: `git diff master -- backend/composer.json backend/composer.lock frontend/package.json frontend/package-lock.json` must be empty (Principle I)
 - [ ] T071 Walk the manual scenarios in [quickstart.md](./quickstart.md) S1–S6 by hand — the constitution requires manual verification for navigation, theming, and layout changes; S6 specifically checks 320px with no horizontal **page** scroll and both colour schemes
-- [ ] T072 Update `CLAUDE.md`'s Current State section with a 012 entry describing the admin user console, the `disabled_at`/`disabled_by` columns, and the access-only semantics of disabling
-- [ ] T073 Dispatch the `commit-quality-verifier` agent on the staged diff and commit only on PASS (project convention)
+- [X] T072 Update `CLAUDE.md`'s Current State section with a 012 entry describing the admin user console, the `disabled_at`/`disabled_by` columns, and the access-only semantics of disabling
+- [X] T073 Dispatch the `commit-quality-verifier` agent on the staged diff and commit only on PASS (project convention)
 
 ---
 

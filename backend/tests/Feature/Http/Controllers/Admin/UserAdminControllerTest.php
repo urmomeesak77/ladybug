@@ -215,4 +215,21 @@ final class UserAdminControllerTest extends TestCase {
         $peer->refresh();
         $this->assertTrue($peer->isDisabled());
     }
+
+    public function test_a_second_disable_is_a_200_no_op_that_converges_on_the_original_state(): void {
+        // Concurrency edge case: two admins disable the same account nearly at once. Set-to-
+        // target (not toggle) means the second call is a 200 that keeps the ORIGINAL timestamp
+        // and actor, so the two actions converge without error rather than flipping each other.
+        $first = User::factory()->admin()->create(['name' => 'First']);
+        $target = User::factory()->create();
+        $this->actingAs($first)->postJson("/api/admin/users/{$target->hash}/disable")->assertOk();
+        $originalTimestamp = $target->fresh()->disabled_at?->format('Y-m-d H:i:s');
+
+        $second = User::factory()->admin()->create(['name' => 'Second']);
+        $response = $this->actingAs($second)->postJson("/api/admin/users/{$target->hash}/disable");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.disabled_by', 'First');
+        $this->assertSame($originalTimestamp, $response->json('data.disabled_at'));
+    }
 }
