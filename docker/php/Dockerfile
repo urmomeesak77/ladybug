@@ -16,10 +16,16 @@ RUN apt-get update \
 # arbitrary-precision math for App\Utils\Base64 hash generation. gd: in-house
 # image resizing/metadata for uploads (Principle I — no Composer image package).
 # pcov: line coverage driver for `php artisan test --coverage` (matches the CI
-# extension list in .github/workflows/ci.yml).
+# extension list in .github/workflows/ci.yml). Version-pinned so image rebuilds
+# stay reproducible, and retried because a pecl.php.net outage has already taken
+# the e2e job down once ("No releases available for package pecl.php.net/pcov").
 RUN docker-php-ext-configure gd --with-jpeg --with-freetype \
     && docker-php-ext-install pdo_mysql zip bcmath gd \
-    && pecl install pcov \
+    && for attempt in 1 2 3; do \
+           pecl install pcov-1.0.12 && break; \
+           echo "pecl install pcov failed (attempt $attempt), retrying in 15s"; \
+           sleep 15; \
+       done \
     && docker-php-ext-enable pcov
 
 # opcache is bundled with the base image but ships disabled. Enabling it (incl.
