@@ -5,12 +5,42 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use App\Models\Trashpost;
+use App\Models\User;
+use App\Services\MediaVisibilityService;
 use App\Services\ModerationService;
+use App\Services\RatingService;
 use App\Support\MediaPath;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use Tests\TestCase;
+
+/**
+ * A RatingService whose adjustment always fails, used to prove that a moderation
+ * transition rolls its state change back when the rating half throws (FR-013).
+ */
+final class ThrowingRatingService extends RatingService {
+    public function credit(Trashpost $post): void {
+        throw new RuntimeException('rating write failed');
+    }
+
+    public function releaseCredit(Trashpost $post): void {
+        throw new RuntimeException('rating write failed');
+    }
+
+    public function penalize(Trashpost $post): void {
+        throw new RuntimeException('rating write failed');
+    }
+
+    public function refund(Trashpost $post): void {
+        throw new RuntimeException('rating write failed');
+    }
+
+    public function settlePurge(Trashpost $post): void {
+        throw new RuntimeException('rating write failed');
+    }
+}
 
 /**
  * The moderation index query: every meme in every state (withTrashed, no activation
@@ -325,6 +355,206 @@ final class ModerationServiceTest extends TestCase {
         Storage::disk('local')->assertMissing($path);
         Storage::disk('public')->assertMissing($path);
         $this->assertDatabaseMissing('trashposts', ['hash' => $post->hash]);
+    }
+
+    public function test_activate_credits_the_owner(): void {
+        $post = $this->ownedPost(0, ['activated_at' => null]);
+
+        $this->service()->activate($post->hash);
+
+        $this->assertSame(1, $post->user->fresh()->rating);
+        $this->assertTrue($post->fresh()->rating_credited);
+    }
+
+    public function test_deactivate_releases_the_owners_credit(): void {
+        $post = $this->ownedPost(5, ['rating_credited' => true]);
+
+        $this->service()->deactivate($post->hash);
+
+        $this->assertSame(4, $post->user->fresh()->rating);
+    }
+
+    public function test_delete_penalizes_the_owner(): void {
+        $post = $this->ownedPost(5);
+
+        $this->service()->delete($post->hash);
+
+        $this->assertSame(4, $post->user->fresh()->rating);
+        $this->assertTrue($post->fresh()->rating_penalized);
+    }
+
+    public function test_restore_refunds_the_owners_penalty(): void {
+        $post = $this->ownedPost(5, ['deleted_at' => now(), 'rating_penalized' => true]);
+
+        $this->service()->restore($post->hash);
+
+        $this->assertSame(6, $post->user->fresh()->rating);
+    }
+
+    public function test_purge_settles_the_rating_before_the_row_is_destroyed(): void {
+        // A live, credited meme costs −2 in one operation (US1 §9). This assertion is
+        // also the ordering proof: settle after forceDelete would find no row and
+        // silently adjust nothing.
+        $post = $this->ownedPost(5, ['rating_credited' => true]);
+        $user = $post->user;
+
+        $this->service()->purge($post->hash);
+
+        $this->assertSame(3, $user->fresh()->rating);
+    }
+
+    public function test_moderation_on_an_unowned_meme_succeeds_without_a_rating(): void {
+        // FR-012: the action must not error just because nobody can be charged.
+        $post = Trashpost::factory()->hidden()->create(['user_id' => null]);
+
+        $updated = $this->service()->activate($post->hash);
+
+        $this->assertNotNull($updated->activated_at);
+        $this->assertTrue($post->fresh()->rating_credited);
+    }
+
+    public function test_a_failed_rating_write_rolls_back_the_state_change(): void {
+        // FR-013: the state change and its rating adjustment commit together. Forcing
+        // the rating half to throw must leave the meme exactly as it was.
+        $post = $this->ownedPost(0, ['activated_at' => null]);
+        $service = new ModerationService(new MediaVisibilityService(), new ThrowingRatingService());
+
+        try {
+            $service->activate($post->hash);
+            $this->fail('activate should have surfaced the rating failure');
+        }
+        catch (RuntimeException) {
+            // expected
+        }
+
+        $this->assertNull($post->fresh()->activated_at);
+        $this->assertSame(0, $post->user->fresh()->rating);
+    }
+
+    public function test_a_failed_rating_write_rolls_back_a_deactivate(): void {
+        $post = $this->ownedPost(5, ['rating_credited' => true]);
+
+        $this->assertRatingFailureRollsBack('deactivate', $post);
+
+        $this->assertNotNull($post->fresh()->activated_at);
+    }
+
+    public function test_a_failed_rating_write_rolls_back_a_delete(): void {
+        $post = $this->ownedPost(5);
+
+        $this->assertRatingFailureRollsBack('delete', $post);
+
+        $this->assertNull($post->fresh()->deleted_at);
+    }
+
+    public function test_a_failed_rating_write_rolls_back_a_restore(): void {
+        $post = $this->ownedPost(5, ['deleted_at' => now()]);
+
+        $this->assertRatingFailureRollsBack('restore', $post);
+
+        $this->assertNotNull(Trashpost::withTrashed()->whereKey($post->id)->firstOrFail()->deleted_at);
+    }
+
+    public function test_a_failed_rating_write_rolls_back_a_purge(): void {
+        // The strongest of the five: a lost rating settlement must not take the row
+        // with it, or the meme is gone and the owner was never charged (FR-013).
+        $post = $this->ownedPost(5, ['rating_credited' => true]);
+
+        $this->assertRatingFailureRollsBack('purge', $post);
+
+        $this->assertTrue(Trashpost::withTrashed()->whereKey($post->id)->exists());
+    }
+
+    /**
+     * Drive one transition with a RatingService that always throws, and assert the
+     * failure surfaced and the owner's rating did not move. The caller then asserts
+     * that the transition's own state change rolled back too.
+     */
+    private function assertRatingFailureRollsBack(string $transition, Trashpost $post): void {
+        $service = new ModerationService(new MediaVisibilityService(), new ThrowingRatingService());
+        $before = $post->user->fresh()->rating;
+
+        try {
+            $service->{$transition}($post->hash);
+            $this->fail("{$transition} should have surfaced the rating failure");
+        }
+        catch (RuntimeException) {
+            // expected
+        }
+
+        $this->assertSame($before, $post->user->fresh()->rating);
+    }
+
+    public function test_activate_deactivate_purge_nets_minus_one(): void {
+        $post = $this->ownedPost(0, ['activated_at' => null]);
+
+        $this->service()->activate($post->hash);
+        $this->service()->deactivate($post->hash);
+        $this->service()->purge($post->hash);
+
+        $this->assertSame(-1, $post->user->fresh()->rating);
+    }
+
+    public function test_activate_soft_delete_purge_nets_minus_one(): void {
+        $post = $this->ownedPost(0, ['activated_at' => null]);
+
+        $this->service()->activate($post->hash);
+        $this->service()->delete($post->hash);
+        $this->service()->purge($post->hash);
+
+        $this->assertSame(-1, $post->user->fresh()->rating);
+    }
+
+    public function test_activate_then_purge_nets_minus_one(): void {
+        $post = $this->ownedPost(0, ['activated_at' => null]);
+
+        $this->service()->activate($post->hash);
+        $this->service()->purge($post->hash);
+
+        $this->assertSame(-1, $post->user->fresh()->rating);
+    }
+
+    public function test_activation_churn_cannot_farm_rating(): void {
+        // FR-006: activate → deactivate → activate lands at +1, never +2.
+        $post = $this->ownedPost(0, ['activated_at' => null]);
+
+        $this->service()->activate($post->hash);
+        $this->service()->deactivate($post->hash);
+        $this->service()->activate($post->hash);
+
+        $this->assertSame(1, $post->user->fresh()->rating);
+    }
+
+    public function test_soft_delete_then_restore_nets_zero(): void {
+        $post = $this->ownedPost(0);
+
+        $this->service()->delete($post->hash);
+        $this->service()->restore($post->hash);
+
+        $this->assertSame(0, $post->user->fresh()->rating);
+    }
+
+    public function test_repeated_activate_credits_only_once(): void {
+        $post = $this->ownedPost(0, ['activated_at' => null]);
+
+        $this->service()->activate($post->hash);
+        $this->service()->activate($post->hash);
+
+        $this->assertSame(1, $post->user->fresh()->rating);
+    }
+
+    /**
+     * A post owned by a fresh account pinned to $rating. The rating is assigned rather
+     * than mass-assigned — it is deliberately absent from User::$fillable (FR-003).
+     *
+     * @param array<string, mixed> $postState
+     */
+    private function ownedPost(int $rating = 0, array $postState = []): Trashpost {
+        $user = User::factory()->create();
+        $user->rating = $rating;
+        $user->save();
+
+        return Trashpost::factory()->create(['user_id' => $user->id] + $postState);
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Controllers;
 
 use App\Models\Trashpost;
+use App\Models\User;
 use App\Support\MediaPath;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -151,6 +152,34 @@ final class TrashpostsApiControllerTest extends TestCase {
             ['url' => $disk->url(MediaPath::imageRelativePath('100', 'abc1234567', 'jpg')), 'width' => 100],
         ]);
         $this->assertNotNull($response->json('data.default'));
+    }
+
+    public function test_the_public_feed_never_exposes_an_owners_rating(): void {
+        // FR-022: the rating is a moderation signal. Publishing it would tell every
+        // visitor how close each account is to bypassing moderation.
+        Storage::fake('public');
+        $owner = User::factory()->create();
+        $owner->rating = 20;
+        $owner->save();
+        Trashpost::factory()->visible()->create(['user_id' => $owner->id]);
+
+        $response = $this->getJson('/api/posts');
+
+        $response->assertOk();
+        $this->assertArrayNotHasKey('rating', $response->json('data.0'));
+    }
+
+    public function test_the_single_post_payload_never_exposes_an_owners_rating(): void {
+        Storage::fake('public');
+        $owner = User::factory()->create();
+        $owner->rating = 20;
+        $owner->save();
+        $post = Trashpost::factory()->visible()->create(['user_id' => $owner->id]);
+
+        $response = $this->getJson("/api/posts/{$post->hash}");
+
+        $response->assertOk();
+        $this->assertArrayNotHasKey('rating', $response->json('data'));
     }
 
     public function test_show_returns_empty_image_data_for_a_link_only_post(): void {

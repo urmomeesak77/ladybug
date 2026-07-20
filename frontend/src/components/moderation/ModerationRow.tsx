@@ -55,6 +55,7 @@ function ModerationRow({ row, onApply, onRemove }: {
       <td><ModerationThumbnail src={row.thumbnail} alt={alt} /></td>
       <TitleCell row={row} />
       <td>{uploader}</td>
+      <td className="moderation-rating">{ModerationModel.ratingLabel(row.rating)}</td>
       <TimeCell value={row.createdAt} />
       <TimeCell value={row.activatedAt} />
       <TimeCell value={row.deletedAt} />

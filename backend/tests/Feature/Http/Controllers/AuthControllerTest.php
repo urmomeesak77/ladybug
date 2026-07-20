@@ -262,6 +262,34 @@ class AuthControllerTest extends TestCase {
         $this->assertNull($response->json('data.email_verified_at'));
     }
 
+    public function test_user_never_exposes_its_own_rating(): void {
+        // FR-022: an account cannot read its own rating either — knowing the exact
+        // distance to the auto-activation threshold is itself the moderation signal.
+        $user = User::factory()->create();
+        $user->rating = 12;
+        $user->save();
+
+        $response = $this->actingAs($user)->getJson('/api/user');
+
+        $response->assertOk();
+        $this->assertArrayNotHasKey('rating', $response->json('data'));
+    }
+
+    public function test_register_ignores_a_submitted_rating(): void {
+        // FR-003: rating is out of $fillable, so no request body can hand an account
+        // the trust threshold and bypass moderation.
+        $response = $this->postJson('/api/register', [
+            'name' => 'Ratingseeker',
+            'email' => 'seeker@example.com',
+            'password' => 'Password123',
+            'password_confirmation' => 'Password123',
+            'rating' => 9999,
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame(0, User::where('email', 'seeker@example.com')->firstOrFail()->rating);
+    }
+
     public function test_user_returns_null_for_an_anonymous_request(): void {
         $response = $this->getJson('/api/user');
 

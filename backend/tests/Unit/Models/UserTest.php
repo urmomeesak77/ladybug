@@ -88,6 +88,24 @@ final class UserTest extends TestCase {
         $this->assertSame(Role::Member, $user->fresh()->role);
     }
 
+    public function test_a_created_user_starts_at_rating_zero(): void {
+        // Every account opens its record at zero (FR-001); the column default
+        // also backfills the accounts that predate the rating (FR-002).
+        $user = User::factory()->create();
+
+        $this->assertSame(0, $user->fresh()->rating);
+    }
+
+    public function test_rating_is_not_mass_assignable(): void {
+        // Same guard as `role`: a request body key of `rating` is discarded, so
+        // no one can grant themselves the auto-activation threshold (FR-003).
+        $user = User::factory()->create();
+        $user->fill(['rating' => 999]);
+        $user->save();
+
+        $this->assertSame(0, $user->fresh()->rating);
+    }
+
     public function test_posts_returns_the_users_trashposts(): void {
         $user = User::factory()->create();
         // hash/user_id are no longer mass assignable (see Trashpost::$fillable),

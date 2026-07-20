@@ -6,6 +6,9 @@ export type RawModerationRow = {
   title: string | null;
   type: string | null;
   username: string | null;
+  // The OWNING ACCOUNT's rating, not a per-meme value; null iff the meme has no
+  // resolvable owner. The server never omits the key (contract §1).
+  rating: number | null;
   created_at: string | null;
   activated_at: string | null;
   deleted_at: string | null;
@@ -25,6 +28,7 @@ export type ModerationRow = {
   title: string | null;
   type: string | null;
   username: string | null;
+  rating: number | null;
   // Raw MySQL datetimes (Y-m-d H:i:s) straight from the server, or null when unset. The
   // absence of an activated_at/deleted_at is itself the "not activated"/"live" signal.
   createdAt: string | null;
@@ -69,6 +73,13 @@ export class ModerationModel {
     return `${subject} is already hidden from the site. Permanent delete removes it and its files forever.`;
   }
 
+  // The rating cell's text. A missing owner reads as an explicit "no account" rather
+  // than 0 or an empty cell (FR-021): 0 is a real rating an account can hold, so the
+  // two states must never look alike. Text carries the meaning, never colour alone.
+  static ratingLabel(rating: number | null): string {
+    return rating === null ? 'no account' : String(rating);
+  }
+
   static mapRow(raw: RawModerationRow): ModerationRow {
     return {
       hash: raw.hash,
@@ -76,6 +87,7 @@ export class ModerationModel {
       title: raw.title,
       type: raw.type,
       username: raw.username,
+      rating: raw.rating,
       createdAt: raw.created_at,
       activatedAt: raw.activated_at,
       deletedAt: raw.deleted_at,

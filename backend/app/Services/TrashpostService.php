@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class TrashpostService {
@@ -24,6 +25,8 @@ class TrashpostService {
     public function __construct(
         private readonly TrashpostImageProcessor $images = new TrashpostImageProcessor(),
         private readonly YoutubeThumbnailService $thumbnails = new YoutubeThumbnailService(),
+        private readonly RatingService $rating = new RatingService(),
+        private readonly MediaVisibilityService $media = new MediaVisibilityService(),
     ) {
     }
 
@@ -58,11 +61,16 @@ class TrashpostService {
      * Create a post from an already-validated upload: an image file or a parsed YouTube id.
      *
      * The hash row is reserved (saved) BEFORE any file is written, so a hash collision can
-     * never overwrite another post's media — it just retries with a fresh hash. YouTube
-     * posts activate on the spot; image posts activate only after their files exist.
+     * never overwrite another post's media — it just retries with a fresh hash. The row is
+     * reserved PENDING whatever the outcome, and activation is a separate, transactional
+     * step once the media exists (FR-015): both media branches then reach the same single
+     * decision point, and a post is never briefly live with no file behind it.
      */
     public function createPost(User $user, ?string $title, ?UploadedFile $image, ?string $youtubeId): Trashpost {
-        $post = $this->reserve($user, $title, $youtubeId, $image === null);
+        // Read the uploader's standing BEFORE the post exists, so the credit this very
+        // upload may earn cannot push its own author over the threshold (FR-020).
+        $autoActivate = $this->rating->shouldAutoActivate($user);
+        $post = $this->reserve($user, $title, $youtubeId);
         if ($image !== null) {
             $this->attachImage($post, $image);
         }
@@ -73,15 +81,47 @@ class TrashpostService {
             // ensure() reports-and-returns-null on failure, never failing the upload.
             $this->thumbnails->ensure($post);
         }
+        if ($autoActivate) {
+            $this->activate($post);
+
+            return $post;
+        }
+        // Pending media must physically leave the public disk. Both the image variants
+        // and the YouTube still are written there unconditionally, so without this a
+        // pending meme would be hidden from the API while its bytes stayed fetchable by
+        // hash — a moderation bypass, and exactly what MediaVisibilityService exists to
+        // close. It runs here, after BOTH media branches, because the thumbnail lands
+        // last; syncing any earlier would leave it behind.
+        $this->media->sync($post);
 
         return $post;
+    }
+
+    /**
+     * Publish an upload from a trusted account and pay its owner the same +1 a moderator's
+     * activation would (FR-019). Both writes share one transaction (FR-013): a failed
+     * credit must not leave a live post that can never be credited, since the flag would
+     * then bar the +1 forever.
+     */
+    private function activate(Trashpost $post): void {
+        DB::beginTransaction();
+        try {
+            $post->activated_at = now();
+            $post->save();
+            $this->rating->credit($post);
+            DB::commit();
+        }
+        catch (Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
     }
 
     /**
      * Persist the row that claims a public hash, retrying on the unique-constraint
      * collision (same pattern as UserService::create).
      */
-    private function reserve(User $user, ?string $title, ?string $youtubeId, bool $activate): Trashpost {
+    private function reserve(User $user, ?string $title, ?string $youtubeId): Trashpost {
         for ($attempt = 1; ; $attempt++) {
             // Identity and ownership are assigned explicitly, never mass-assigned —
             // $fillable stays limited to content fields so no future controller can
@@ -93,9 +133,6 @@ class TrashpostService {
             $post->username = $user->name;
             $post->type = $youtubeId === null ? null : 'youtube';
             $post->youtube = $youtubeId;
-            if ($activate) {
-                $post->activated_at = now();
-            }
             try {
                 $post->save();
 
@@ -110,14 +147,14 @@ class TrashpostService {
     }
 
     /**
-     * Write the image files for a reserved post, then activate it. On failure the reserved
-     * row and any files already written are removed — no orphaned media, no invisible
-     * half-created row — and the failure is rethrown for the framework's error handling.
+     * Write the image files for a reserved post and record them on the row. On failure the
+     * reserved row and any files already written are removed — no orphaned media, no
+     * invisible half-created row — and the failure is rethrown for the framework's error
+     * handling. Activation is decided by the caller, not here.
      */
     private function attachImage(Trashpost $post, UploadedFile $image): void {
         try {
             $post->fill($this->images->process($image, $post->hash));
-            $post->activated_at = now();
             $post->save();
         }
         catch (Throwable $e) {

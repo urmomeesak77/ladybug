@@ -6,6 +6,7 @@ namespace Tests\Unit\Services;
 
 use App\Models\Trashpost;
 use App\Models\User;
+use App\Services\RatingService;
 use App\Services\TrashpostImageProcessor;
 use App\Services\TrashpostService;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -162,7 +163,9 @@ final class TrashpostServiceTest extends TestCase {
     }
 
     public function test_create_post_stores_an_activated_youtube_post(): void {
-        $user = User::factory()->create();
+        // Trusted uploader: since 011 activation is conditional on the uploader's
+        // rating, so the activated path needs an account at the threshold.
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD);
 
         $post = $this->service()->createPost($user, 'My meme', null, 'dQw4w9WgXcQ');
 
@@ -221,7 +224,9 @@ final class TrashpostServiceTest extends TestCase {
     public function test_creating_a_youtube_post_fetches_its_thumbnail_up_front(): void {
         Storage::fake('public');
         Http::fake(['img.youtube.com/*' => Http::response('still-bytes', 200)]);
-        $user = User::factory()->create();
+        // A trusted uploader keeps the post activated, so the still stays on the public
+        // disk; the pending case parks it privately instead and is covered in CreatePostTest.
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD);
 
         $post = (new TrashpostService())->createPost($user, 'A video', null, 'dQw4w9WgXcQ');
 
@@ -240,5 +245,99 @@ final class TrashpostServiceTest extends TestCase {
 
         $this->assertNull($post->youtube_thumbnail);
         $this->assertTrue($post->exists);
+    }
+
+    /**
+     * A member at the given rating. Assigned, not mass-assigned — `rating` is
+     * deliberately absent from User::$fillable (FR-003).
+     */
+    private function memberAt(int $rating): User {
+        $user = User::factory()->create();
+        $user->rating = $rating;
+        $user->save();
+
+        return $user;
+    }
+
+    public function test_a_below_threshold_members_youtube_upload_is_created_pending(): void {
+        // FR-018: activation is set in reserve() for the YouTube branch, so this is the
+        // half of the change that branch exercises.
+        Storage::fake('public');
+        Http::fake(['img.youtube.com/*' => Http::response('still-bytes', 200)]);
+        $member = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
+
+        $post = (new TrashpostService())->createPost($member, 'Waiting', null, 'dQw4w9WgXcQ');
+
+        $this->assertNull($post->activated_at);
+        $this->assertFalse($post->fresh()->rating_credited);
+        $this->assertSame(RatingService::TRUST_THRESHOLD - 1, $member->fresh()->rating);
+    }
+
+    public function test_a_below_threshold_members_image_upload_is_created_pending(): void {
+        // The image branch activates in attachImage(), a separate assignment from
+        // reserve() — both must honour the same decision.
+        Storage::fake('public');
+        $member = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
+
+        $post = (new TrashpostService())->createPost(
+            $member,
+            'Waiting',
+            UploadedFile::fake()->image('m.jpg', 100, 100),
+            null,
+        );
+
+        $this->assertNull($post->activated_at);
+        $this->assertFalse($post->fresh()->rating_credited);
+    }
+
+    public function test_a_trusted_members_youtube_upload_is_activated_and_credited(): void {
+        // FR-019: an auto-activation earns its +1 on the same terms as a moderator's.
+        Storage::fake('public');
+        Http::fake(['img.youtube.com/*' => Http::response('still-bytes', 200)]);
+        $member = $this->memberAt(RatingService::TRUST_THRESHOLD);
+
+        $post = (new TrashpostService())->createPost($member, 'Live now', null, 'dQw4w9WgXcQ');
+
+        $this->assertNotNull($post->activated_at);
+        $this->assertTrue($post->fresh()->rating_credited);
+        $this->assertSame(RatingService::TRUST_THRESHOLD + 1, $member->fresh()->rating);
+    }
+
+    public function test_a_trusted_members_image_upload_is_activated_and_credited(): void {
+        Storage::fake('public');
+        $member = $this->memberAt(RatingService::TRUST_THRESHOLD);
+
+        $post = (new TrashpostService())->createPost(
+            $member,
+            'Live now',
+            UploadedFile::fake()->image('m.jpg', 100, 100),
+            null,
+        );
+
+        $this->assertNotNull($post->activated_at);
+        $this->assertTrue($post->fresh()->rating_credited);
+        $this->assertSame(RatingService::TRUST_THRESHOLD + 1, $member->fresh()->rating);
+    }
+
+    public function test_a_failed_credit_leaves_no_activated_but_uncredited_post(): void {
+        // FR-013: the activation and its credit commit together. Without a transaction
+        // around the pair, a credit that blows up would leave a live, permanently
+        // uncredited post — a rating the account can never earn back.
+        Storage::fake('public');
+        Http::fake(['img.youtube.com/*' => Http::response('still-bytes', 200)]);
+        $member = $this->memberAt(RatingService::TRUST_THRESHOLD);
+        $rating = Mockery::mock(RatingService::class)->makePartial();
+        $rating->shouldReceive('shouldAutoActivate')->andReturn(true);
+        $rating->shouldReceive('credit')->once()->andThrow(new RuntimeException('rating write failed'));
+
+        try {
+            (new TrashpostService(rating: $rating))->createPost($member, 'Doomed', null, 'dQw4w9WgXcQ');
+            $this->fail('Expected the failed credit to be rethrown.');
+        }
+        catch (RuntimeException $e) {
+            $this->assertSame('rating write failed', $e->getMessage());
+        }
+
+        $this->assertSame(0, Trashpost::withTrashed()->whereNotNull('activated_at')->count());
     }
 }

@@ -4,18 +4,44 @@ A meme-sharing site (think 9gag): upload images, videos, and YouTube links and
 browse an endless feed. **React 18 + Vite + TypeScript** frontend talking to a
 **Laravel (PHP 8.3) + MySQL** JSON API.
 
-This repository is currently the **infrastructure scaffold** — two app skeletons
-wired with their lint/test toolchains, a dev Docker environment, and one
-meaningful tested unit per stack. Application features are built on top of it.
+Eleven features are implemented: the feed and single-meme views, cookie-session
+auth with e-mail verification, uploading with server-side image processing, roles,
+an admin moderation console, and a contributor rating that decides whether an
+upload publishes immediately or waits for a moderator. Not built yet: comments and
+password reset.
 
 ## Layout
 
 ```
-backend/    Laravel API skeleton (PHP 8.3) — GET /api/health, App\Support\PublicCode
-frontend/   React 18 + Vite + TypeScript SPA skeleton
+backend/    Laravel 12 API (PHP 8.3) + Sanctum, MySQL via Eloquent
+frontend/   React 18 + Vite + TypeScript SPA
+docs/       coding conventions, design specs, UI screenshots
+specs/      Spec Kit feature specs (001-011)
 docker/     Dockerfiles for the dev environment (php)
-docker-compose.yml   dev-only: php 8.3 + mysql 8.0 + node 20
+docker-compose.yml       dev-only: php 8.3 + mysql 8.0 + node 20
+docker-compose.e2e.yml   isolated, disposable stack for the Playwright e2e suite
 ```
+
+## API
+
+Public reads need no auth; writes need a Sanctum cookie session. Every meme is
+addressed by an immutable 10-char `hash`, never a database id.
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| `GET` | `/api/health` | liveness probe |
+| `GET` | `/api/posts` | newest-first keyset feed, 10 per page |
+| `GET` | `/api/posts/{hash}` | one meme |
+| `POST` | `/api/posts` | upload (auth + verified e-mail) |
+| `POST` | `/api/register`, `/api/login`, `/api/logout` | auth |
+| `GET` | `/api/user` | current account, `null` when anonymous |
+| `GET` | `/api/email/verify/{hash}`, `POST` `/api/email/verification-notification` | e-mail verification |
+| `GET` | `/api/admin/posts` | moderation table (admin+) |
+| `POST`/`DELETE` | `/api/admin/posts/{hash}[/activate\|/deactivate\|/restore\|/purge]` | moderation actions (admin+) |
+
+An upload is activated on creation only when its uploader is at or above the
+trust threshold or holds admin+; otherwise it is created **pending** and its media
+is moved off the `public` disk, so hidden bytes are not URL-addressable.
 
 ## One-command local environment
 
@@ -155,7 +181,22 @@ npm run lint
 npx vitest run --coverage --coverage.thresholds.lines=90
 ```
 
-Both stacks enforce **≥90% line coverage** in CI (`.github/workflows/ci.yml`).
+Coverage spans **all** of `src/`, not just `src/lib/` (`vite.config.ts`).
+
+## End-to-end (Playwright)
+
+The e2e specs run against an **isolated, disposable** stack defined by
+`docker-compose.e2e.yml` — its own Compose project, its own tmpfs MySQL
+(`ladybug_e2e`). Tests register users into that throwaway database, never the dev
+`trashdb`; the dev stack is untouched and can stay up.
+
+```powershell
+scripts\e2e.ps1                       # boot the isolated stack, run every spec, tear it down
+scripts\e2e.ps1 e2e/upload.spec.ts    # one spec (args pass through to playwright test)
+```
+
+Both stacks enforce **≥90% line coverage** in CI (`.github/workflows/ci.yml`),
+which also runs the e2e job.
 
 ## Spec Kit
 
