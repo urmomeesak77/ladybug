@@ -20,6 +20,7 @@ function ModerationTable({ rows, onApply, onRemove }: {
             <th scope="col">Thumbnail</th>
             <th scope="col">Title</th>
             <th scope="col">User</th>
+            <th scope="col">Rating</th>
             <th scope="col">Created</th>
             <th scope="col">Activated</th>
             <th scope="col">Deleted</th>

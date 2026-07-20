@@ -73,7 +73,8 @@ FR-006 (no drift), FR-008 (at most one penalty), and FR-014 (no double count).
 | Activate | `!rating_credited` | `rating_credited → true` | **+1** | FR-005 |
 | Activate | `rating_credited` | none | 0 | FR-006, FR-014 |
 | Deactivate | `rating_credited` | `rating_credited → false` | **−1** | FR-005 |
-| Deactivate | `!rating_credited` | none | 0 | FR-006 |
+| Deactivate | `!rating_credited`, never activated | none | 0 | FR-006 |
+| Deactivate | `!rating_credited`, but `activated_at` set (legacy) | none | **−1** | FR-002, SC-005 |
 | Soft delete | `!rating_penalized` | `rating_penalized → true` | **−1** | FR-007 |
 | Soft delete | `rating_penalized` | none | 0 | FR-008 |
 | Restore | `rating_penalized` | `rating_penalized → false` | **+1** | FR-010 |
@@ -82,6 +83,13 @@ FR-006 (no drift), FR-008 (at most one penalty), and FR-014 (no double count).
 | Purge | `!rating_penalized` | penalty applied | **−1** | FR-007 |
 | Purge | both above | both | **−2** | FR-009, US1 §9 |
 | Any, `user_id === null` | — | flags still update | **0** | FR-012 |
+
+The two deactivate rows are why `releaseCredit` charges on "was this meme live?" rather than on
+the credit flag alone. A meme activated before this feature holds no credit — every account
+starts at 0 (FR-002) — yet the spec still charges the normal −1 for deactivating it, which is
+what gives legacy memes SC-005's **−2 … 0** attributable range instead of −1 … 0. Keying only
+on the flag would make those deactivations free and contradict FR-002, the Edge Cases section,
+and SC-005 alike.
 
 Note that soft delete does **not** release the activation credit, while purge does. That is
 deliberate and it is what makes restore lossless: a soft-deleted meme that is restored returns

@@ -219,4 +219,54 @@ final class ModerationControllerTest extends TestCase {
             ->deleteJson('/api/admin/posts/Nonexist99/purge')
             ->assertNotFound();
     }
+
+    public function test_index_rows_carry_the_owners_current_rating(): void {
+        $owner = User::factory()->create();
+        $owner->rating = 7;
+        $owner->save();
+        Trashpost::factory()->create(['user_id' => $owner->id]);
+
+        $response = $this->actingAs($this->admin())->getJson('/api/admin/posts');
+
+        $response->assertOk()->assertJsonPath('data.0.rating', 7);
+    }
+
+    public function test_index_rows_report_a_null_rating_for_an_unowned_meme(): void {
+        // FR-021: never omitted, and never 0 — 0 is a real rating an account can hold,
+        // so "no account" has to be its own value.
+        Trashpost::factory()->create(['user_id' => null]);
+
+        $response = $this->actingAs($this->admin())->getJson('/api/admin/posts');
+
+        $response->assertOk()->assertJsonPath('data.0.rating', null);
+        $this->assertArrayHasKey('rating', $response->json('data.0'));
+    }
+
+    public function test_two_memes_of_one_owner_show_the_same_rating(): void {
+        // The field is an account-wide rating, not a per-meme value.
+        $owner = User::factory()->create();
+        $owner->rating = 4;
+        $owner->save();
+        Trashpost::factory()->count(2)->create(['user_id' => $owner->id]);
+
+        $response = $this->actingAs($this->admin())->getJson('/api/admin/posts');
+
+        $response->assertOk();
+        $this->assertSame(4, $response->json('data.0.rating'));
+        $this->assertSame(4, $response->json('data.1.rating'));
+    }
+
+    public function test_activating_twice_over_http_moves_the_rating_once(): void {
+        // FR-014, sequential only. lockForUpdate is a no-op on sqlite, so this proves
+        // flag-based idempotency; the true-simultaneous guarantee is verified by hand
+        // against MySQL in quickstart scenario 5.
+        $owner = User::factory()->create();
+        $post = Trashpost::factory()->hidden()->create(['user_id' => $owner->id]);
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->postJson("/api/admin/posts/{$post->hash}/activate")->assertOk();
+        $this->actingAs($admin)->postJson("/api/admin/posts/{$post->hash}/activate")->assertOk();
+
+        $this->assertSame(1, $owner->fresh()->rating);
+    }
 }
