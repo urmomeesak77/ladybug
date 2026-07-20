@@ -16,16 +16,18 @@ RUN apt-get update \
 # arbitrary-precision math for App\Utils\Base64 hash generation. gd: in-house
 # image resizing/metadata for uploads (Principle I — no Composer image package).
 # pcov: line coverage driver for `php artisan test --coverage` (matches the CI
-# extension list in .github/workflows/ci.yml). Version-pinned so image rebuilds
-# stay reproducible, and retried because a pecl.php.net outage has already taken
-# the e2e job down once ("No releases available for package pecl.php.net/pcov").
+# extension list in .github/workflows/ci.yml). Built straight from the pinned
+# GitHub source tag rather than `pecl install`: pecl.php.net has answered "No
+# releases available for package pecl.php.net/pcov" often enough to take the e2e
+# job down twice, and retrying does not help a registry-side failure.
+ENV PCOV_VERSION=1.0.12
 RUN docker-php-ext-configure gd --with-jpeg --with-freetype \
     && docker-php-ext-install pdo_mysql zip bcmath gd \
-    && for attempt in 1 2 3; do \
-           pecl install pcov-1.0.12 && break; \
-           echo "pecl install pcov failed (attempt $attempt), retrying in 15s"; \
-           sleep 15; \
-       done \
+    && mkdir -p /usr/src/pcov \
+    && curl -fsSL "https://codeload.github.com/krakjoe/pcov/tar.gz/refs/tags/v${PCOV_VERSION}" \
+        | tar -xz -C /usr/src/pcov --strip-components=1 \
+    && (cd /usr/src/pcov && phpize && ./configure --enable-pcov && make -j"$(nproc)" && make install) \
+    && rm -rf /usr/src/pcov \
     && docker-php-ext-enable pcov
 
 # opcache is bundled with the base image but ships disabled. Enabling it (incl.
