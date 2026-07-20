@@ -34,8 +34,8 @@ Playwright e2e at `frontend/tests/e2e/`. Backend PHP runs **only** through Docke
 **Purpose**: Confirm the working stack before touching code. No new dependencies are added by
 this feature (Principle I no-op).
 
-- [ ] T001 Bring the stack up and confirm the four CI gates pass on a clean branch: `docker compose up -d`, then `docker compose exec backend vendor/bin/pint --test`, `docker compose exec backend php artisan test`, `docker compose exec frontend npm run lint`, `docker compose exec frontend npm run test` — record the baseline coverage numbers before any edit
-- [ ] T002 Read `backend/app/Services/ModerationService.php`, `backend/app/Services/TrashpostService.php`, and `backend/app/Services/MediaVisibilityService.php` end-to-end and confirm research D0/D4 still hold on this branch (createPost activates unconditionally at `TrashpostService.php` `reserve()`/`attachImage()`; image variants land on the `public` disk)
+- [X] T001 Bring the stack up and confirm the four CI gates pass on a clean branch: `docker compose up -d`, then `docker compose exec backend vendor/bin/pint --test`, `docker compose exec backend php artisan test`, `docker compose exec frontend npm run lint`, `docker compose exec frontend npm run test` — record the baseline coverage numbers before any edit
+- [X] T002 Read `backend/app/Services/ModerationService.php`, `backend/app/Services/TrashpostService.php`, and `backend/app/Services/MediaVisibilityService.php` end-to-end and confirm research D0/D4 still hold on this branch (createPost activates unconditionally at `TrashpostService.php` `reserve()`/`attachImage()`; image variants land on the `public` disk)
 
 **Checkpoint**: Green baseline, findings confirmed against live source.
 
