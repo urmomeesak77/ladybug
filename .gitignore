@@ -12,3 +12,6 @@ test-results/
 
 # Agent workflow artifacts (review diffs, progress notes)
 .superpowers/
+
+# Spec Kit extension catalog cache (machine-local, refetched on demand)
+.specify/extensions/.cache/
