@@ -9,10 +9,10 @@ and YouTube links and browse an endless feed of entries. The stack is a **React 
 + Vite (TypeScript)** frontend talking to a **Laravel 12 (PHP 8.2+) + Sanctum**
 backend over a JSON API, backed by **MySQL** via Eloquent.
 
-## Current State (as of 2026-06-20)
+## Current State (as of 2026-07-20)
 
 The project is **past planning**: both `backend/` (Laravel 12) and `frontend/`
-(React 18 + Vite + TypeScript) are scaffolded and seven features are implemented.
+(React 18 + Vite + TypeScript) are scaffolded and eleven features are implemented.
 Features follow the Spec Kit flow (specify → plan → tasks → implement) under `specs/`:
 
 - **001-infra-scaffold** — `backend/` + `frontend/` skeletons, lint/test tooling,
@@ -35,8 +35,27 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
   `POST /api/logout`, `GET /api/user`); frontend `LoginPage`, `RegisterPage`,
   `AccountPage` at `/login`, `/register`, `/account` with inline server-side
   validation, redirect rules, and accessible/themed/responsive forms.
+- **008-register-email-verification** — uploading (`POST /api/posts`, `UploadPage` at
+  `/upload`) behind a verified-e-mail gate; in-house **ext-gd** image processing with
+  size variants (`gifsicle` for animated GIFs) and YouTube link + thumbnail handling;
+  signed verification links, resend, `VerifyEmailPage` / `VerifyEmailNoticePage`.
+- **009-user-roles** — the closed, ordered role set guest < member < admin < superuser
+  (`App\Enums\Role`, `role` column out of `$fillable`), the `role:` middleware, the
+  `make:superuser` bootstrap command, and the frontend `RequireRole` guard.
+- **010-admin-meme-moderation** — admin console at `/admin/trashposts` over
+  `GET /api/admin/posts` + activate / deactivate / soft-delete / restore / purge;
+  `ModerationService` and `MediaVisibilityService`, which moves a non-public meme's
+  bytes off the `public` disk so hidden media is not URL-addressable.
+- **011-user-rating-auto-activation** — a signed `users.rating` column (never exposed by
+  any API) driven solely by `RatingService`: +1 while a meme is live, −1 once on
+  deletion, settled atomically inside each moderation transition via the per-meme
+  `rating_credited` / `rating_penalized` flags. Uploads are no longer activated
+  unconditionally — `createPost()` activates only for an uploader at or above
+  `TRUST_THRESHOLD = 15` or holding admin+; everyone else's upload is created **pending**
+  with its media hidden until a moderator activates it. The moderation table shows each
+  meme's owner rating ("no account" when unowned).
 
-Not built yet: uploading, comments, password reset, and email verification.
+Not built yet: comments and password reset.
 
 Supporting files:
 

@@ -196,4 +196,21 @@ class CreatePostTest extends TestCase {
         $this->getJson("/api/posts/{$hash}")->assertNotFound();
         $this->getJson('/api/posts')->assertOk()->assertJsonCount(0, 'data');
     }
+
+    public function test_an_admin_below_the_threshold_publishes_immediately_and_earns_the_credit(): void {
+        // US3: a moderator skips the queue on role alone. A negative rating is the
+        // sharpest case — the very account the rating gate would hold back longest.
+        $admin = User::factory()->admin()->create();
+        $admin->rating = -5;
+        $admin->save();
+
+        $hash = $this->actingAs($admin)
+            ->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ'])
+            ->assertCreated()
+            ->json('data.hash');
+
+        $this->assertNotNull(Trashpost::where('hash', $hash)->first()->activated_at);
+        $this->getJson("/api/posts/{$hash}")->assertOk();
+        $this->assertSame(-4, $admin->fresh()->rating);
+    }
 }

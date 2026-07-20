@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\Role;
 use App\Models\Trashpost;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -39,9 +40,15 @@ class RatingService {
      * Whether this account's next upload publishes without waiting for a moderator
      * (FR-016). Read BEFORE the upload exists, so the +1 that upload may earn can
      * never push its own author over the line (FR-020).
+     *
+     * Moderators skip the queue on role alone, whatever their rating (FR-017) — the
+     * queue is theirs to clear, so making them wait in it serves nobody. The role half
+     * reuses the shipped comparison rather than naming Admin and Superuser separately:
+     * "Admin does not outrank you" is true for exactly those two and false for a member,
+     * and it stays correct if a rank is ever added above Superuser.
      */
     public function shouldAutoActivate(User $user): bool {
-        return $user->rating >= self::TRUST_THRESHOLD;
+        return ! Role::Admin->outranks($user->role) || $user->rating >= self::TRUST_THRESHOLD;
     }
 
     /**

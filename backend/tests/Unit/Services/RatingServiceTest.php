@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services;
 
+use App\Enums\Role;
 use App\Models\Trashpost;
 use App\Models\User;
 use App\Services\RatingService;
@@ -239,4 +240,27 @@ final class RatingServiceTest extends TestCase {
         $this->assertFalse($this->service()->shouldAutoActivate($member));
         $this->assertSame(14, $member->fresh()->rating);
     }
+
+    /** An account at the given role and rating (rating assigned, not mass-assigned). */
+    private function accountAt(Role $role, int $rating): User {
+        $user = User::factory()->create(['role' => $role->value]);
+        $user->rating = $rating;
+        $user->save();
+
+        return $user;
+    }
+
+    public function test_an_admin_auto_activates_at_a_rating_that_would_hold_a_member_back(): void {
+        // FR-017: a moderator never queues behind their own queue. Rating 0 is where
+        // every account starts, and it is well below the member threshold.
+        $this->assertTrue($this->service()->shouldAutoActivate($this->accountAt(Role::Admin, 0)));
+    }
+
+    public function test_a_superuser_auto_activates_even_at_a_negative_rating(): void {
+        $this->assertTrue($this->service()->shouldAutoActivate($this->accountAt(Role::Superuser, -5)));
+    }
+
+    // That the role branch WIDENS the predicate rather than replacing it is guarded by
+    // test_a_member_one_below_the_threshold_does_not_auto_activate above: the factory's
+    // default role is member, so a still-false result there means the rating half lives.
 }

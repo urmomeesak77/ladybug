@@ -78,7 +78,10 @@ test.describe('Upload', () => {
     // moderation round-trip — well past the default 30s budget.
     test.setTimeout(90_000);
     const email = uniqueEmail();
-    const title = `Pending ${Date.now()}`;
+    // Must stay within ModerationModel's 20-char title cut, or the moderation row
+    // renders an ellipsised title and the hasText filter below cannot find it. The
+    // millisecond tail is unique enough for a stack that is torn down per run.
+    const title = `Pending ${Date.now() % 1_000_000}`;
     await register(page, email);
     await verify(page, email);
     await uploadImage(page, title);

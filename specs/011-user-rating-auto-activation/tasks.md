@@ -132,12 +132,12 @@ immediately and the admin's rating becomes −4.
 
 ### Tests for User Story 3 ⚠️ Write first, confirm they FAIL
 
-- [ ] T033 [US3] Add role tests to `backend/tests/Unit/Services/RatingServiceTest.php` — `shouldAutoActivate` returns `true` for an admin at rating 0 and for a superuser at a negative rating, and `false` for a member below the threshold (FR-017)
-- [ ] T034 [P] [US3] Extend `backend/tests/Feature/Http/Controllers/CreatePostTest.php` — an admin with rating −5 uploads and the meme is activated on creation and appears in the feed; the admin's rating rises to −4 (US3 §1, §3)
+- [X] T033 [US3] Add role tests to `backend/tests/Unit/Services/RatingServiceTest.php` — `shouldAutoActivate` returns `true` for an admin at rating 0 and for a superuser at a negative rating, and `false` for a member below the threshold (FR-017)
+- [X] T034 [P] [US3] Extend `backend/tests/Feature/Http/Controllers/CreatePostTest.php` — an admin with rating −5 uploads and the meme is activated on creation and appears in the feed; the admin's rating rises to −4 (US3 §1, §3)
 
 ### Implementation for User Story 3
 
-- [ ] T035 [US3] Extend `shouldAutoActivate` in `backend/app/Services/RatingService.php` with the role branch, reusing the shipped comparison `!Role::Admin->outranks($user->role)` (true for admin and superuser, false for member) rather than introducing a new role check (research D5)
+- [X] T035 [US3] Extend `shouldAutoActivate` in `backend/app/Services/RatingService.php` with the role branch, reusing the shipped comparison `!Role::Admin->outranks($user->role)` (true for admin and superuser, false for member) rather than introducing a new role check (research D5)
 
 **Checkpoint**: All three user stories independently functional.
 
@@ -145,13 +145,13 @@ immediately and the admin's rating becomes −4.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T036 Run the backend gates and fix anything they surface: `docker compose exec backend vendor/bin/pint --test`, `docker compose exec backend php artisan test --coverage-clover=coverage.xml`, `python .github/scripts/check_coverage.py coverage.xml` (≥90%). Remember `docker compose restart backend` after PHP edits (opcache `validate_timestamps=0`)
-- [ ] T037 [P] Run the frontend gates and fix anything they surface: `docker compose exec frontend npm run lint` and `docker compose exec frontend npm run test -- --coverage` (≥90% across **all** of `src/`)
-- [ ] T038 [P] Run the Playwright e2e suite against the isolated stack and confirm `frontend/tests/e2e/moderation.spec.ts` and `frontend/tests/e2e/upload.spec.ts` both pass with the new column and the pending-upload flow
-- [ ] T039 Walk `specs/011-user-rating-auto-activation/quickstart.md` scenarios 1–5 against the running stack and confirm each lands on the stated number exactly — especially scenario 3's "pending upload media must 404 on the public disk" and scenario 5's "two simultaneous activates" row, which is the **only** place FR-014's true-concurrency guarantee is verified (see the concurrency note below)
-- [ ] T040 Complete the quickstart manual verification gate: responsive at ~320px / tablet / desktop with no horizontal page scroll, both themes legible, rating not conveyed by colour alone, and Back/Forward/Refresh on `/admin/posts?page=N` restores the page (Principles III, IV, VIII)
-- [ ] T041 [P] Update `CLAUDE.md`'s "Current State" section to list 011 among the implemented features, noting the rating column, the `RatingService`, and that uploads are now conditionally activated
-- [ ] T042 Dispatch the `commit-quality-verifier` subagent on the staged diff and commit only on PASS
+- [X] T036 Run the backend gates and fix anything they surface: `docker compose exec backend vendor/bin/pint --test`, `docker compose exec backend php artisan test --coverage-clover=coverage.xml`, `python .github/scripts/check_coverage.py coverage.xml` (≥90%). Remember `docker compose restart backend` after PHP edits (opcache `validate_timestamps=0`)
+- [X] T037 [P] Run the frontend gates and fix anything they surface: `docker compose exec frontend npm run lint` and `docker compose exec frontend npm run test -- --coverage` (≥90% across **all** of `src/`)
+- [X] T038 [P] Run the Playwright e2e suite against the isolated stack and confirm `frontend/tests/e2e/moderation.spec.ts` and `frontend/tests/e2e/upload.spec.ts` both pass with the new column and the pending-upload flow
+- [X] T039 Walk `specs/011-user-rating-auto-activation/quickstart.md` scenarios 1–5 against the running stack and confirm each lands on the stated number exactly — especially scenario 3's "pending upload media must 404 on the public disk" and scenario 5's "two simultaneous activates" row, which is the **only** place FR-014's true-concurrency guarantee is verified (see the concurrency note below)
+- [X] T040 Complete the quickstart manual verification gate: responsive at ~320px / tablet / desktop with no horizontal page scroll, both themes legible, rating not conveyed by colour alone, and Back/Forward/Refresh on `/admin/posts?page=N` restores the page (Principles III, IV, VIII)
+- [X] T041 [P] Update `CLAUDE.md`'s "Current State" section to list 011 among the implemented features, noting the rating column, the `RatingService`, and that uploads are now conditionally activated
+- [X] T042 Dispatch the `commit-quality-verifier` subagent on the staged diff and commit only on PASS
 
 ---
 
