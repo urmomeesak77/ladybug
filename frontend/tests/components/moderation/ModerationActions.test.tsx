@@ -68,35 +68,36 @@ describe('ModerationActions menu shape (FR-015/FR-016)', () => {
     expect(screen.queryByRole('menuitem')).toBeNull();
   });
 
-  it('offers Activate, Soft delete and Delete permanently for an inactive live meme', () => {
+  it('offers Activate and a single Delete item for an inactive live meme', () => {
     renderInRow(inactive);
     openMenu();
 
     expect(screen.getByRole('menuitem', { name: /^activate$/i })).toBeTruthy();
     expect(screen.queryByRole('menuitem', { name: /^deactivate$/i })).toBeNull();
-    expect(screen.getByRole('menuitem', { name: /^soft delete$/i })).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: /^delete permanently$/i })).toBeTruthy();
-    // No Restore for a live meme.
+    expect(screen.getByRole('menuitem', { name: /^delete$/i })).toBeTruthy();
+    // The two former delete entries are gone; the choice lives in the popup.
+    expect(screen.queryByRole('menuitem', { name: /^soft delete$/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^delete permanently$/i })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /^restore$/i })).toBeNull();
   });
 
-  it('offers Deactivate (not Activate) for an activated meme', () => {
+  it('offers Deactivate (not Activate) plus a single Delete for an activated meme', () => {
     renderInRow(activated);
     openMenu();
 
     expect(screen.getByRole('menuitem', { name: /^deactivate$/i })).toBeTruthy();
     expect(screen.queryByRole('menuitem', { name: /^activate$/i })).toBeNull();
-    expect(screen.getByRole('menuitem', { name: /^soft delete$/i })).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: /^delete permanently$/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /^delete$/i })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: /^delete permanently$/i })).toBeNull();
   });
 
-  it('offers Restore and Delete permanently only for a soft-deleted meme (FR-016)', () => {
+  it('offers Restore and a single Delete only for a soft-deleted meme (FR-016)', () => {
     renderInRow(deletedRow);
     openMenu();
 
     expect(screen.getByRole('menuitem', { name: /^restore$/i })).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: /^delete permanently$/i })).toBeTruthy();
-    expect(screen.queryByRole('menuitem', { name: /^soft delete$/i })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /^delete$/i })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: /^delete permanently$/i })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /^activate$/i })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /^deactivate$/i })).toBeNull();
   });
@@ -166,7 +167,7 @@ describe('ModerationActions activation (unchanged behaviour, FR-017)', () => {
 });
 
 describe('ModerationActions deletion confirmations (unchanged, FR-017)', () => {
-  it("a live meme's Soft delete raises the existing soft-vs-permanent confirm and soft-deletes on choice", async () => {
+  it("a live meme's Delete item raises the soft-vs-permanent confirm; the soft choice soft-deletes", async () => {
     const updated = { ...inactive, deletedAt: '2026-07-09 09:30:00' };
     vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: true, row: updated });
     vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: false });
@@ -174,9 +175,8 @@ describe('ModerationActions deletion confirmations (unchanged, FR-017)', () => {
 
     renderInRow(inactive, onApply);
     openMenu();
-    fireEvent.click(screen.getByRole('menuitem', { name: /^soft delete$/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^delete$/i }));
 
-    // The existing live-meme confirm: title + both outcomes explained.
     expect(ModerationApi.remove).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: 'Delete post?' })).toBeTruthy();
     const dialog = document.querySelector('dialog') as HTMLDialogElement;
@@ -190,16 +190,15 @@ describe('ModerationActions deletion confirmations (unchanged, FR-017)', () => {
     expect(ModerationApi.purge).not.toHaveBeenCalled();
   });
 
-  it("a live meme's Delete permanently raises the SAME soft-vs-permanent confirm (FR-017) and purges on the permanent choice", async () => {
+  it("a live meme's Delete item purges when the permanent choice is taken (FR-017)", async () => {
     vi.spyOn(ModerationApi, 'remove').mockResolvedValue({ ok: false });
     vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: true });
     const onRemove = vi.fn();
 
     renderInRow(inactive, () => {}, onRemove);
     openMenu();
-    fireEvent.click(screen.getByRole('menuitem', { name: /^delete permanently$/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^delete$/i }));
 
-    // A live meme always gets the soft-vs-permanent choice — the confirmation is unchanged.
     expect(screen.getByRole('heading', { name: 'Delete post?' })).toBeTruthy();
     const dialog = document.querySelector('dialog') as HTMLDialogElement;
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete permanently' }));
@@ -215,7 +214,7 @@ describe('ModerationActions deletion confirmations (unchanged, FR-017)', () => {
 
     renderInRow(deletedRow, () => {}, onRemove);
     openMenu();
-    fireEvent.click(screen.getByRole('menuitem', { name: /^delete permanently$/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^delete$/i }));
 
     expect(screen.getByRole('heading', { name: 'Delete post permanently?' })).toBeTruthy();
     const dialog = document.querySelector('dialog') as HTMLDialogElement;
@@ -232,7 +231,7 @@ describe('ModerationActions deletion confirmations (unchanged, FR-017)', () => {
 
     renderInRow(inactive);
     openMenu();
-    fireEvent.click(screen.getByRole('menuitem', { name: /^soft delete$/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^delete$/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(ModerationApi.remove).not.toHaveBeenCalled();
@@ -246,7 +245,7 @@ describe('ModerationActions deletion confirmations (unchanged, FR-017)', () => {
 
     renderInRow(deletedRow, () => {}, onRemove);
     openMenu();
-    fireEvent.click(screen.getByRole('menuitem', { name: /^delete permanently$/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^delete$/i }));
     const dialog = document.querySelector('dialog') as HTMLDialogElement;
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete permanently' }));
 
@@ -257,7 +256,7 @@ describe('ModerationActions deletion confirmations (unchanged, FR-017)', () => {
   it('falls back to "this post" copy when the row has no title', () => {
     renderInRow({ ...inactive, title: null });
     openMenu();
-    fireEvent.click(screen.getByRole('menuitem', { name: /^soft delete$/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^delete$/i }));
 
     expect(
       screen.getByText(

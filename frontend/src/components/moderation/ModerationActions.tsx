@@ -59,12 +59,11 @@ class RowPurge {
   }
 }
 
-// Builds the state-dependent menu item list. Presentation-only reshaping (US2, research D9):
-// the item set and every action/confirmation is identical to the pre-menu controls — a live
-// meme offers Activate/Deactivate, Soft delete and Delete permanently; a soft-deleted meme
-// offers Restore and Delete permanently (FR-016). Each item carries an icon and a text label
-// (FR-015). Both live delete items open the SAME existing soft-vs-permanent confirm so the
-// confirmation is unchanged (FR-017); the soft-deleted delete opens the permanent-only confirm.
+// Builds the state-dependent menu item list. A live meme offers Activate/Deactivate and a
+// single Delete; a soft-deleted meme offers Restore and Delete (FR-016). Each item carries an
+// icon and a text label (FR-015). The soft-vs-permanent choice is not in the menu — Delete
+// opens the existing confirm: a live meme's Delete opens the soft-vs-permanent popup (FR-017),
+// a soft-deleted meme's Delete opens the permanent-only popup.
 class ModerationMenu {
   static live(row: Row, apply: ApplyAction, askDelete: () => void): ActionMenuItem[] {
     const activated = row.activatedAt !== null;
@@ -81,8 +80,7 @@ class ModerationMenu {
         };
     return [
       activation,
-      { label: 'Soft delete', icon: <ActionIcon glyph="delete" />, onChoose: askDelete },
-      { label: 'Delete permanently', danger: true, icon: <ActionIcon glyph="delete" />, onChoose: askDelete },
+      { label: 'Delete', icon: <ActionIcon glyph="delete" />, onChoose: askDelete },
     ];
   }
 
@@ -93,7 +91,7 @@ class ModerationMenu {
         icon: <ActionIcon glyph="restore" />,
         onChoose: () => apply(ModerationApi.restore(row.hash)),
       },
-      { label: 'Delete permanently', danger: true, icon: <ActionIcon glyph="delete" />, onChoose: askPurge },
+      { label: 'Delete', icon: <ActionIcon glyph="delete" />, onChoose: askPurge },
     ];
   }
 }
