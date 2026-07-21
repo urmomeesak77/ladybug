@@ -773,16 +773,12 @@ main {
   color: var(--color-text-muted);
 }
 
-/* Admin account console (012). Mirrors the moderation table: the wide table lives in its own
-   horizontally scrolling box so the page itself never scrolls sideways at 320px (Principle
-   VIII), and it shares the .moderation-pagination page links via AdminPagination. */
+/* Admin account console (012). The table flows with the page (no dedicated scroll box, so the
+   list has no scrollbar of its own) and shares the .moderation-pagination page links via
+   AdminPagination. */
 .user-admin__status {
   color: var(--color-text-muted);
   padding: var(--space-md) 0;
-}
-
-.user-table__scroll {
-  overflow-x: auto;
 }
 
 .user-table {
@@ -905,6 +901,16 @@ main {
 .action-menu__item:hover,
 .action-menu__item:focus-visible {
   background-color: var(--color-menu-hover);
+}
+
+/* Decorative icon that accompanies an item's text label (FR-015). Sized to the text and never
+   shrinks, so the label alignment stays even down the list. */
+.action-menu__icon {
+  display: block;
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
 }
 
 /* Destructive emphasis is additive: the text label ("Delete permanently") already carries the

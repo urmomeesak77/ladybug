@@ -212,18 +212,18 @@ describe('UserActions rank guard (research D6)', () => {
   const adminRow: Row = { ...active, role: 'admin' };
   const superuserRow: Row = { ...active, role: 'superuser' };
 
-  it('renders no menu for a peer of equal rank, only the "No permission" text', () => {
+  it('renders nothing for a peer of equal rank — no menu and no fallback text', () => {
     renderInRow(adminRow, {}, 'admin');
 
     expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByText(/no permission/i)).toBeTruthy();
+    expect(screen.queryByText(/no permission/i)).toBeNull();
   });
 
-  it('renders no menu for a higher rank', () => {
+  it('renders nothing for a higher rank', () => {
     renderInRow(superuserRow, {}, 'admin');
 
     expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByText(/no permission/i)).toBeTruthy();
+    expect(screen.queryByText(/no permission/i)).toBeNull();
   });
 
   it("renders no menu on the viewer's own equal-rank row", () => {
@@ -238,5 +238,15 @@ describe('UserActions rank guard (research D6)', () => {
     renderInRow(active, {}, 'admin');
 
     expect(screen.getByRole('button')).toBeTruthy();
+  });
+
+  it('gives each menu item a decorative icon beside its text label (FR-015)', () => {
+    renderInRow(active, {}, 'admin');
+
+    fireEvent.click(screen.getByRole('button'));
+    for (const item of screen.getAllByRole('menuitem')) {
+      expect(item.querySelector('svg.action-menu__icon')).toBeTruthy();
+      expect(item.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    }
   });
 });

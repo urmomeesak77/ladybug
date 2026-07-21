@@ -6,7 +6,7 @@ import { AdminSetup } from './helpers/adminSetup';
 // against the ISOLATED e2e stack (run via scripts\e2e.ps1): a superuser opens a strictly-lower
 // member's kebab menu and permanently deletes the account through the naming confirm — the row
 // drops in place and the page never changes (SC-002) — while the actor's own row offers no menu
-// at all, only the "No permission" fallback (FR-006). Accounts are written to the throwaway
+// at all and no fallback text, the cell is simply empty (FR-006). Accounts are written to the throwaway
 // ladybug_e2e DB. Keyboard/dismissal behaviour (US3) is covered separately in T024.
 
 function uniqueEmail(): string {
@@ -54,9 +54,9 @@ test.describe('Admin action menus — permanent account deletion', () => {
     await expect(page).toHaveURL('/admin/users');
 
     // Refusal state (FR-006): the actor's own row (a superuser, so not strictly outranked)
-    // shows the "No permission" fallback and renders no kebab trigger.
+    // renders no kebab trigger — and no fallback text either, the cell is simply empty.
     const ownRow = page.locator('tr.user-row', { hasText: actorEmail });
-    await expect(ownRow.getByText('No permission')).toBeVisible();
+    await expect(ownRow.getByText('No permission')).toHaveCount(0);
     await expect(ownRow.locator('.action-menu__trigger')).toHaveCount(0);
 
     // Happy path (SC-002): open the member's menu, choose Delete permanently, confirm.

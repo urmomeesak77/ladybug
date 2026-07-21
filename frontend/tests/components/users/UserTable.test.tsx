@@ -61,11 +61,10 @@ describe('UserTable', () => {
     expect(screen.getByText('Spammer')).toBeTruthy();
   });
 
-  it('wraps the wide table in an overflow-x scroll container so the page never scrolls sideways', () => {
+  it('renders the table directly, with no dedicated scroll container of its own', () => {
     const { container } = renderTable([row]);
 
-    const scroll = container.querySelector('.user-table__scroll');
-    expect(scroll).toBeTruthy();
-    expect(scroll?.querySelector('table')).toBeTruthy();
+    expect(container.querySelector('.user-table__scroll')).toBeNull();
+    expect(container.querySelector('table.user-table')).toBeTruthy();
   });
 });
