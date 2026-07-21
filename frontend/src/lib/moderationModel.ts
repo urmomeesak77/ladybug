@@ -93,12 +93,9 @@ export class ModerationModel {
     };
   }
 
-  // Page-link math is shared with the other admin consoles (012); these two keep their
-  // names and signatures so no 010 caller changes, and delegate to AdminPaging.
-  static pageLinks(meta: ModerationMeta): number[] {
-    return AdminPaging.pageLinks(meta);
-  }
-
+  // ?page parsing is shared with the other admin consoles (012); this keeps the 010 name and
+  // signature so no caller changes, and delegates to AdminPaging. (The page-bar rendering also
+  // moved to AdminPagination, which reads AdminPaging.window directly — so no pageLinks here.)
   static parsePage(raw: string | null): number {
     return AdminPaging.parsePage(raw);
   }

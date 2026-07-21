@@ -763,6 +763,16 @@ main {
   border-color: var(--color-control-border);
 }
 
+/* The windowed "…" gap between page links: aligned with the links but not interactive. */
+.moderation-pagination__gap {
+  display: inline-flex;
+  align-items: flex-end;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--color-text-muted);
+}
+
 /* Admin account console (012). Mirrors the moderation table: the wide table lives in its own
    horizontally scrolling box so the page itself never scrolls sideways at 320px (Principle
    VIII), and it shares the .moderation-pagination page links via AdminPagination. */

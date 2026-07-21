@@ -38,4 +38,17 @@ describe('ModerationPagination', () => {
     expect(screen.getByRole('link', { name: '1' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: '2' })).toBeNull();
   });
+
+  it('windows a large page count to first, last, current and its neighbours', () => {
+    renderPagination(6, 20);
+
+    // First, last, and the current-page neighbourhood are linked; the hidden runs are not.
+    for (const page of [1, 5, 6, 7, 20]) {
+      expect(screen.getByRole('link', { name: String(page) })).toBeTruthy();
+    }
+    expect(screen.queryByRole('link', { name: '3' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '12' })).toBeNull();
+    // A gap on each side of the current neighbourhood renders as a decorative "…".
+    expect(screen.getAllByText('…')).toHaveLength(2);
+  });
 });

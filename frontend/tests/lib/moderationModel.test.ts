@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ModerationModel } from '../../src/lib/moderationModel';
-import type { ModerationMeta, RawModerationRow } from '../../src/lib/moderationModel';
+import type { RawModerationRow } from '../../src/lib/moderationModel';
 
 const rawRow: RawModerationRow = {
   hash: 'Ab3-_9xQ12',
@@ -14,8 +14,6 @@ const rawRow: RawModerationRow = {
   activated_at: '2026-07-09 08:01:10',
   deleted_at: null,
 };
-
-const meta: ModerationMeta = { current_page: 2, last_page: 4, per_page: 100, total: 331 };
 
 describe('ModerationModel.mapRow', () => {
   it('maps the raw row into a render-ready row, camelCasing the timestamp keys', () => {
@@ -39,16 +37,6 @@ describe('ModerationModel.mapRow', () => {
 
     expect(row.thumbnail).toBeNull();
     expect(row.username).toBeNull();
-  });
-});
-
-describe('ModerationModel.pageLinks', () => {
-  it('lists every page number from 1 to last_page', () => {
-    expect(ModerationModel.pageLinks(meta)).toEqual([1, 2, 3, 4]);
-  });
-
-  it('is a single page when last_page is 1', () => {
-    expect(ModerationModel.pageLinks({ ...meta, last_page: 1 })).toEqual([1]);
   });
 });
 

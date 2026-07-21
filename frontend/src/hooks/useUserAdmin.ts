@@ -62,7 +62,7 @@ export function useUserAdmin() {
   // again; `loading` flips true because `loaded` is null meanwhile.
   function retry(): void {
     setLoaded(null);
-    setAttempt(attempt + 1);
+    setAttempt((current) => current + 1);
   }
 
   const loading = loaded === null || loaded.page !== page;
