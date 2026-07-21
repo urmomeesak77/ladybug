@@ -52,8 +52,8 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
   `rating_credited` / `rating_penalized` flags. Uploads are no longer activated
   unconditionally — `createPost()` activates only for an uploader at or above
   `TRUST_THRESHOLD = 15` or holding admin+; everyone else's upload is created **pending**
-  with its media hidden until a moderator activates it. The moderation table shows each
-  meme's owner rating ("no account" when unowned).
+  with its media hidden until a moderator activates it. The rating is purely internal —
+  it drives auto-activation only and is **not** surfaced in any list or API response.
 - **012-admin-user-list** — admin account console at `/admin/users` over
   `GET /api/admin/users` + `POST .../{hash}/{disable,enable}` (`UserAdminService`,
   `AdminUserResource`), listing every account (name, e-mail, role, verified, created,

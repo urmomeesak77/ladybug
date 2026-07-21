@@ -9,7 +9,6 @@ const rawRow: RawModerationRow = {
   title: 'A funny meme',
   type: 'image',
   username: 'alice',
-  rating: 17,
   created_at: '2026-07-08 20:14:02',
   activated_at: '2026-07-09 08:01:10',
   deleted_at: null,
@@ -25,7 +24,6 @@ describe('ModerationModel.mapRow', () => {
       title: 'A funny meme',
       type: 'image',
       username: 'alice',
-      rating: 17,
       createdAt: '2026-07-08 20:14:02',
       activatedAt: '2026-07-09 08:01:10',
       deletedAt: null,
@@ -143,27 +141,5 @@ describe('ModerationModel.purgeConfirmMessage', () => {
     expect(ModerationModel.purgeConfirmMessage(null)).toBe(
       'This post is already hidden from the site. Permanent delete removes it and its files forever.',
     );
-  });
-});
-
-describe('ModerationModel rating', () => {
-  it('parses the owner rating from the raw row', () => {
-    expect(ModerationModel.mapRow(rawRow).rating).toBe(17);
-  });
-
-  it('carries a null rating through unchanged for an unowned meme', () => {
-    expect(ModerationModel.mapRow({ ...rawRow, rating: null }).rating).toBeNull();
-  });
-
-  it('labels a numeric rating as its own digits, including zero and negatives', () => {
-    expect(ModerationModel.ratingLabel(17)).toBe('17');
-    // 0 is a real rating an account can hold, so it must never collapse into the
-    // "no account" case the way a falsy check would make it.
-    expect(ModerationModel.ratingLabel(0)).toBe('0');
-    expect(ModerationModel.ratingLabel(-4)).toBe('-4');
-  });
-
-  it('labels a missing owner as "no account" rather than a number', () => {
-    expect(ModerationModel.ratingLabel(null)).toBe('no account');
   });
 });

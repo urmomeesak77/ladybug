@@ -24,7 +24,6 @@ const activated: Row = {
   title: 'A funny meme',
   type: 'image',
   username: 'alice',
-  rating: 3,
   createdAt: '2026-07-08 20:14:02',
   activatedAt: '2026-07-09 08:01:10',
   deletedAt: null,

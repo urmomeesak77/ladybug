@@ -15,7 +15,6 @@ const row: Row = {
   title: 'A funny meme',
   type: 'image',
   username: 'alice',
-  rating: 17,
   createdAt: '2026-07-08 20:14:02',
   activatedAt: '2026-07-09 08:01:10',
   deletedAt: null,
@@ -38,10 +37,10 @@ function renderRow(value: Row) {
 }
 
 describe('ModerationRow', () => {
-  it('renders all eight cells', () => {
+  it('renders all seven cells', () => {
     const { container } = renderRow(row);
 
-    expect(container.querySelectorAll('td')).toHaveLength(8);
+    expect(container.querySelectorAll('td')).toHaveLength(7);
   });
 
   it('shows the post title', () => {
@@ -113,20 +112,5 @@ describe('ModerationRow', () => {
 
     const link = screen.getByRole('link', { name: 'Ab3-_9xQ12' });
     expect(link.getAttribute('href')).toBe('/posts/Ab3-_9xQ12');
-  });
-});
-
-describe('ModerationRow rating cell', () => {
-  it('shows the owner rating', () => {
-    renderRow(row);
-
-    expect(screen.getByText('17')).toBeTruthy();
-  });
-
-  it('shows "no account" for an unowned meme, never 0 and never an empty cell', () => {
-    renderRow({ ...row, rating: null });
-
-    expect(screen.getByText('no account')).toBeTruthy();
-    expect(screen.queryByText('0')).toBeNull();
   });
 });

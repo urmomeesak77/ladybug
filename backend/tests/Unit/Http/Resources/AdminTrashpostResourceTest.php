@@ -47,7 +47,7 @@ final class AdminTrashpostResourceTest extends TestCase {
         $row = $this->toArray($post);
 
         $this->assertSame(
-            ['hash', 'thumbnail', 'title', 'type', 'username', 'rating', 'created_at', 'activated_at', 'deleted_at'],
+            ['hash', 'thumbnail', 'title', 'type', 'username', 'created_at', 'activated_at', 'deleted_at'],
             array_keys($row),
         );
         $this->assertSame($post->hash, $row['hash']);

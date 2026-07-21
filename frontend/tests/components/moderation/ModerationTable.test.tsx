@@ -16,7 +16,6 @@ function makeRow(hash: string, username: string): ModerationRow {
     title: 'A funny meme',
     type: 'image',
     username,
-    rating: 17,
     createdAt: '2026-07-08 20:14:02',
     activatedAt: '2026-07-09 08:01:10',
     deletedAt: null,
@@ -41,7 +40,7 @@ describe('ModerationTable', () => {
 
     expect(container.querySelector('caption')).toBeTruthy();
     const headers = container.querySelectorAll('th[scope="col"]');
-    expect(headers).toHaveLength(8);
+    expect(headers).toHaveLength(7);
     expect(screen.getByRole('columnheader', { name: 'Title' })).toBeTruthy();
   });
 
@@ -56,13 +55,5 @@ describe('ModerationTable', () => {
     const { container } = renderTable([makeRow('aaaaaaaaaa', 'alice')]);
 
     expect(container.querySelector('.moderation-table__scroll')).toBeTruthy();
-  });
-});
-
-describe('ModerationTable rating column', () => {
-  it('renders a rating header', () => {
-    renderTable([makeRow('aaaaaaaaaa', 'alice')]);
-
-    expect(screen.getByRole('columnheader', { name: 'Rating' })).toBeTruthy();
   });
 });

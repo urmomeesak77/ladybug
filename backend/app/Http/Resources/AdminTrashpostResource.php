@@ -30,11 +30,6 @@ class AdminTrashpostResource extends JsonResource {
             'title' => $this->title,
             'type' => $this->type,
             'username' => $this->uploaderName(),
-            // The OWNER's account-wide rating, not a per-meme value (FR-021): two rows
-            // of the same account always show the same number. Null iff the meme has no
-            // resolvable owner — never omitted, and never 0, which is a real rating.
-            // Deliberately absent from every non-admin payload (FR-022).
-            'rating' => $this->user?->rating,
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'activated_at' => $this->activated_at?->format('Y-m-d H:i:s'),
             'deleted_at' => $this->deleted_at?->format('Y-m-d H:i:s'),
