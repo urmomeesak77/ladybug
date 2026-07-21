@@ -108,10 +108,10 @@ Web app — decoupled `backend/` (Laravel 12) + `frontend/` (React 18 + Vite). T
 
 **Purpose**: Verify the whole feature against the Constitution gates and the quickstart.
 
-- [ ] T025 Manual verification of Principles IV & VIII on both consoles' menus: destructive emphasis is never the sole signal (label always reads "Delete permanently" — FR-002); menu button and items keep adequate touch targets and reflow within the admin tables (no horizontal scroll) in light and dark themes at mobile / tablet / desktop widths (quickstart "Manual verification").
-- [ ] T026 [P] Update `C:\projects\ladybug\CLAUDE.md` "Current State" with a 013-admin-action-menus summary (shared in-house `ActionMenu`; `DELETE /api/admin/users/{hash}` hard delete guarded by strict rank; memes orphaned via `nullOnDelete`, no audit trail).
-- [ ] T027 Run the full gate suite and confirm ≥90 % on both stacks: backend `docker compose run --rm backend php artisan test --coverage`, frontend `cd frontend && npm run lint && npm run test`, and `npx playwright test admin-action-menus` (quickstart "Automated checks"). Fix any gap.
-- [ ] T028 Execute the quickstart.md scenarios 1–6 end-to-end (happy-path delete, memes survive owner-less, refusal + rank-change re-check, concurrent/already-deleted `404`, moderation menu parity, accessibility & dismissal + URL stability) and confirm each passes.
+- [x] T025 Manual verification of Principles IV & VIII on both consoles' menus: destructive emphasis is never the sole signal (label always reads "Delete permanently" — FR-002); menu button and items keep adequate touch targets and reflow within the admin tables (no horizontal scroll) in light and dark themes at mobile / tablet / desktop widths (quickstart "Manual verification").
+- [x] T026 [P] Update `C:\projects\ladybug\CLAUDE.md` "Current State" with a 013-admin-action-menus summary (shared in-house `ActionMenu`; `DELETE /api/admin/users/{hash}` hard delete guarded by strict rank; memes orphaned via `nullOnDelete`, no audit trail).
+- [x] T027 Run the full gate suite and confirm ≥90 % on both stacks: backend `docker compose run --rm backend php artisan test --coverage`, frontend `cd frontend && npm run lint && npm run test`, and `npx playwright test admin-action-menus` (quickstart "Automated checks"). Fix any gap.
+- [x] T028 Execute the quickstart.md scenarios 1–6 end-to-end (happy-path delete, memes survive owner-less, refusal + rank-change re-check, concurrent/already-deleted `404`, moderation menu parity, accessibility & dismissal + URL stability) and confirm each passes.
 
 ---
 

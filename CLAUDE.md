@@ -9,10 +9,10 @@ and YouTube links and browse an endless feed of entries. The stack is a **React 
 + Vite (TypeScript)** frontend talking to a **Laravel 12 (PHP 8.2+) + Sanctum**
 backend over a JSON API, backed by **MySQL** via Eloquent.
 
-## Current State (as of 2026-07-20)
+## Current State (as of 2026-07-21)
 
 The project is **past planning**: both `backend/` (Laravel 12) and `frontend/`
-(React 18 + Vite + TypeScript) are scaffolded and twelve features are implemented.
+(React 18 + Vite + TypeScript) are scaffolded and thirteen features are implemented.
 Features follow the Spec Kit flow (specify → plan → tasks → implement) under `specs/`:
 
 - **001-infra-scaffold** — `backend/` + `frontend/` skeletons, lint/test tooling,
@@ -69,6 +69,23 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
   signs in to a distinct `403 "This account is disabled."`, checked only **after**
   credentials verify so login is not an account-state oracle). Frontend shares the 010
   paging via `AdminPaging` / `AdminPagination`.
+- **013-admin-action-menus** — both admin consoles present their per-row actions through one
+  shared in-house kebab menu (`components/admin/ActionMenu.tsx` + the `useMenuKeyboard` hook):
+  the WAI-ARIA menu-button pattern (trigger `aria-haspopup="menu"` / `aria-expanded` / text
+  `aria-label`, `role="menuitem"` items with a text label + optional icon and additive
+  destructive emphasis), keyboard-operable (open→first item, roving arrows, Enter/Space
+  activate, Escape → trigger) and dismissible four ways (choose, Escape, outside pointer-down,
+  focus-loss); an empty item list renders no trigger. The **only** new server surface is
+  `DELETE /api/admin/users/{hash}` (`UserAdminService::destroy` + `UserAdminController::destroy`):
+  a **hard delete** (User has no `SoftDeletes` — no tombstone, no audit trail, FR-020) guarded by
+  the SAME strict-rank rule as disable/enable, re-checked on the `lockForUpdate`-loaded row inside
+  the transaction (peer/higher/self → `403`; unknown hash → `404`). The account's uploaded memes
+  are **orphaned, not cascaded** (`trashposts.user_id` → null) and any account it had disabled
+  loses only the actor name (`users.disabled_by` → null) via the existing `nullOnDelete` FKs — no
+  cascade code, no rating adjustment. The SPA drops the deleted row in place (`useUserAdmin.removeRow`
+  / `UserAdminModel.dropRow`) after a `204`; any non-2xx leaves the row untouched. The moderation
+  console change (US2) is **presentation-only**: `ModerationActions` renders its existing
+  state-dependent action set and confirmations through the same `ActionMenu`, unchanged.
 
 Not built yet: comments and password reset.
 
