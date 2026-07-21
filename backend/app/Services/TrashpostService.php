@@ -26,7 +26,6 @@ class TrashpostService {
         private readonly TrashpostImageProcessor $images = new TrashpostImageProcessor(),
         private readonly YoutubeThumbnailService $thumbnails = new YoutubeThumbnailService(),
         private readonly RatingService $rating = new RatingService(),
-        private readonly MediaVisibilityService $media = new MediaVisibilityService(),
     ) {
     }
 
@@ -86,14 +85,10 @@ class TrashpostService {
 
             return $post;
         }
-        // Pending media must physically leave the public disk. Both the image variants
-        // and the YouTube still are written there unconditionally, so without this a
-        // pending meme would be hidden from the API while its bytes stayed fetchable by
-        // hash — a moderation bypass, and exactly what MediaVisibilityService exists to
-        // close. It runs here, after BOTH media branches, because the thumbnail lands
-        // last; syncing any earlier would leave it behind.
-        $this->media->sync($post);
 
+        // A pending meme's media stays on the public disk like everything else; it is
+        // hidden from the public API by the activation filter, not by moving its bytes
+        // (design 2026-07-21). A moderator can see it in the admin console.
         return $post;
     }
 

@@ -33,7 +33,7 @@ app/
   Enums/              Role — guest < member < admin < superuser
   Services/           TrashpostService, TrashpostImageProcessor/Service,
                       YoutubeThumbnailService, ModerationService,
-                      MediaVisibilityService, RatingService, UserService
+                      MediaOwnershipService, RatingService, UserService
   Support/            MediaPath, ImageFile, GifFile
   Utils/              Str (createUniqueHash), Base64, Json, Youtube
   Console/Commands/   media:seed, make:superuser
@@ -71,11 +71,10 @@ the rules below are a summary.
 
 ### Media visibility
 
-Only a **live** meme's bytes belong on the `public` disk. When a meme is not publicly
-readable — pending a moderator, deactivated, or soft-deleted — `MediaVisibilityService`
-moves its image variants and YouTube thumbnail to the private `local` disk, and moves
-them back on activation. Hiding the row in JSON is not enough on its own: without the
-move, a pending meme's media would stay fetchable by URL and bypass moderation.
+A meme's image variants and YouTube thumbnail stay on the `public` disk in every state —
+pending a moderator, deactivated, or soft-deleted included (design 2026-07-21). Hidden
+memes are filtered out at the query level by the public API, not by moving bytes, so an
+admin can still see a hidden meme's media in the moderation console.
 
 ### Seeding the existing library
 

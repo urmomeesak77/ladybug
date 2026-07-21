@@ -149,11 +149,9 @@ class CreatePostTest extends TestCase {
         $this->assertNull($post->activated_at);
     }
 
-    public function test_a_pending_uploads_image_variants_are_not_on_the_public_disk(): void {
-        // Research D4 — the moderation bypass this feature would otherwise ship. The
-        // image processor writes every size variant to the PUBLIC disk, which was
-        // harmless only while every upload activated. A pending row hidden from the
-        // JSON while its bytes stay URL-addressable is no moderation at all.
+    public function test_a_pending_uploads_image_variants_stay_on_the_public_disk(): void {
+        // Media stays public in every state (design 2026-07-21) so a moderator can see the
+        // pending image in the admin console; the public API still hides the row.
         $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
 
         $response = $this->actingAs($user)->postJson('/api/posts', [
@@ -166,15 +164,11 @@ class CreatePostTest extends TestCase {
         $ext = pathinfo($post->file, PATHINFO_EXTENSION);
         foreach (MediaPath::imageSizes() as $size) {
             $path = MediaPath::imageRelativePath($size, $code, $ext);
-            Storage::disk('public')->assertMissing($path);
-            Storage::disk('local')->assertExists($path);
+            Storage::disk('public')->assertExists($path);
         }
     }
 
-    public function test_a_pending_youtube_uploads_thumbnail_is_not_on_the_public_disk(): void {
-        // The thumbnail is written LAST, after the row is saved, so a visibility sync
-        // placed anywhere earlier in createPost() would miss it — the exact leak D4
-        // identified.
+    public function test_a_pending_youtube_uploads_thumbnail_stays_on_the_public_disk(): void {
         $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
 
         $response = $this->actingAs($user)->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ']);
@@ -182,8 +176,7 @@ class CreatePostTest extends TestCase {
         $response->assertCreated();
         $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
         $this->assertNotNull($post->youtube_thumbnail);
-        Storage::disk('public')->assertMissing($post->youtube_thumbnail);
-        Storage::disk('local')->assertExists($post->youtube_thumbnail);
+        Storage::disk('public')->assertExists($post->youtube_thumbnail);
     }
 
     public function test_a_pending_upload_is_absent_from_the_public_views(): void {

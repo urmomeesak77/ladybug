@@ -142,9 +142,9 @@ final class AdminTrashpostResourceTest extends TestCase {
         Http::assertNothingSent();
     }
 
-    public function test_youtube_thumbnail_is_null_when_the_stored_file_is_off_the_public_disk(): void {
-        // MediaVisibilityService moves a hidden meme's files to the local disk; the
-        // admin row must show the UI placeholder, not a 404ing URL.
+    public function test_thumbnail_is_null_when_the_file_is_missing_from_the_public_disk(): void {
+        // The resource never points at a file that is not on the public disk — a missing
+        // still yields the UI placeholder, not a 404ing URL.
         Http::fake();
         $rel = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
         $post = Trashpost::factory()->linkOnly()->create(['youtube' => 'dQw4w9WgXcQ', 'youtube_thumbnail' => $rel]);

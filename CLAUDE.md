@@ -44,8 +44,8 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
   `make:superuser` bootstrap command, and the frontend `RequireRole` guard.
 - **010-admin-meme-moderation** — admin console at `/admin/trashposts` over
   `GET /api/admin/posts` + activate / deactivate / soft-delete / restore / purge;
-  `ModerationService` and `MediaVisibilityService`, which moves a non-public meme's
-  bytes off the `public` disk so hidden media is not URL-addressable.
+  `ModerationService`. Media stays on the `public` disk in every state so admins can
+  view hidden memes; the public API filters hidden memes out at the query level.
 - **011-user-rating-auto-activation** — a signed `users.rating` column (never exposed by
   any API) driven solely by `RatingService`. The model is **state-reflective** (redesign
   2026-07-21, `docs/superpowers/specs/2026-07-21-rating-state-reflective-design.md`): each
@@ -57,9 +57,10 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
   atomically inside the transition (FR-013). Deletion is now **reversible** (soft-delete −1 /
   restore +1 cancel), unlike the original permanent-penalty model. Uploads are not activated
   unconditionally — `createPost()` activates only for an uploader at or above
-  `TRUST_THRESHOLD = 15` or holding admin+; everyone else's upload is created **pending**
-  with its media hidden until a moderator activates it. The rating is purely internal —
-  it drives auto-activation only and is **not** surfaced in any list or API response.
+  `TRUST_THRESHOLD = 15` or holding admin+; everyone else's upload is created **pending** —
+  hidden from the public API but visible with its image in the admin console. The rating
+  is purely internal — it drives auto-activation only and is **not** surfaced in any list
+  or API response.
 - **012-admin-user-list** — admin account console at `/admin/users` over
   `GET /api/admin/users` + `POST .../{hash}/{disable,enable}` (`UserAdminService`,
   `AdminUserResource`), listing every account (name, e-mail, role, verified, created,

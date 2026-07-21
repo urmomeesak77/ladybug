@@ -12,20 +12,19 @@ use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * The back-office moderation query layer: the paged, all-states feed the admin table reads.
- * Unlike the public feed it hides nothing — soft-deleted and never-activated memes are
- * included (withTrashed, no activation filter) so an admin can see and act on the whole
- * corpus. The four state transitions land here in US3/US4, and each also syncs the meme's
- * media to the disk matching its new visibility — soft-deleting/deactivating pulls files off
- * the public disk, restoring/activating puts them back. Purge (hard delete) removes the row
- * and its media files for good, from both disks.
+ * The back-office moderation query layer plus the four state transitions and purge. The
+ * paged index hides nothing — soft-deleted and never-activated memes are included
+ * (withTrashed, no activation filter) so an admin can see and act on the whole corpus.
+ * Media stays on the public disk in every state (design 2026-07-21), so a transition only
+ * changes row state and rating; purge (hard delete) additionally removes the row's media
+ * files from disk for good.
  */
 class ModerationService {
     /** Back-office page size (spec FR-003): the table pages 100 rows at a time. */
     private const PER_PAGE = 100;
 
     public function __construct(
-        private readonly MediaVisibilityService $media = new MediaVisibilityService(),
+        private readonly MediaOwnershipService $media = new MediaOwnershipService(),
         private readonly RatingService $rating = new RatingService(),
     ) {
     }
@@ -67,7 +66,6 @@ class ModerationService {
             DB::rollBack();
             throw $e;
         }
-        $this->media->sync($post);
 
         return $post;
     }
@@ -93,7 +91,6 @@ class ModerationService {
             DB::rollBack();
             throw $e;
         }
-        $this->media->sync($post);
 
         return $post;
     }
@@ -119,7 +116,6 @@ class ModerationService {
             DB::rollBack();
             throw $e;
         }
-        $this->media->sync($post);
 
         return $post;
     }
@@ -143,7 +139,6 @@ class ModerationService {
             DB::rollBack();
             throw $e;
         }
-        $this->media->sync($post);
 
         return $post;
     }

@@ -6,7 +6,7 @@ namespace Tests\Unit\Services;
 
 use App\Models\Trashpost;
 use App\Models\User;
-use App\Services\MediaVisibilityService;
+use App\Services\MediaOwnershipService;
 use App\Services\ModerationService;
 use App\Services\RatingService;
 use App\Support\MediaPath;
@@ -52,9 +52,9 @@ final class ModerationServiceTest extends TestCase {
 
     protected function setUp(): void {
         parent::setUp();
-        // Every state transition now syncs media, so most tests here do storage
-        // I/O — fake both disks up front so no test can ever touch the real
-        // bind-mounted media tree.
+        // Media stays on the public disk in every state now, but tests still fake both
+        // disks so no test can touch the real bind-mounted media tree, and so a stray
+        // write to 'local' would be caught rather than hitting disk.
         Storage::fake('public');
         Storage::fake('local');
     }
@@ -300,7 +300,7 @@ final class ModerationServiceTest extends TestCase {
         $this->service()->purge('Nonexist99');
     }
 
-    public function test_delete_moves_the_memes_media_off_the_public_disk(): void {
+    public function test_delete_keeps_the_memes_media_on_the_public_disk(): void {
         $post = Trashpost::factory()->create([
             'activated_at' => now(), 'file' => 'abc.jpg', 'type' => 'image',
         ]);
@@ -309,24 +309,26 @@ final class ModerationServiceTest extends TestCase {
 
         $this->service()->delete($post->hash);
 
-        Storage::disk('public')->assertMissing($path);
-        Storage::disk('local')->assertExists($path);
+        // Media never leaves the public disk — an admin must still see a soft-deleted
+        // meme's image (design 2026-07-21).
+        Storage::disk('public')->assertExists($path);
+        Storage::disk('local')->assertMissing($path);
     }
 
-    public function test_restore_moves_the_memes_media_back_to_the_public_disk(): void {
+    public function test_restore_keeps_the_memes_media_on_the_public_disk(): void {
         $post = Trashpost::factory()->deleted()->create([
             'activated_at' => now(), 'file' => 'abc.jpg', 'type' => 'image',
         ]);
         $path = MediaPath::imageRelativePath('original', 'abc', 'jpg');
-        Storage::disk('local')->put($path, 'bytes');
+        Storage::disk('public')->put($path, 'bytes');
 
         $this->service()->restore($post->hash);
 
-        Storage::disk('local')->assertMissing($path);
         Storage::disk('public')->assertExists($path);
+        Storage::disk('local')->assertMissing($path);
     }
 
-    public function test_deactivate_hides_media_and_activate_re_exposes_it(): void {
+    public function test_deactivate_and_activate_keep_media_on_the_public_disk(): void {
         $post = Trashpost::factory()->create([
             'activated_at' => now(), 'file' => 'abc.jpg', 'type' => 'image',
         ]);
@@ -334,25 +336,24 @@ final class ModerationServiceTest extends TestCase {
         Storage::disk('public')->put($path, 'bytes');
 
         $this->service()->deactivate($post->hash);
-        Storage::disk('public')->assertMissing($path);
-        Storage::disk('local')->assertExists($path);
+        Storage::disk('public')->assertExists($path);
+        Storage::disk('local')->assertMissing($path);
 
         $this->service()->activate($post->hash);
         Storage::disk('public')->assertExists($path);
         Storage::disk('local')->assertMissing($path);
     }
 
-    public function test_purge_removes_files_from_both_disks(): void {
+    public function test_purge_removes_the_memes_files_from_disk(): void {
         $post = Trashpost::factory()->deleted()->create([
             'file' => 'abc.jpg', 'type' => 'image',
         ]);
-        // A soft-deleted meme's files live on the private disk by now.
+        // Media lives on the public disk in every state now (design 2026-07-21).
         $path = MediaPath::imageRelativePath('original', 'abc', 'jpg');
-        Storage::disk('local')->put($path, 'bytes');
+        Storage::disk('public')->put($path, 'bytes');
 
         $this->service()->purge($post->hash);
 
-        Storage::disk('local')->assertMissing($path);
         Storage::disk('public')->assertMissing($path);
         $this->assertDatabaseMissing('trashposts', ['hash' => $post->hash]);
     }
@@ -424,7 +425,7 @@ final class ModerationServiceTest extends TestCase {
         // FR-013: the state change and its rating adjustment commit together. Forcing
         // the rating half to throw must leave the meme exactly as it was.
         $post = $this->ownedPost(0, ['activated_at' => null]);
-        $service = new ModerationService(new MediaVisibilityService(), new ThrowingRatingService());
+        $service = new ModerationService(new MediaOwnershipService(), new ThrowingRatingService());
 
         try {
             $service->activate($post->hash);
@@ -478,7 +479,7 @@ final class ModerationServiceTest extends TestCase {
      * that the transition's own state change rolled back too.
      */
     private function assertRatingFailureRollsBack(string $transition, Trashpost $post): void {
-        $service = new ModerationService(new MediaVisibilityService(), new ThrowingRatingService());
+        $service = new ModerationService(new MediaOwnershipService(), new ThrowingRatingService());
         $before = $post->user->fresh()->rating;
 
         try {

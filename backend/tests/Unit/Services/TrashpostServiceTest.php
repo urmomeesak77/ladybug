@@ -224,8 +224,8 @@ final class TrashpostServiceTest extends TestCase {
     public function test_creating_a_youtube_post_fetches_its_thumbnail_up_front(): void {
         Storage::fake('public');
         Http::fake(['img.youtube.com/*' => Http::response('still-bytes', 200)]);
-        // A trusted uploader keeps the post activated, so the still stays on the public
-        // disk; the pending case parks it privately instead and is covered in CreatePostTest.
+        // A trusted uploader keeps the post activated. Media stays on the public disk in
+        // every state now, so the still is public whether the post is activated or pending.
         $user = $this->memberAt(RatingService::TRUST_THRESHOLD);
 
         $post = (new TrashpostService())->createPost($user, 'A video', null, 'dQw4w9WgXcQ');
