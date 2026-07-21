@@ -145,10 +145,11 @@ class ModerationService {
 
     /**
      * Hard-delete a meme: remove the DB row for good, then its media files from BOTH
-     * disks — a soft-deleted meme's files live on the private disk by the time purge
-     * runs. The file list is computed before the row goes away; the row is removed
-     * FIRST so a failed file cleanup can only leave invisible orphan files — never a
-     * live row pointing at deleted media. Storage::delete() tolerates missing files.
+     * disks — media now lives on the `public` disk in every state, but the `local` sweep
+     * still reaps any legacy file the old move-on-hide code left behind. The file list is
+     * computed before the row goes away; the row is removed FIRST so a failed file cleanup
+     * can only leave invisible orphan files — never a live row pointing at deleted media.
+     * Storage::delete() tolerates missing files.
      */
     public function purge(string $hash): void {
         DB::beginTransaction();
