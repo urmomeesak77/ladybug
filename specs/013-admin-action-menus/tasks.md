@@ -28,7 +28,7 @@ Web app — decoupled `backend/` (Laravel 12) + `frontend/` (React 18 + Vite). T
 
 **Purpose**: Confirm the ground is ready; this feature adds **no new dependency** (Principle I) and **no migration** (data-model.md).
 
-- [ ] T001 Confirm no new Composer/npm dependency and no migration is introduced: the kebab menu is in-house and orphan/null-actor behaviour is already enforced by the existing `nullOnDelete` FKs on `trashposts.user_id` and `users.disabled_by` (research D4, data-model.md). Verify the target files to be extended exist: `backend/app/Services/UserAdminService.php`, `backend/app/Http/Controllers/Admin/UserAdminController.php`, `backend/routes/api.php`, and `frontend/src/components/admin/` (houses `AdminPagination.tsx`, where the new `ActionMenu.tsx` lands).
+- [x] T001 Confirm no new Composer/npm dependency and no migration is introduced: the kebab menu is in-house and orphan/null-actor behaviour is already enforced by the existing `nullOnDelete` FKs on `trashposts.user_id` and `users.disabled_by` (research D4, data-model.md). Verify the target files to be extended exist: `backend/app/Services/UserAdminService.php`, `backend/app/Http/Controllers/Admin/UserAdminController.php`, `backend/routes/api.php`, and `frontend/src/components/admin/` (houses `AdminPagination.tsx`, where the new `ActionMenu.tsx` lands).
 
 ---
 
@@ -38,8 +38,8 @@ Web app — decoupled `backend/` (Laravel 12) + `frontend/` (React 18 + Vite). T
 
 **⚠️ CRITICAL**: US1 and US2 frontend work depends on this phase. (The US1 backend endpoint is independent and may proceed in parallel with this phase.)
 
-- [ ] T002 [P] Write Vitest spec for the shared menu (mouse behaviour only) in `frontend/tests/components/admin/ActionMenu.test.tsx`: renders one `<button>` trigger plus a `role="menu"` of `role="menuitem"` items from an `items` prop (`{ label, icon?, danger?, onChoose }`); clicking the trigger toggles the menu open/closed; clicking an item runs its `onChoose` and closes the menu; an empty `items` array renders **no trigger button** (FR-006). Ensure it FAILS before T003.
-- [ ] T003 Implement the shared menu in `frontend/src/components/admin/ActionMenu.tsx` to pass T002: a plain trigger button toggling a `role="menu"` container of `role="menuitem"` buttons built from `items`; each item shows a text label + optional icon + optional destructive emphasis (label always carries the meaning — FR-002); choosing an item calls `onChoose` then closes; empty `items` → render nothing (FR-006). Component owns only open/close + item rendering (research D9); keep it < 50 lines (defer keyboard/dismiss/ARIA to US3).
+- [x] T002 [P] Write Vitest spec for the shared menu (mouse behaviour only) in `frontend/tests/components/admin/ActionMenu.test.tsx`: renders one `<button>` trigger plus a `role="menu"` of `role="menuitem"` items from an `items` prop (`{ label, icon?, danger?, onChoose }`); clicking the trigger toggles the menu open/closed; clicking an item runs its `onChoose` and closes the menu; an empty `items` array renders **no trigger button** (FR-006). Ensure it FAILS before T003.
+- [x] T003 Implement the shared menu in `frontend/src/components/admin/ActionMenu.tsx` to pass T002: a plain trigger button toggling a `role="menu"` container of `role="menuitem"` buttons built from `items`; each item shows a text label + optional icon + optional destructive emphasis (label always carries the meaning — FR-002); choosing an item calls `onChoose` then closes; empty `items` → render nothing (FR-006). Component owns only open/close + item rendering (research D9); keep it < 50 lines (defer keyboard/dismiss/ARIA to US3).
 
 **Checkpoint**: A shared, mouse-operable menu exists and is unit-tested. US1 and US2 can now integrate it.
 
