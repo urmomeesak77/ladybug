@@ -135,6 +135,75 @@ final class TrashpostsApiControllerTest extends TestCase {
         $this->getJson("/api/posts/{$post->hash}")->assertNotFound();
     }
 
+    public function test_show_shows_a_pending_post_to_an_admin(): void {
+        $post = Trashpost::factory()->hidden()->create();
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->getJson("/api/posts/{$post->hash}")
+            ->assertOk()
+            ->assertJsonPath('data.hash', $post->hash);
+    }
+
+    public function test_show_shows_a_soft_deleted_post_to_an_admin(): void {
+        $post = Trashpost::factory()->deleted()->create();
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->getJson("/api/posts/{$post->hash}")
+            ->assertOk()
+            ->assertJsonPath('data.hash', $post->hash);
+    }
+
+    public function test_show_shows_a_pending_post_to_its_owner(): void {
+        $owner = User::factory()->create();
+        $post = Trashpost::factory()->hidden()->create(['user_id' => $owner->id]);
+
+        $this->actingAs($owner)
+            ->getJson("/api/posts/{$post->hash}")
+            ->assertOk()
+            ->assertJsonPath('data.hash', $post->hash);
+    }
+
+    public function test_show_hides_a_soft_deleted_post_from_its_owner(): void {
+        $owner = User::factory()->create();
+        $post = Trashpost::factory()->deleted()->create(['user_id' => $owner->id]);
+
+        $this->actingAs($owner)->getJson("/api/posts/{$post->hash}")->assertNotFound();
+    }
+
+    public function test_show_hides_a_pending_post_from_a_non_owner_member(): void {
+        $post = Trashpost::factory()->hidden()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->getJson("/api/posts/{$post->hash}")
+            ->assertNotFound();
+    }
+
+    public function test_show_reports_hidden_null_for_a_public_post(): void {
+        $post = Trashpost::factory()->visible()->create();
+
+        $this->getJson("/api/posts/{$post->hash}")
+            ->assertOk()
+            ->assertJsonPath('data.hidden', null);
+    }
+
+    public function test_show_reports_hidden_pending_for_a_deactivated_post(): void {
+        $post = Trashpost::factory()->hidden()->create();
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->getJson("/api/posts/{$post->hash}")
+            ->assertOk()
+            ->assertJsonPath('data.hidden', 'pending');
+    }
+
+    public function test_show_reports_hidden_deleted_for_a_soft_deleted_post(): void {
+        $post = Trashpost::factory()->deleted()->create();
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->getJson("/api/posts/{$post->hash}")
+            ->assertOk()
+            ->assertJsonPath('data.hidden', 'deleted');
+    }
+
     public function test_show_returns_only_image_sizes_present_on_disk(): void {
         Storage::fake('public');
         $post = Trashpost::factory()->visible()->create(['file' => 'abc1234567.jpg']);

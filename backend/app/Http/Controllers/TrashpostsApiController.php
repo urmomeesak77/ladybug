@@ -24,11 +24,15 @@ class TrashpostsApiController extends Controller {
     }
 
     /**
-     * GET /api/posts/{hash} — a single visible post, or 404 when no visible post matches
-     * (unknown, not activated, or soft-deleted all resolve to null in the service).
+     * GET /api/posts/{hash} — a single post the caller may view, else 404.
+     *
+     * Public posts are returned to anyone; a hidden post (pending, deactivated, or
+     * soft-deleted) is returned only to an admin+ or, unless it is soft-deleted, to its
+     * uploader. The route stays public — `$request->user()` resolves from the Sanctum
+     * session when present and is null for a guest (same pattern as GET /api/user).
      */
-    public function show(string $hash): TrashpostResource {
-        $post = $this->service->findVisibleByHash($hash);
+    public function show(Request $request, string $hash): TrashpostResource {
+        $post = $this->service->findViewableByHash($hash, $request->user());
         if ($post === null) {
             abort(404);
         }

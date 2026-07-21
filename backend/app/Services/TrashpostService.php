@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\Role;
 use App\Models\Trashpost;
 use App\Models\User;
 use App\Utils\Str;
@@ -47,13 +48,33 @@ class TrashpostService {
     }
 
     /**
-     * The single visible post with this public hash, or null when none matches.
+     * The single post this viewer may open at its permalink, or null when none matches.
      *
-     * Reuses the visibility builder, so hidden (not activated), soft-deleted, and
-     * unknown hashes all resolve to null — the controller maps that to a 404.
+     * A publicly visible post (activated, not trashed) is returned to anyone. Beyond that
+     * an admin+ sees a post in any state, and the uploader sees their own post unless it is
+     * soft-deleted — so a member can open their still-pending upload but not a deleted one.
+     * Every other case (guest or non-owner on a hidden post) resolves to null → 404.
      */
-    public function findVisibleByHash(string $hash): ?Trashpost {
-        return $this->visible()->where('hash', $hash)->first();
+    public function findViewableByHash(string $hash, ?User $viewer): ?Trashpost {
+        $post = Trashpost::withTrashed()->where('hash', $hash)->first();
+        if ($post === null) {
+            return null;
+        }
+        if ($post->activated_at !== null && !$post->trashed()) {
+            return $post;
+        }
+        if ($viewer === null) {
+            return null;
+        }
+        // Admins see every state; the owner sees their own post unless it is trashed.
+        if ($viewer->role->rank() >= Role::Admin->rank()) {
+            return $post;
+        }
+        if ($post->user_id === $viewer->id && !$post->trashed()) {
+            return $post;
+        }
+
+        return null;
     }
 
     /**

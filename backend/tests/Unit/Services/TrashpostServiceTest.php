@@ -137,29 +137,64 @@ final class TrashpostServiceTest extends TestCase {
         $this->assertTrue($this->service()->feed([])->isEmpty());
     }
 
-    public function test_find_visible_by_hash_returns_the_post_for_a_visible_hash(): void {
+    public function test_find_viewable_returns_a_public_post_for_a_guest(): void {
         $post = Trashpost::factory()->visible()->create();
 
-        $found = $this->service()->findVisibleByHash($post->hash);
+        $found = $this->service()->findViewableByHash($post->hash, null);
 
         $this->assertNotNull($found);
         $this->assertSame($post->id, $found->id);
     }
 
-    public function test_find_visible_by_hash_returns_null_for_a_hidden_post(): void {
+    public function test_find_viewable_hides_a_pending_post_from_a_guest(): void {
         $post = Trashpost::factory()->hidden()->create();
 
-        $this->assertNull($this->service()->findVisibleByHash($post->hash));
+        $this->assertNull($this->service()->findViewableByHash($post->hash, null));
     }
 
-    public function test_find_visible_by_hash_returns_null_for_a_soft_deleted_post(): void {
+    public function test_find_viewable_hides_a_pending_post_from_a_non_owner_member(): void {
+        $post = Trashpost::factory()->hidden()->create();
+        $other = User::factory()->create();
+
+        $this->assertNull($this->service()->findViewableByHash($post->hash, $other));
+    }
+
+    public function test_find_viewable_shows_a_pending_post_to_its_owner(): void {
+        $owner = User::factory()->create();
+        $post = Trashpost::factory()->hidden()->create(['user_id' => $owner->id]);
+
+        $found = $this->service()->findViewableByHash($post->hash, $owner);
+
+        $this->assertNotNull($found);
+        $this->assertSame($post->id, $found->id);
+    }
+
+    public function test_find_viewable_shows_a_pending_post_to_an_admin(): void {
+        $post = Trashpost::factory()->hidden()->create();
+        $admin = User::factory()->admin()->create();
+
+        $this->assertNotNull($this->service()->findViewableByHash($post->hash, $admin));
+    }
+
+    public function test_find_viewable_shows_a_soft_deleted_post_to_an_admin(): void {
         $post = Trashpost::factory()->deleted()->create();
+        $admin = User::factory()->admin()->create();
 
-        $this->assertNull($this->service()->findVisibleByHash($post->hash));
+        $found = $this->service()->findViewableByHash($post->hash, $admin);
+
+        $this->assertNotNull($found);
+        $this->assertSame($post->id, $found->id);
     }
 
-    public function test_find_visible_by_hash_returns_null_for_an_unknown_hash(): void {
-        $this->assertNull($this->service()->findVisibleByHash('__nomatch__'));
+    public function test_find_viewable_hides_a_soft_deleted_post_from_its_owner(): void {
+        $owner = User::factory()->create();
+        $post = Trashpost::factory()->deleted()->create(['user_id' => $owner->id]);
+
+        $this->assertNull($this->service()->findViewableByHash($post->hash, $owner));
+    }
+
+    public function test_find_viewable_returns_null_for_an_unknown_hash(): void {
+        $this->assertNull($this->service()->findViewableByHash('__nomatch__', User::factory()->admin()->create()));
     }
 
     public function test_create_post_stores_an_activated_youtube_post(): void {

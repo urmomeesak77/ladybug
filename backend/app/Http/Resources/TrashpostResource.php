@@ -36,11 +36,29 @@ class TrashpostResource extends JsonResource {
             'metadata' => $this->metadata,
             'created_at' => $this->created_at,
             'activated_at' => $this->activated_at,
+            'hidden' => $this->hiddenStatus(),
             'url' => "/posts/{$this->hash}",
             'url_api' => route('api.posts.show', ['hash' => $this->hash]),
             'original' => $image['original'],
             'default' => $image['default'],
             'sizes' => $image['sizes'],
         ];
+    }
+
+    /**
+     * A coarse visibility status for a viewer allowed to see a hidden post: 'deleted' when
+     * soft-deleted, else 'pending' when not activated, else null. Deliberately coarse — no
+     * deleted_at timestamp — so no internal moderation timing leaks, and on the public feed
+     * (every row activated and not trashed) it is always null.
+     */
+    private function hiddenStatus(): ?string {
+        if ($this->trashed()) {
+            return 'deleted';
+        }
+        if ($this->activated_at === null) {
+            return 'pending';
+        }
+
+        return null;
     }
 }
