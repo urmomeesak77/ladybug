@@ -186,6 +186,9 @@ class CreatePostTest extends TestCase {
             ->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ'])
             ->json('data.hash');
 
+        // Assert the PUBLIC perspective: a pending upload is visible to its owner (who is
+        // still authenticated above), so drop the guard to check it as an anonymous visitor.
+        $this->app['auth']->forgetGuards();
         $this->getJson("/api/posts/{$hash}")->assertNotFound();
         $this->getJson('/api/posts')->assertOk()->assertJsonCount(0, 'data');
     }

@@ -173,6 +173,9 @@ final class ModerationControllerTest extends TestCase {
 
         $this->actingAs($this->admin())->deleteJson("/api/admin/posts/{$post->hash}")->assertOk();
 
+        // Check the PUBLIC perspective: an admin may now view a soft-deleted post at its
+        // permalink, so drop the acting-admin guard to assert it as an anonymous visitor.
+        $this->app['auth']->forgetGuards();
         $this->getJson('/api/posts')->assertOk()->assertJsonMissing(['hash' => $post->hash]);
         $this->getJson("/api/posts/{$post->hash}")->assertNotFound();
     }
