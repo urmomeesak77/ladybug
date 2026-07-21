@@ -12,7 +12,7 @@ backend over a JSON API, backed by **MySQL** via Eloquent.
 ## Current State (as of 2026-07-20)
 
 The project is **past planning**: both `backend/` (Laravel 12) and `frontend/`
-(React 18 + Vite + TypeScript) are scaffolded and eleven features are implemented.
+(React 18 + Vite + TypeScript) are scaffolded and twelve features are implemented.
 Features follow the Spec Kit flow (specify → plan → tasks → implement) under `specs/`:
 
 - **001-infra-scaffold** — `backend/` + `frontend/` skeletons, lint/test tooling,
@@ -54,6 +54,21 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
   `TRUST_THRESHOLD = 15` or holding admin+; everyone else's upload is created **pending**
   with its media hidden until a moderator activates it. The moderation table shows each
   meme's owner rating ("no account" when unowned).
+- **012-admin-user-list** — admin account console at `/admin/users` over
+  `GET /api/admin/users` + `POST .../{hash}/{disable,enable}` (`UserAdminService`,
+  `AdminUserResource`), listing every account (name, e-mail, role, verified, created,
+  disabled) 100/page. Two nullable `users` columns — `disabled_at` and self-referencing
+  `disabled_by` (both out of `$fillable`; the resource exposes the actor's **name**, never
+  the id) — carry the state. Disabling is **access revocation only** (research D9): it
+  writes only the two columns and never touches the account's memes, activation, or rating.
+  A single-click Disable/Enable per row is set-to-target (idempotent, so concurrent actions
+  converge) and guarded by `Role::outranks` so an actor can act only on **strictly
+  lower** ranks — peers, higher ranks and self are all refused in one comparison.
+  Enforcement lives in `EnsureAccountEnabled` (api-group middleware: a disabled account's
+  next request → `401`, session torn down) and `AuthController::login` (a disabled account
+  signs in to a distinct `403 "This account is disabled."`, checked only **after**
+  credentials verify so login is not an account-state oracle). Frontend shares the 010
+  paging via `AdminPaging` / `AdminPagination`.
 
 Not built yet: comments and password reset.
 
@@ -216,5 +231,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/011-user-rating-auto-activation/plan.md` (feature: User Rating & Auto-Activation).
+`specs/012-admin-user-list/plan.md` (feature: Admin User List).
 <!-- SPECKIT END -->

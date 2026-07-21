@@ -7,6 +7,7 @@ namespace Tests\Unit\Models;
 use App\Enums\Role;
 use App\Models\Trashpost;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -104,6 +105,51 @@ final class UserTest extends TestCase {
         $user->save();
 
         $this->assertSame(0, $user->fresh()->rating);
+    }
+
+    public function test_an_account_without_a_disabled_at_is_not_disabled(): void {
+        $user = User::factory()->create();
+
+        $this->assertNull($user->disabled_at);
+        $this->assertFalse($user->isDisabled());
+    }
+
+    public function test_an_account_with_a_disabled_at_is_disabled(): void {
+        $user = User::factory()->disabled()->create();
+
+        $this->assertTrue($user->fresh()->isDisabled());
+    }
+
+    public function test_disabled_at_is_cast_to_a_datetime(): void {
+        $user = User::factory()->disabled()->create();
+
+        $this->assertSame('datetime', (new User())->getCasts()['disabled_at']);
+        $this->assertInstanceOf(CarbonInterface::class, $user->fresh()->disabled_at);
+    }
+
+    public function test_disabled_by_resolves_to_the_acting_account(): void {
+        $actor = User::factory()->admin()->create();
+        $user = User::factory()->disabled($actor)->create();
+
+        $this->assertTrue($user->fresh()->disabledBy->is($actor));
+    }
+
+    public function test_disabled_by_is_null_when_the_actor_is_unresolvable(): void {
+        // The FK is nullOnDelete, so a deleted moderator degrades the row to "disabled
+        // by nobody we can name" rather than orphaning it (data-model INV-3).
+        $user = User::factory()->disabled()->create();
+
+        $this->assertNull($user->fresh()->disabled_by);
+        $this->assertNull($user->fresh()->disabledBy);
+    }
+
+    public function test_disabled_columns_are_not_mass_assignable(): void {
+        // Same guard as `role`/`rating` (Principle VI): no request body may disable
+        // or re-enable an account — only UserAdminService writes these (INV-2).
+        $fillable = (new User())->getFillable();
+
+        $this->assertNotContains('disabled_at', $fillable);
+        $this->assertNotContains('disabled_by', $fillable);
     }
 
     public function test_posts_returns_the_users_trashposts(): void {

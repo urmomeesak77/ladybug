@@ -21,6 +21,9 @@ export type AuthResult =
   | { ok: true; user: AuthUser }
   | { ok: false; kind: 'validation'; errors: FieldErrors }
   | { ok: false; kind: 'auth' }
+  // Correct credentials but the account is disabled (login only, 403): distinct from `auth`
+  // so the form can show the disabled message rather than "email or password is incorrect".
+  | { ok: false; kind: 'disabled' }
   | { ok: false; kind: 'network' };
 
 export type RegisterInput = {
@@ -195,6 +198,11 @@ export class AuthApi {
     }
     if (response.status === 401) {
       return { ok: false, kind: 'auth' };
+    }
+    // Login only: credentials verified but the account is disabled (FR-013). Register never
+    // returns 403, so routing it here is safe for the shared interpreter.
+    if (response.status === 403) {
+      return { ok: false, kind: 'disabled' };
     }
     if (response.status === 422) {
       const body = (await response.json()) as { errors?: FieldErrors };

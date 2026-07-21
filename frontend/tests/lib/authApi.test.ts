@@ -159,6 +159,17 @@ describe('login', () => {
     expect(result).toEqual({ ok: false, kind: 'auth' });
   });
 
+  it('maps a 403 (correct credentials, disabled account) to a distinct disabled result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 403, json: async () => ({ message: 'This account is disabled.' }) });
+
+    const result = await AuthApi.login({ email: 'ada@example.com', password: 'password' });
+
+    // Distinct from the generic 401 auth failure so the SPA can show the disabled message
+    // (FR-013, acceptance scenario 3) instead of "email or password is incorrect".
+    expect(result).toEqual({ ok: false, kind: 'disabled' });
+  });
+
   it('maps a 422 to a validation result', async () => {
     withXsrfCookie();
     stubFetch({ ok: false, status: 422, json: async () => ({ errors: { email: ['The email field is required.'] } }) });

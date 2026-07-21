@@ -16,6 +16,7 @@ import NotFoundPage from './pages/NotFoundPage';
 import PostPage from './pages/PostPage';
 import RegisterPage from './pages/RegisterPage';
 import UploadPage from './pages/UploadPage';
+import UserAdminPage from './pages/UserAdminPage';
 import VerifyEmailNoticePage from './pages/VerifyEmailNoticePage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 
@@ -39,6 +40,12 @@ function App() {
               <Route
                 path="/admin/trashposts"
                 element={<RequireRole role="admin"><ModerationPage /></RequireRole>}
+              />
+              {/* Admin account console (012). Same admin+ gate as the moderation console;
+                  the server enforces role:admin on the data, RequireRole mirrors it here. */}
+              <Route
+                path="/admin/users"
+                element={<RequireRole role="admin"><UserAdminPage /></RequireRole>}
               />
               <Route path="/upload" element={<RequireAuth><RequireVerified><UploadPage /></RequireVerified></RequireAuth>} />
               <Route path="/verify-email" element={<RequireAuth><VerifyEmailNoticePage /></RequireAuth>} />

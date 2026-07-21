@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Controllers;
 
 use App\Models\User;
+use App\Services\UserAdminService;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -197,6 +198,43 @@ class EmailVerificationControllerTest extends TestCase {
         Notification::fake();
 
         $response = $this->postJson('/api/email/verification-notification');
+
+        $response->assertStatus(401);
+        Notification::assertNothingSent();
+    }
+
+    public function test_a_disabled_account_can_still_verify_but_stays_disabled_and_cannot_sign_in(): void {
+        // Contract §4.3: the verification link is session-free, so possession of it still
+        // verifies the address — but verifying does NOT re-activate. email_verified_at is set
+        // while disabled_at stays non-null (verified AND disabled at once, independent columns
+        // FR-005), and sign-in stays refused with the disabled 403.
+        $actor = User::factory()->admin()->create();
+        $user = User::factory()->unverified()->create(['email' => 'ada@example.com']);
+        app(UserAdminService::class)->disable($actor, $user->hash);
+
+        $response = $this->getJson($this->verificationUrl('ada@example.com'));
+
+        $response->assertOk();
+        $user->refresh();
+        $this->assertNotNull($user->email_verified_at);
+        $this->assertNotNull($user->disabled_at);
+        $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password'])
+            ->assertStatus(403)
+            ->assertExactJson(['message' => 'This account is disabled.']);
+    }
+
+    public function test_verification_resend_for_a_disabled_account_is_refused_and_sends_nothing(): void {
+        // Contract §4.3: the resend route is auth:sanctum, so EnsureAccountEnabled (§4.2)
+        // answers 401 before the controller and no mail is sent.
+        Notification::fake();
+        $actor = User::factory()->admin()->create();
+        $user = User::factory()->unverified()->create();
+        app(UserAdminService::class)->disable($actor, $user->hash);
+        // The service disabled the DB row; refresh the in-memory object so actingAs()
+        // authenticates the now-disabled state, not the stale pre-disable one.
+        $user->refresh();
+
+        $response = $this->actingAs($user)->postJson('/api/email/verification-notification');
 
         $response->assertStatus(401);
         Notification::assertNothingSent();

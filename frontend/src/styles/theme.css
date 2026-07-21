@@ -762,3 +762,76 @@ main {
   color: #ffffff;
   border-color: var(--color-control-border);
 }
+
+/* Admin account console (012). Mirrors the moderation table: the wide table lives in its own
+   horizontally scrolling box so the page itself never scrolls sideways at 320px (Principle
+   VIII), and it shares the .moderation-pagination page links via AdminPagination. */
+.user-admin__status {
+  color: var(--color-text-muted);
+  padding: var(--space-md) 0;
+}
+
+.user-table__scroll {
+  overflow-x: auto;
+}
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.user-table caption {
+  text-align: left;
+  color: var(--color-text-muted);
+  padding-bottom: var(--space-sm);
+}
+
+.user-table th,
+.user-table td {
+  /* Narrow horizontal padding: seven columns have to fit without the page scrolling. */
+  padding: var(--space-sm) var(--space-xs);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.user-table th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.user-row:hover {
+  background-color: var(--color-menu-hover);
+}
+
+/* Raw MySQL datetimes: kept on one line (the table scrolls on its own) and tabular so the
+   digits line up column-to-column. An empty Disabled cell reads as "active". */
+.user-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The per-row Disable/Enable control, styled like the moderation action buttons so both
+   admin consoles read as one family. Dims while its request is in flight (disabled). */
+.user-actions__button {
+  padding: var(--space-xs) var(--space-sm);
+  font: inherit;
+  white-space: nowrap;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.user-actions__button:hover,
+.user-actions__button:focus-visible {
+  background-color: var(--color-menu-hover);
+}
+
+.user-actions__button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

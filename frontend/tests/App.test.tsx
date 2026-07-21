@@ -50,4 +50,24 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Log in' })).toBeTruthy();
   });
+
+  it('redirects a member away from the admin user console', async () => {
+    // /admin/users is wrapped in RequireRole role="admin": an authenticated member is
+    // under-ranked, so the gate sends them Home rather than rendering the console.
+    vi.spyOn(AuthApi, 'fetchCurrentUser').mockResolvedValue({
+      hash: 'usr0000001',
+      name: 'Mel',
+      email: 'mel@example.com',
+      emailVerifiedAt: '2026-01-01T00:00:00Z',
+      role: 'member',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    });
+    window.history.pushState({}, '', '/admin/users');
+
+    render(<App />);
+
+    expect(await screen.findByText(/no memes yet/i)).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Users' })).toBeNull();
+  });
 });

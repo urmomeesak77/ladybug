@@ -66,4 +66,15 @@ class UserFactory extends Factory {
             'role' => Role::Superuser->value,
         ]);
     }
+
+    /**
+     * Indicate that the account's access is revoked. The acting moderator is
+     * optional so tests can build the "actor unresolvable" row (INV-3) directly.
+     */
+    public function disabled(?User $actor = null): static {
+        return $this->state(fn (array $attributes) => [
+            'disabled_at' => now(),
+            'disabled_by' => $actor?->id,
+        ]);
+    }
 }
