@@ -140,7 +140,7 @@ function ModerationActions({ row, onApply, onRemove }: { row: Row; onApply: Appl
 
   return (
     <div className="moderation-actions">
-      <ActionMenu items={items} />
+      <ActionMenu items={items} label={`More actions for ${row.title ?? 'this post'}`} />
     </div>
   );
 }

@@ -55,7 +55,7 @@ function UserActions({ row, onApply, onRemove }: {
     { label: 'Delete permanently', danger: true, onChoose: askDelete },
   ];
 
-  return <ActionMenu items={items} />;
+  return <ActionMenu items={items} label={`More actions for ${row.name}`} />;
 }
 
 export default UserActions;

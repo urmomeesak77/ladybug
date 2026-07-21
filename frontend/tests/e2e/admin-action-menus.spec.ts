@@ -73,4 +73,65 @@ test.describe('Admin action menus — permanent account deletion', () => {
     await expect(page.locator('tr.user-row', { hasText: memberEmail })).toHaveCount(0);
     await expect(page).toHaveURL('/admin/users');
   });
+
+  test('the account menu is keyboard-operable and dismissible, never changing the URL (US3)', async ({ page }) => {
+    test.setTimeout(120_000);
+    const memberEmail = uniqueEmail();
+    const actorEmail = uniqueEmail();
+
+    await register(page, 'E2E US3 Target', memberEmail);
+    await logout(page);
+    await register(page, 'E2E US3 Actor', actorEmail);
+    AdminSetup.promoteToSuperuser(actorEmail);
+    await page.goto('/');
+    await page.reload();
+
+    await page.getByRole('link', { name: 'Users' }).click();
+    await expect(page).toHaveURL('/admin/users');
+
+    const memberRow = page.locator('tr.user-row', { hasText: memberEmail });
+    const trigger = memberRow.locator('.action-menu__trigger');
+    const menu = memberRow.getByRole('menu');
+
+    // Keyboard-only: focus the trigger, open onto the first item, traverse the items, and
+    // dismiss with Escape — focus returns to the trigger and no action was taken (FR-003/FR-004).
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('ArrowDown'); // → Delete permanently
+    await page.keyboard.press('ArrowUp');   // → back to Disable
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    // Dismiss by clicking outside the menu.
+    await trigger.click();
+    await expect(menu).toBeVisible();
+    await page.getByRole('heading', { name: 'Users' }).click();
+    await expect(menu).toHaveCount(0);
+
+    // Dismiss by moving focus away (Tab).
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(menu).toHaveCount(0);
+
+    // None of that opening/closing changed the page's location (FR-019 / SC-006).
+    await expect(page).toHaveURL('/admin/users');
+
+    // Keyboard-activate a reversible action: ArrowDown opens onto the first item (Disable),
+    // Enter activates it, and the row flips in place to offer Enable.
+    await trigger.focus();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await trigger.click();
+    await expect(memberRow.getByRole('menuitem', { name: 'Enable', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // Refresh restores the same page — the transient menu never disturbed navigation (SC-006).
+    await page.reload();
+    await expect(page).toHaveURL('/admin/users');
+    await expect(page.locator('tr.user-row', { hasText: memberEmail })).toHaveCount(1);
+  });
 });
