@@ -8,6 +8,12 @@
 
 **Input**: User description: "Admin action menus (kebab dropdown) for the admin user list and trashpost moderation list, plus permanent hard-delete of a user account."
 
+## Clarifications
+
+### Session 2026-07-21
+
+- Q: Should permanent account deletion keep an audit trail, or leave no trace like the existing meme purge? → A: No trail — the account record is hard-deleted with nothing retained; no audit log or tombstone is introduced, consistent with meme permanent-delete.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Account actions in a per-row menu, including permanent delete (Priority: P1)
@@ -131,6 +137,7 @@ by clicking elsewhere, and by moving focus away — confirming each closes it.
 
 - **FR-018**: Every account and meme referenced by an action MUST be identified by its existing public handle, never by an internal database identifier.
 - **FR-019**: The menus are transient interface state only; opening or closing a menu MUST NOT change the page's shareable location or its Back/Forward/Refresh behaviour.
+- **FR-020**: Permanent account deletion MUST NOT retain any record of the deletion — no audit-log entry and no tombstone. The account record is removed with no trace kept, consistent with the existing meme permanent-delete (purge).
 
 ### Key Entities *(include if feature involves data)*
 
@@ -157,3 +164,4 @@ by clicking elsewhere, and by moving focus away — confirming each closes it.
 - The moderation console change is presentation-only; the existing moderation actions, their server behaviour, and their confirmations are reused unchanged.
 - One shared menu control serves both consoles; it is built in-house with no new third-party dependency.
 - Admin-console access continues to be gated to admin-or-higher callers as today; this feature does not change who can reach the consoles, only the per-row controls within them.
+- Permanent account deletion keeps no audit trail (confirmed 2026-07-21): the record is hard-deleted with nothing retained, matching the existing meme permanent-delete; no audit-log or tombstone infrastructure is added.
