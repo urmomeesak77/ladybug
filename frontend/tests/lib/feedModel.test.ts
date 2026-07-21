@@ -17,6 +17,7 @@ function makeRaw(overrides: Partial<RawPost> = {}): RawPost {
     original: 'https://cdn.example/x/original.jpg',
     metadata: '{"width":1280,"height":720}',
     url: '/posts/abc1234567',
+    hidden: null,
     ...overrides,
   };
 }
@@ -24,6 +25,18 @@ function makeRaw(overrides: Partial<RawPost> = {}): RawPost {
 describe('mapPost', () => {
   it('builds the permalink from the opaque hash', () => {
     expect(FeedModel.mapPost(makeRaw()).permalink).toBe('/posts/abc1234567');
+  });
+
+  it('passes a pending hidden status through to the post', () => {
+    expect(FeedModel.mapPost(makeRaw({ hidden: 'pending' })).hidden).toBe('pending');
+  });
+
+  it('passes a deleted hidden status through to the post', () => {
+    expect(FeedModel.mapPost(makeRaw({ hidden: 'deleted' })).hidden).toBe('deleted');
+  });
+
+  it('defaults hidden to null when the field is absent', () => {
+    expect(FeedModel.mapPost(makeRaw()).hidden).toBeNull();
   });
 
   it('prefers a parseable youtube ref over any image (media precedence)', () => {

@@ -10,6 +10,7 @@ function posts(n: number): FeedPost[] {
     title: null,
     permalink: `/posts/hash-${i}`,
     media: { kind: 'none' },
+    hidden: null,
   }));
 }
 

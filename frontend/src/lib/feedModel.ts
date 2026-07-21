@@ -11,6 +11,7 @@ export type RawPost = {
   original: string | null;
   metadata: string | null;
   url: string;
+  hidden: 'pending' | 'deleted' | null;
 };
 
 export type ImageSize = { url: string; width: number };
@@ -29,6 +30,7 @@ export type FeedPost = {
   title: string | null;
   permalink: string;
   media: FeedMedia;
+  hidden: 'pending' | 'deleted' | null;
 };
 
 // Non-empty alt/title fallback so screen-reader users are never given a blank image
@@ -80,6 +82,7 @@ export class FeedModel {
       title: raw.title,
       permalink: `/posts/${raw.hash}`,
       media: FeedModel.deriveMedia(raw),
+      hidden: raw.hidden ?? null,
     };
   }
 

@@ -8,7 +8,7 @@ import { Api } from '../../src/lib/api';
 import type { FeedPost } from '../../src/lib/feedModel';
 
 function post(hash: string): FeedPost {
-  return { hash, title: `Post ${hash}`, permalink: `/posts/${hash}`, media: { kind: 'none' } };
+  return { hash, title: `Post ${hash}`, permalink: `/posts/${hash}`, media: { kind: 'none' }, hidden: null };
 }
 
 function posts(count: number, prefix: string): FeedPost[] {

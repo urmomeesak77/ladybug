@@ -16,6 +16,7 @@ const post: FeedPost = {
   title: 'Funny cat',
   permalink: '/posts/abc1234567',
   media: { kind: 'none' },
+  hidden: null,
 };
 
 describe('usePost', () => {

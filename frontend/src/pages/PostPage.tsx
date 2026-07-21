@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 
 import MemeMedia from '../components/MemeMedia';
 import ErrorState from '../components/states/ErrorState';
+import HiddenNotice from '../components/states/HiddenNotice';
 import LoadingState from '../components/states/LoadingState';
 import { usePost } from '../hooks/usePost';
 import { PostModel } from '../lib/postModel';
@@ -40,6 +41,7 @@ function PostPage() {
       {state.status === 'error' && <ErrorState onRetry={retry} />}
       {state.status === 'loaded' && (
         <article className="post-item feed-item">
+          {state.post.hidden && <HiddenNotice status={state.post.hidden} />}
           <h1 className="feed-item__title">{state.post.title ?? 'Untitled meme'}</h1>
           <MemeMedia media={state.post.media} />
         </article>

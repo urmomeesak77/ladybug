@@ -28,6 +28,7 @@ const post: FeedPost = {
     sizes: '',
     alt: 'Funny cat',
   },
+  hidden: null,
 };
 
 function renderPost(hash = 'abc1234567') {
@@ -51,6 +52,24 @@ describe('PostPage', () => {
     // The title is set in an effect keyed on the fetch state; await it rather than racing
     // the effect flush (flaked under coverage-instrumented load).
     await waitFor(() => expect(document.title).toBe('Funny cat - online-trash'));
+  });
+
+  it('shows a hidden banner when the loaded post is not publicly visible', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post: { ...post, hidden: 'pending' } });
+
+    renderPost();
+
+    expect(await screen.findByRole('heading', { name: 'Funny cat' })).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toMatch(/pending review/i);
+  });
+
+  it('shows no hidden banner for a public post', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post: { ...post, hidden: null } });
+
+    renderPost();
+
+    await screen.findByRole('heading', { name: 'Funny cat' });
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('falls back to a generic heading for an untitled meme', async () => {
