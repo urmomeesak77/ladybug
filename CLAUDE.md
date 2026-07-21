@@ -45,7 +45,11 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
 - **010-admin-meme-moderation** — admin console at `/admin/trashposts` over
   `GET /api/admin/posts` + activate / deactivate / soft-delete / restore / purge;
   `ModerationService`. Media stays on the `public` disk in every state so admins can
-  view hidden memes; the public API filters hidden memes out at the query level.
+  view hidden memes; the public API filters hidden memes out at the query level. The
+  one-time `php artisan media:republish` (`MediaRepublishCommand`, backed by
+  `MediaOwnershipService::ownedPaths`) moves any already-hidden meme's bytes that the
+  old move-on-hide code left on the private disk back to `public`; idempotent, safe
+  to re-run.
 - **011-user-rating-auto-activation** — a signed `users.rating` column (never exposed by
   any API) driven solely by `RatingService`. The model is **state-reflective** (redesign
   2026-07-21, `docs/superpowers/specs/2026-07-21-rating-state-reflective-design.md`): each
