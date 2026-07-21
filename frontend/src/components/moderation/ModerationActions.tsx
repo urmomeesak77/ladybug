@@ -111,7 +111,7 @@ function ModerationActions({ row, onApply, onRemove }: { row: Row; onApply: Appl
     void RowPurge.apply(row.hash, onRemove);
   }
 
-  // A live meme: both delete items open this soft-vs-permanent choice (FR-017).
+  // A live meme's Delete item opens this soft-vs-permanent choice (FR-017).
   function askDelete(): void {
     ask({
       title: 'Delete post?',
