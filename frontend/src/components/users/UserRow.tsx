@@ -31,9 +31,14 @@ function DisabledCell({ row }: { row: Row }) {
   );
 }
 
-// One account-table row. The seventh cell holds the per-row Disable/Enable control; a
-// successful action hands the server's updated row up via `onApply` for an in-place refresh.
-function UserRow({ row, onApply }: { row: Row; onApply: (updated: Row) => void }) {
+// One account-table row. The seventh cell holds the per-row actions menu; a disable/enable
+// hands the server's updated row up via `onApply` for an in-place refresh, and a permanent
+// delete reports the hash via `onRemove` so the page drops the now-nonexistent row.
+function UserRow({ row, onApply, onRemove }: {
+  row: Row;
+  onApply: (updated: Row) => void;
+  onRemove: (hash: string) => void;
+}) {
   return (
     <tr className="user-row">
       <td className="user-name">{row.name}</td>
@@ -43,7 +48,7 @@ function UserRow({ row, onApply }: { row: Row; onApply: (updated: Row) => void }
       <CreatedCell value={row.createdAt} />
       <DisabledCell row={row} />
       <td className="user-row__actions">
-        <UserActions row={row} onApply={onApply} />
+        <UserActions row={row} onApply={onApply} onRemove={onRemove} />
       </td>
     </tr>
   );

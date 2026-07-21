@@ -4,6 +4,9 @@
 # Claude Code machine-local settings
 .claude/settings.local.json
 
+# Node dependencies (frontend/ has its own; this also catches a stray root install)
+node_modules/
+
 # Scratch/screenshot dir (local only)
 temp/
 

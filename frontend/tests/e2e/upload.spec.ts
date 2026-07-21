@@ -100,8 +100,13 @@ test.describe('Upload', () => {
 
     const row = page.locator('tbody tr.moderation-row').filter({ hasText: title });
     await expect(row).toHaveCount(1);
-    await row.getByRole('button', { name: 'Activate', exact: true }).click();
-    await expect(row.getByRole('button', { name: 'Deactivate', exact: true })).toBeVisible();
+    // Moderation actions live behind the shared kebab menu (013): open it, activate, then
+    // reopen to confirm the row flipped to Deactivate in place.
+    const trigger = row.locator('.action-menu__trigger');
+    await trigger.click();
+    await row.getByRole('menuitem', { name: 'Activate', exact: true }).click();
+    await trigger.click();
+    await expect(row.getByRole('menuitem', { name: 'Deactivate', exact: true })).toBeVisible();
 
     // Activated: publicly readable, and its media is back on the public disk (US2 §3).
     await page.goto(`/posts/${hash}`);

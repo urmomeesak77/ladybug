@@ -2,6 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import NoticeProvider from '../../../src/components/NoticeProvider';
 import UserTable from '../../../src/components/users/UserTable';
 import { AuthContext } from '../../../src/hooks/useAuth';
 import type { AuthContextValue } from '../../../src/hooks/useAuth';
@@ -24,7 +25,9 @@ const auth = {
 function renderTable(rows: Row[]) {
   return render(
     <AuthContext.Provider value={auth}>
-      <UserTable rows={rows} onApply={() => {}} />
+      <NoticeProvider>
+        <UserTable rows={rows} onApply={() => {}} onRemove={() => {}} />
+      </NoticeProvider>
     </AuthContext.Provider>,
   );
 }

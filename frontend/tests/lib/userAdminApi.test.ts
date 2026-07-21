@@ -148,3 +148,47 @@ describe('UserAdminApi.disable / enable', () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe('UserAdminApi.destroy', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  });
+
+  it('DELETEs the account with the CSRF header and reports ok on a 204', async () => {
+    document.cookie = 'XSRF-TOKEN=tok123';
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 204 }));
+
+    const result = await UserAdminApi.destroy('a1B2c3D4e5');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/users\/a1B2c3D4e5$/),
+      expect.objectContaining({
+        method: 'DELETE',
+        credentials: 'include',
+        headers: expect.objectContaining({ 'X-XSRF-TOKEN': 'tok123' }),
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('reports not-ok on a non-2xx (e.g. 403 rank guard or 404 concurrent delete)', async () => {
+    document.cookie = 'XSRF-TOKEN=tok123';
+    stubFetch(async () => ({ ok: false, status: 404 }));
+
+    const result = await UserAdminApi.destroy('a1B2c3D4e5');
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('reports not-ok when fetch rejects (offline)', async () => {
+    document.cookie = 'XSRF-TOKEN=tok123';
+    stubFetch(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+
+    const result = await UserAdminApi.destroy('a1B2c3D4e5');
+
+    expect(result.ok).toBe(false);
+  });
+});

@@ -64,16 +64,19 @@ test.describe('Admin moderation', () => {
       page.getByRole('navigation', { name: 'Moderation pages' }).getByRole('link', { name: '1', exact: true }),
     ).toHaveAttribute('aria-current', 'page');
 
-    // One action round-trip on the first row: Deactivate flips the control to Activate
-    // in place (the row is replaced without leaving the page), and back again.
+    // One action round-trip on the first row: the actions now live behind the shared kebab
+    // menu (013). Open it, Deactivate, and the row refreshes in place; reopen to confirm it now
+    // offers Activate, activate back, and reopen once more to confirm it flipped to Deactivate.
     const first = rows.first();
-    await expect(first.getByRole('button', { name: 'Deactivate', exact: true })).toBeVisible();
-    await first.getByRole('button', { name: 'Deactivate', exact: true }).click();
-    await expect(first.getByRole('button', { name: 'Activate', exact: true })).toBeVisible();
-    await first.getByRole('button', { name: 'Activate', exact: true }).click();
-    await expect(first.getByRole('button', { name: 'Deactivate', exact: true })).toBeVisible();
+    const trigger = first.locator('.action-menu__trigger');
+    await trigger.click();
+    await first.getByRole('menuitem', { name: 'Deactivate', exact: true }).click();
+    await trigger.click();
+    await first.getByRole('menuitem', { name: 'Activate', exact: true }).click();
+    await trigger.click();
+    await expect(first.getByRole('menuitem', { name: 'Deactivate', exact: true })).toBeVisible();
 
-    // Still on the same page after acting (FR-017).
+    // Still on the same page after acting (FR-017/FR-019 — the menu never changes the URL).
     await expect(page).toHaveURL('/admin/trashposts');
   });
 });

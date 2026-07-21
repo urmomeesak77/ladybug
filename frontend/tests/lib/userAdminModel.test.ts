@@ -96,3 +96,26 @@ describe('UserAdminModel.replaceRow', () => {
     expect(UserAdminModel.replaceRow([rowA, rowB], stray)).toEqual([rowA, rowB]);
   });
 });
+
+describe('UserAdminModel.dropRow', () => {
+  const rowA = UserAdminModel.toRow(rawRow);
+  const rowB = UserAdminModel.toRow({ ...rawRow, hash: 'Zz9Yy8Xx7w', name: 'Spammer' });
+
+  it('drops the row with the matching hash and leaves the others intact', () => {
+    expect(UserAdminModel.dropRow([rowA, rowB], rowB.hash)).toEqual([rowA]);
+  });
+
+  it('is a no-op when the hash is not on the page', () => {
+    expect(UserAdminModel.dropRow([rowA, rowB], 'missing000')).toEqual([rowA, rowB]);
+  });
+});
+
+describe('UserAdminModel.deleteConfirmMessage', () => {
+  it('names the target account in the confirmation copy', () => {
+    const message = UserAdminModel.deleteConfirmMessage('Ada');
+
+    expect(message).toContain('Ada');
+    // The wording must make the irreversibility explicit (FR-008).
+    expect(message.toLowerCase()).toContain('permanent');
+  });
+});

@@ -76,12 +76,15 @@ test.describe('Admin user console', () => {
       page.getByRole('navigation', { name: 'Account pages' }).getByRole('link', { name: '1', exact: true }),
     ).toHaveAttribute('aria-current', 'page');
 
-    // Disable the member's row in place: the control flips Disable → Enable without a
-    // confirmation step and without leaving the page (FR-016).
+    // Disable the member's row in place: account actions now live behind the shared kebab menu
+    // (013). Open it and choose Disable — no confirmation step, no navigation (FR-014). Reopen
+    // to confirm the row flipped to offer Enable.
     const memberRow = page.locator('tr.user-row', { hasText: memberEmail });
-    await expect(memberRow.getByRole('button', { name: 'Disable', exact: true })).toBeVisible();
-    await memberRow.getByRole('button', { name: 'Disable', exact: true }).click();
-    await expect(memberRow.getByRole('button', { name: 'Enable', exact: true })).toBeVisible();
+    const memberTrigger = memberRow.locator('.action-menu__trigger');
+    await memberTrigger.click();
+    await memberRow.getByRole('menuitem', { name: 'Disable', exact: true }).click();
+    await memberTrigger.click();
+    await expect(memberRow.getByRole('menuitem', { name: 'Enable', exact: true })).toBeVisible();
     await expect(page).toHaveURL('/admin/users');
 
     // The disabled member is refused at sign-in with the distinct message (FR-013), not the
@@ -95,8 +98,11 @@ test.describe('Admin user console', () => {
     await login(page, adminEmail);
     await page.getByRole('link', { name: 'Users' }).click();
     const rowAgain = page.locator('tr.user-row', { hasText: memberEmail });
-    await rowAgain.getByRole('button', { name: 'Enable', exact: true }).click();
-    await expect(rowAgain.getByRole('button', { name: 'Disable', exact: true })).toBeVisible();
+    const triggerAgain = rowAgain.locator('.action-menu__trigger');
+    await triggerAgain.click();
+    await rowAgain.getByRole('menuitem', { name: 'Enable', exact: true }).click();
+    await triggerAgain.click();
+    await expect(rowAgain.getByRole('menuitem', { name: 'Disable', exact: true })).toBeVisible();
 
     // The member signs in again with the SAME password — no re-registration, no re-verification.
     await logout(page);

@@ -72,4 +72,17 @@ export class UserAdminModel {
   static replaceRow(rows: UserRow[], updated: UserRow): UserRow[] {
     return rows.map((row) => (row.hash === updated.hash ? updated : row));
   }
+
+  // Drop a deleted row (the server returned 204 — the account no longer exists); a no-op when
+  // the hash is not on the page (FR-013). Mirrors ModerationModel.dropRow.
+  static dropRow(rows: UserRow[], hash: string): UserRow[] {
+    return rows.filter((row) => row.hash !== hash);
+  }
+
+  // The permanent-delete confirm body: names the target account and makes the irreversibility
+  // and the meme-orphaning explicit (FR-008). Mirrors ModerationModel.purgeConfirmMessage.
+  static deleteConfirmMessage(name: string): string {
+    return `Permanently delete the account "${name}"? This cannot be undone. `
+      + 'Its uploads stay on the site but become owner-less.';
+  }
 }

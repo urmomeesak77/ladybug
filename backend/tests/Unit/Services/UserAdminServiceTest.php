@@ -7,6 +7,7 @@ namespace Tests\Unit\Services;
 use App\Models\Trashpost;
 use App\Models\User;
 use App\Services\UserAdminService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -205,6 +206,124 @@ final class UserAdminServiceTest extends TestCase {
         }
         $target->refresh();
         $this->assertFalse($target->isDisabled());
+    }
+
+    public function test_destroy_hard_deletes_a_strictly_lower_ranked_target(): void {
+        // The headline capability (US1): an actor may permanently remove an account it strictly
+        // outranks. User has no SoftDeletes, so this is a true hard delete — no tombstone.
+        $admin = User::factory()->admin()->create();
+        $member = User::factory()->create();
+
+        $this->service()->destroy($admin, $member->hash);
+
+        $this->assertDatabaseMissing('users', ['id' => $member->id]);
+    }
+
+    public function test_superuser_can_destroy_an_admin(): void {
+        $superuser = User::factory()->superuser()->create();
+        $admin = User::factory()->admin()->create();
+
+        $this->service()->destroy($superuser, $admin->hash);
+
+        $this->assertDatabaseMissing('users', ['id' => $admin->id]);
+    }
+
+    public function test_destroy_refuses_a_peer_and_leaves_the_row_untouched(): void {
+        // INV-3: the strict-rank guard — identical to disable/enable — refuses a peer with 403.
+        $admin = User::factory()->admin()->create();
+        $peer = User::factory()->admin()->create();
+
+        $this->assertDestroyRefused($admin, $peer);
+    }
+
+    public function test_destroy_refuses_a_higher_rank(): void {
+        $admin = User::factory()->admin()->create();
+        $superuser = User::factory()->superuser()->create();
+
+        $this->assertDestroyRefused($admin, $superuser);
+    }
+
+    public function test_destroy_refuses_the_actors_own_account(): void {
+        // A role never outranks itself, so the one strict comparison is also the self-lockout.
+        $admin = User::factory()->admin()->create();
+
+        $this->assertDestroyRefused($admin, $admin);
+    }
+
+    public function test_destroy_reads_the_current_stored_role_not_the_stale_rendered_one(): void {
+        // FR-009/D6: the target was promoted above the actor after the menu rendered. The guard
+        // runs against the freshly locked row inside the transaction, so it is refused now.
+        $admin = User::factory()->admin()->create();
+        $nowSuperuser = User::factory()->superuser()->create();
+
+        $this->assertDestroyRefused($admin, $nowSuperuser);
+    }
+
+    public function test_destroy_of_an_unknown_hash_throws_the_404_producing_exception(): void {
+        // INV-4: deleting a hash that carries no account is refused. firstOrFail throws the
+        // ModelNotFoundException the HTTP layer renders as a 404 (same as disable/enable).
+        $admin = User::factory()->admin()->create();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        $this->service()->destroy($admin, 'nonexistent');
+    }
+
+    public function test_destroy_orphans_the_targets_memes_without_deleting_them(): void {
+        // INV-2: the account's uploaded memes survive with user_id = null (nullOnDelete FK); no
+        // meme row is removed and its activation/visibility is untouched — it just goes owner-less.
+        $admin = User::factory()->admin()->create();
+        $target = User::factory()->create();
+        $post = Trashpost::factory()->create(['user_id' => $target->id]);
+
+        $this->service()->destroy($admin, $target->hash);
+
+        $post->refresh();
+        $this->assertNull($post->user_id);
+        $this->assertNotNull($post->activated_at);
+        $this->assertNull($post->deleted_at);
+    }
+
+    public function test_destroy_clears_disabled_by_on_accounts_the_deleted_admin_had_disabled(): void {
+        // FR-011: an account this admin had disabled keeps its disabled_at but loses the actor
+        // name via the disabled_by nullOnDelete FK.
+        $superuser = User::factory()->superuser()->create();
+        $admin = User::factory()->admin()->create();
+        $victim = User::factory()->disabled($admin)->create();
+
+        $this->service()->destroy($superuser, $admin->hash);
+
+        $victim->refresh();
+        $this->assertNotNull($victim->disabled_at);
+        $this->assertNull($victim->disabled_by);
+    }
+
+    public function test_destroy_makes_no_rating_adjustment_to_other_accounts(): void {
+        // INV-5: an account deletion performs no rating adjustment; a bystander's rating stands
+        // and the orphaned meme charges nobody on later moderation.
+        $admin = User::factory()->admin()->create();
+        $target = User::factory()->create();
+        Trashpost::factory()->create(['user_id' => $target->id]);
+        $bystander = User::factory()->create(['rating' => 5]);
+
+        $this->service()->destroy($admin, $target->hash);
+
+        $bystander->refresh();
+        $this->assertSame(5, $bystander->rating);
+    }
+
+    /**
+     * A refused destroy throws a 403 and leaves the target's row fully intact.
+     */
+    private function assertDestroyRefused(User $actor, User $target): void {
+        try {
+            $this->service()->destroy($actor, $target->hash);
+            $this->fail('Expected the destroy to be refused with a 403.');
+        }
+        catch (HttpException $e) {
+            $this->assertSame(403, $e->getStatusCode());
+        }
+        $this->assertDatabaseHas('users', ['id' => $target->id]);
     }
 
     public function test_paginates_at_one_hundred_per_page(): void {

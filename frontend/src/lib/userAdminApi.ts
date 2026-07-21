@@ -14,6 +14,9 @@ export type UserAdminActionResult =
   | { ok: true; row: UserRow }
   | { ok: false };
 
+// A permanent delete has no row to return (204): success only says the account is gone (D8).
+export type UserAdminDeleteResult = { ok: boolean };
+
 // Admin account console API client (012). Cookie-session authenticated like the other SPA
 // calls; the server enforces admin-or-higher, so a non-admin simply gets a failed result. The
 // disable/enable mutations carry the Sanctum SPA CSRF header, exactly like the auth/upload calls.
@@ -42,6 +45,23 @@ export class UserAdminApi {
 
   static enable(hash: string): Promise<UserAdminActionResult> {
     return UserAdminApi.act(`/api/admin/users/${encodeURIComponent(hash)}/enable`);
+  }
+
+  // Permanent account deletion (013). 204 carries no body, so success is just `ok` — the
+  // caller drops the row from its page. Mirrors the meme-purge client; any non-2xx (incl. a
+  // 404 from a concurrent delete) or network failure is `ok: false`, so the row is left as it was.
+  static async destroy(hash: string): Promise<UserAdminDeleteResult> {
+    try {
+      const token = await Csrf.ensure();
+      const response = await fetch(`${Api.base()}/api/admin/users/${encodeURIComponent(hash)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+      });
+      return { ok: response.ok };
+    } catch {
+      return { ok: false };
+    }
   }
 
   // The shared act-on-an-account plumbing: POST the unsafe request with the CSRF header and,

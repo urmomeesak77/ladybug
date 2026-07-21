@@ -11,7 +11,7 @@ import { useUserAdmin } from '../hooks/useUserAdmin';
 // fetch — the console must never report a failure as "no accounts". The route is gated to
 // admin+ in US2; here the page trusts the server, which already refuses non-admin callers.
 function UserAdminPage() {
-  const { rows, meta, loading, empty, failed, retry, applyRow } = useUserAdmin();
+  const { rows, meta, loading, empty, failed, retry, applyRow, removeRow } = useUserAdmin();
 
   useEffect(() => {
     document.title = 'Users';
@@ -25,7 +25,7 @@ function UserAdminPage() {
       {empty && <p className="user-admin__status">No accounts to show.</p>}
       {!loading && !empty && !failed && (
         <>
-          <UserTable rows={rows} onApply={applyRow} />
+          <UserTable rows={rows} onApply={applyRow} onRemove={removeRow} />
           {meta !== null && <AdminPagination meta={meta} label="Account pages" />}
         </>
       )}

@@ -53,6 +53,32 @@ class UserAdminService {
     }
 
     /**
+     * Permanently delete an account (US1). Loads the target fresh with lockForUpdate inside a
+     * transaction, applies the SAME strict-rank guard as disable/enable against the current
+     * stored role (peer, higher-rank and self all refused, on the locked row — research D6),
+     * then hard-deletes it: User has no SoftDeletes, so no tombstone and no audit row survives
+     * (FR-020). Missing hash → 404. No manual cleanup — the account's uploaded memes orphan
+     * (trashposts.user_id) and any account it had disabled loses only the actor name
+     * (users.disabled_by) via the existing nullOnDelete FKs, atomically inside this delete
+     * (research D4). Nobody's rating is touched (research D5).
+     */
+    public function destroy(User $actor, string $hash): void {
+        DB::beginTransaction();
+        try {
+            $target = User::where('hash', $hash)->lockForUpdate()->firstOrFail();
+            if (! $actor->role->outranks($target->role)) {
+                abort(403);
+            }
+            $target->delete();
+            DB::commit();
+        }
+        catch (Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
      * Load the target fresh inside a transaction and, only on a real state change, write the
      * two disabled_* columns together — nothing else (research D9). `disable` names the target
      * state, not a toggle, so repeated calls converge without churn. Missing hash → 404.
