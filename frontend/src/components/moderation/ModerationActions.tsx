@@ -1,14 +1,19 @@
-import type { MouseEvent, ReactElement } from 'react';
+import type { ReactElement } from 'react';
 
+import ActionMenu from '../admin/ActionMenu';
+import type { ActionMenuItem } from '../admin/ActionMenu';
 import { useNotice } from '../../hooks/useNotice';
 import { ModerationApi } from '../../lib/moderationApi';
-import type { ModerationActionResult, ModerationPurgeResult } from '../../lib/moderationApi';
+import type { ModerationActionResult } from '../../lib/moderationApi';
 import { ModerationModel } from '../../lib/moderationModel';
 import type { ModerationRow as Row } from '../../lib/moderationModel';
 
 type Apply = (updated: Row) => void;
 
 type Remove = (hash: string) => void;
+
+// Runs a moderation action's promise and refreshes the row on success (bound to onApply).
+type ApplyAction = (action: Promise<ModerationActionResult>) => void;
 
 type ActionGlyph = 'activate' | 'deactivate' | 'delete' | 'restore';
 
@@ -21,26 +26,13 @@ const GLYPHS: Record<ActionGlyph, string> = {
   restore: 'M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 7 7 6.97 6.97 0 0 1-4.9-2L6.7 18.4A9 9 0 1 0 13 3z',
 };
 
-// Decorative only: the button's aria-label/title carries the accessible name (Principle IV).
+// Decorative only: the menu item's text label carries the accessible meaning (Principle IV /
+// FR-002); the icon accompanies it (FR-015).
 function ActionIcon({ glyph }: { glyph: ActionGlyph }): ReactElement {
   return (
     <svg className="moderation-actions__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path d={GLYPHS[glyph]} />
     </svg>
-  );
-}
-
-// The per-row moderation controls (US3 activation + US4 delete/restore). Navigation lives
-// solely on the title link (FR-018), so these buttons are ordinary siblings that never
-// navigate; a successful state change hands the server's updated row back up via `onApply`
-// for an in-place refresh (FR-017), while a successful purge reports the hash via `onRemove`
-// so the page drops the now-nonexistent row.
-function ModerationActions({ row, onApply, onRemove }: { row: Row; onApply: Apply; onRemove: Remove }) {
-  return (
-    <div className="moderation-actions">
-      <ActivationButton row={row} onApply={onApply} />
-      <DeletionControl row={row} onApply={onApply} onRemove={onRemove} />
-    </div>
   );
 }
 
@@ -56,111 +48,100 @@ class RowAction {
   }
 }
 
-// The purge sibling of RowAction: a 204 means the row no longer exists, so success reports
-// the hash upward for removal instead of an updated row.
+// The purge sibling of RowAction: a 204 means the row no longer exists, so success reports the
+// hash upward for removal instead of an updated row.
 class RowPurge {
-  static async apply(action: Promise<ModerationPurgeResult>, hash: string, onRemove: Remove): Promise<void> {
-    const result = await action;
+  static async apply(hash: string, onRemove: Remove): Promise<void> {
+    const result = await ModerationApi.purge(hash);
     if (result.ok) {
       onRemove(hash);
     }
   }
 }
 
-// Exactly one activation control, reflecting the row's current state. A meme is activated
-// precisely when it carries an activated_at timestamp.
-function ActivationButton({ row, onApply }: { row: Row; onApply: Apply }) {
-  const activated = row.activatedAt !== null;
-
-  function toggle(): void {
-    void RowAction.apply(activated ? ModerationApi.deactivate(row.hash) : ModerationApi.activate(row.hash), onApply);
+// Builds the state-dependent menu item list. Presentation-only reshaping (US2, research D9):
+// the item set and every action/confirmation is identical to the pre-menu controls — a live
+// meme offers Activate/Deactivate, Soft delete and Delete permanently; a soft-deleted meme
+// offers Restore and Delete permanently (FR-016). Each item carries an icon and a text label
+// (FR-015). Both live delete items open the SAME existing soft-vs-permanent confirm so the
+// confirmation is unchanged (FR-017); the soft-deleted delete opens the permanent-only confirm.
+class ModerationMenu {
+  static live(row: Row, apply: ApplyAction, askDelete: () => void): ActionMenuItem[] {
+    const activated = row.activatedAt !== null;
+    const activation: ActionMenuItem = activated
+      ? {
+          label: 'Deactivate',
+          icon: <ActionIcon glyph="deactivate" />,
+          onChoose: () => apply(ModerationApi.deactivate(row.hash)),
+        }
+      : {
+          label: 'Activate',
+          icon: <ActionIcon glyph="activate" />,
+          onChoose: () => apply(ModerationApi.activate(row.hash)),
+        };
+    return [
+      activation,
+      { label: 'Soft delete', icon: <ActionIcon glyph="delete" />, onChoose: askDelete },
+      { label: 'Delete permanently', danger: true, icon: <ActionIcon glyph="delete" />, onChoose: askDelete },
+    ];
   }
 
-  const label = activated ? 'Deactivate' : 'Activate';
-
-  return (
-    <button type="button" className="moderation-actions__button" onClick={toggle} aria-label={label} title={label}>
-      <ActionIcon glyph={activated ? 'deactivate' : 'activate'} />
-    </button>
-  );
+  static deleted(row: Row, apply: ApplyAction, askPurge: () => void): ActionMenuItem[] {
+    return [
+      {
+        label: 'Restore',
+        icon: <ActionIcon glyph="restore" />,
+        onChoose: () => apply(ModerationApi.restore(row.hash)),
+      },
+      { label: 'Delete permanently', danger: true, icon: <ActionIcon glyph="delete" />, onChoose: askPurge },
+    ];
+  }
 }
 
-// The two controls a soft-deleted meme offers: single-click restore, and a trash
-// button whose confirm offers only permanent deletion (soft delete is moot).
-function DeletedRowControls({ onRestore, onAskPurge }: {
-  onRestore: (event: MouseEvent<HTMLButtonElement>) => void;
-  onAskPurge: (event: MouseEvent<HTMLButtonElement>) => void;
-}) {
-  return (
-    <>
-      <button
-        type="button"
-        className="moderation-actions__button"
-        onClick={onRestore}
-        aria-label="Restore"
-        title="Restore"
-      >
-        <ActionIcon glyph="restore" />
-      </button>
-      <button
-        type="button"
-        className="moderation-actions__button"
-        onClick={onAskPurge}
-        aria-label="Delete permanently"
-        title="Delete permanently"
-      >
-        <ActionIcon glyph="delete" />
-      </button>
-    </>
-  );
-}
-
-// Deletion, guarded by a blocking modal confirm raised app-level via useNotice (FR-016).
-// A live meme's trash button offers soft delete and permanent delete; a soft-deleted meme
-// shows single-click Restore plus a trash button offering only permanent delete.
-function DeletionControl({ row, onApply, onRemove }: { row: Row; onApply: Apply; onRemove: Remove }) {
+// The per-row moderation controls, now gathered behind the shared kebab menu (US2). Navigation
+// still lives solely on the title link (FR-018); the menu is transient and never changes the
+// URL (FR-019). Every action, confirmation, and row-refresh / row-removal outcome is reused
+// from the pre-menu control unchanged — this is presentation only (research D9).
+function ModerationActions({ row, onApply, onRemove }: { row: Row; onApply: Apply; onRemove: Remove }) {
   const { ask } = useNotice();
-  const deleted = row.deletedAt !== null;
 
-  function restore(): void {
-    void RowAction.apply(ModerationApi.restore(row.hash), onApply);
+  function apply(action: Promise<ModerationActionResult>): void {
+    void RowAction.apply(action, onApply);
   }
 
-  function confirmSoftDelete(): void {
-    void RowAction.apply(ModerationApi.remove(row.hash), onApply);
+  function purge(): void {
+    void RowPurge.apply(row.hash, onRemove);
   }
 
-  function confirmPurge(): void {
-    void RowPurge.apply(ModerationApi.purge(row.hash), row.hash, onRemove);
-  }
-
+  // A live meme: both delete items open this soft-vs-permanent choice (FR-017).
   function askDelete(): void {
     ask({
       title: 'Delete post?',
       message: ModerationModel.deleteConfirmMessage(row.title),
       actions: [
-        { caption: 'Soft delete', onChoose: confirmSoftDelete },
-        { caption: 'Delete permanently', onChoose: confirmPurge, strong: true },
+        { caption: 'Soft delete', onChoose: () => apply(ModerationApi.remove(row.hash)) },
+        { caption: 'Delete permanently', onChoose: purge, strong: true },
       ],
     });
   }
 
+  // A soft-deleted meme: permanent-only confirm (soft delete is moot).
   function askPurge(): void {
     ask({
       title: 'Delete post permanently?',
       message: ModerationModel.purgeConfirmMessage(row.title),
-      actions: [{ caption: 'Delete permanently', onChoose: confirmPurge, strong: true }],
+      actions: [{ caption: 'Delete permanently', onChoose: purge, strong: true }],
     });
   }
 
-  if (deleted) {
-    return <DeletedRowControls onRestore={restore} onAskPurge={askPurge} />;
-  }
+  const items = row.deletedAt !== null
+    ? ModerationMenu.deleted(row, apply, askPurge)
+    : ModerationMenu.live(row, apply, askDelete);
 
   return (
-    <button type="button" className="moderation-actions__button" onClick={askDelete} aria-label="Delete" title="Delete">
-      <ActionIcon glyph="delete" />
-    </button>
+    <div className="moderation-actions">
+      <ActionMenu items={items} />
+    </div>
   );
 }
 
