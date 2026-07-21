@@ -216,6 +216,92 @@ final class UserAdminControllerTest extends TestCase {
         $this->assertTrue($peer->isDisabled());
     }
 
+    public function test_destroy_hard_deletes_a_lower_ranked_account_and_returns_204(): void {
+        $target = User::factory()->create();
+
+        $response = $this->actingAs($this->admin())->deleteJson("/api/admin/users/{$target->hash}");
+
+        $response->assertNoContent();
+        $this->assertSame('', $response->getContent());
+        $this->assertDatabaseMissing('users', ['id' => $target->id]);
+    }
+
+    public function test_destroy_of_a_peer_is_403_and_leaves_the_target(): void {
+        $peer = User::factory()->admin()->create();
+
+        $this->actingAs($this->admin())->deleteJson("/api/admin/users/{$peer->hash}")->assertForbidden();
+        $this->assertDatabaseHas('users', ['id' => $peer->id]);
+    }
+
+    public function test_destroy_of_a_higher_rank_is_403(): void {
+        $superuser = User::factory()->superuser()->create();
+
+        $this->actingAs($this->admin())->deleteJson("/api/admin/users/{$superuser->hash}")->assertForbidden();
+        $this->assertDatabaseHas('users', ['id' => $superuser->id]);
+    }
+
+    public function test_destroy_of_the_actors_own_account_is_403(): void {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)->deleteJson("/api/admin/users/{$admin->hash}")->assertForbidden();
+        $this->assertDatabaseHas('users', ['id' => $admin->id]);
+    }
+
+    public function test_destroy_of_an_unknown_hash_is_404(): void {
+        $this->actingAs($this->admin())->deleteJson('/api/admin/users/nonexistent')->assertNotFound();
+    }
+
+    public function test_destroy_refuses_a_guest_with_401(): void {
+        $target = User::factory()->create();
+
+        $this->deleteJson("/api/admin/users/{$target->hash}")->assertUnauthorized();
+        $this->assertDatabaseHas('users', ['id' => $target->id]);
+    }
+
+    public function test_destroy_refuses_a_member_with_403(): void {
+        $member = User::factory()->create();
+        $target = User::factory()->create();
+
+        $this->actingAs($member)->deleteJson("/api/admin/users/{$target->hash}")->assertForbidden();
+        $this->assertDatabaseHas('users', ['id' => $target->id]);
+    }
+
+    public function test_destroy_by_a_disabled_actor_is_401_with_the_session_torn_down(): void {
+        // EnsureAccountEnabled (012): a disabled admin's next request is refused before the
+        // handler runs; the target survives.
+        $actor = User::factory()->admin()->disabled()->create();
+        $target = User::factory()->create();
+
+        // Present as the SPA (Origin) so the stateful session guard runs the browser path the
+        // middleware reads — the same setup EnsureAccountEnabledTest uses.
+        $this->withHeader('Origin', 'http://localhost')
+            ->actingAs($actor)
+            ->deleteJson("/api/admin/users/{$target->hash}")
+            ->assertUnauthorized();
+        $this->assertDatabaseHas('users', ['id' => $target->id]);
+    }
+
+    public function test_destroy_leaves_the_targets_memes_owner_less(): void {
+        // FR-010/SC-004: after the account is gone, its uploaded meme still exists and renders
+        // owner-less (user_id null) rather than being cascaded away.
+        $target = User::factory()->create();
+        $post = Trashpost::factory()->create(['user_id' => $target->id]);
+
+        $this->actingAs($this->admin())->deleteJson("/api/admin/users/{$target->hash}")->assertNoContent();
+
+        $post->refresh();
+        $this->assertNull($post->user_id);
+        $this->assertDatabaseHas('trashposts', ['id' => $post->id]);
+    }
+
+    public function test_destroy_refuses_to_address_a_row_by_its_database_id(): void {
+        // FR-018: the public handle is the hash; the auto-increment id is not addressable.
+        $target = User::factory()->create();
+
+        $this->actingAs($this->admin())->deleteJson("/api/admin/users/{$target->id}")->assertNotFound();
+        $this->assertDatabaseHas('users', ['id' => $target->id]);
+    }
+
     public function test_a_second_disable_is_a_200_no_op_that_converges_on_the_original_state(): void {
         // Concurrency edge case: two admins disable the same account nearly at once. Set-to-
         // target (not toggle) means the second call is a 200 that keeps the ORIGINAL timestamp

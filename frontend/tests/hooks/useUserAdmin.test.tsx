@@ -121,6 +121,35 @@ describe('useUserAdmin', () => {
     expect(result.current.rows).toEqual(before);
   });
 
+  it('removeRow drops just the matching row in place and keeps the current page', async () => {
+    const rowB: UserRow = { ...row, hash: 'Zz9Yy8Xx7w', name: 'Spammer' };
+    const fetchPage = vi
+      .spyOn(UserAdminApi, 'fetchPage')
+      .mockResolvedValue({ ok: true, data: [row, rowB], meta: { ...meta, total: 2 } });
+
+    const { result } = renderHook(() => useUserAdmin(), { wrapper: wrapperFor('/admin/users?page=2') });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.removeRow(rowB.hash));
+
+    expect(result.current.rows).toEqual([row]);
+    // No refetch: the admin stays on page 2 (FR-013).
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('removeRow is a no-op for a hash not on the page', async () => {
+    vi.spyOn(UserAdminApi, 'fetchPage').mockResolvedValue({ ok: true, data: [row], meta });
+
+    const { result } = renderHook(() => useUserAdmin(), { wrapper: wrapperFor('/admin/users') });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const before = result.current.rows;
+
+    act(() => result.current.removeRow('notonpage9'));
+
+    expect(result.current.rows).toEqual(before);
+  });
+
   it('drops a response that resolves after the hook unmounts', async () => {
     let resolveFetch: (result: { ok: true; data: UserRow[]; meta: typeof meta }) => void = () => undefined;
     const pending = new Promise<{ ok: true; data: UserRow[]; meta: typeof meta }>((resolve) => {

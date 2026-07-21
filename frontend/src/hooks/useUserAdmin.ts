@@ -58,6 +58,16 @@ export function useUserAdmin() {
     ));
   }
 
+  // Drop a deleted row from the page (the server returned 204 — the account no longer exists).
+  // No refetch: the admin stays on the current page; the meta counts stay as fetched until the
+  // next page load (acceptable staleness for a back-office table). A no-op if the row isn't on
+  // the loaded page. Mirrors useModeration.removeRow (FR-013).
+  function removeRow(hash: string): void {
+    setLoaded((current) => (
+      current === null ? current : { ...current, rows: UserAdminModel.dropRow(current.rows, hash) }
+    ));
+  }
+
   // Forget the failed result and bump the effect's retry key so the same page is fetched
   // again; `loading` flips true because `loaded` is null meanwhile.
   function retry(): void {
@@ -70,5 +80,5 @@ export function useUserAdmin() {
   const rows = loading || failed ? [] : loaded.rows;
   const meta = loading || failed ? null : loaded.meta;
   const empty = !loading && !failed && rows.length === 0;
-  return { rows, meta, loading, empty, failed, retry, applyRow };
+  return { rows, meta, loading, empty, failed, retry, applyRow, removeRow };
 }

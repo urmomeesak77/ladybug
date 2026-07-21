@@ -10,6 +10,7 @@ use App\Services\UserAdminService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Http\Response;
 
 /**
  * Admin account console API. The whole controller mounts behind auth:sanctum + role:admin
@@ -46,5 +47,16 @@ class UserAdminController extends Controller {
      */
     public function enable(Request $request, string $hash): JsonResource {
         return new AdminUserResource($this->service->enable($request->user(), $hash));
+    }
+
+    /**
+     * DELETE /api/admin/users/{hash} — permanently delete the account. 204 with no body on
+     * success (the SPA drops the row in place); the service enforces the strict-rank guard
+     * (403) and unknown-hash (404). The actor is the signed-in admin, never the body.
+     */
+    public function destroy(Request $request, string $hash): Response {
+        $this->service->destroy($request->user(), $hash);
+
+        return response()->noContent();
     }
 }

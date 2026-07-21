@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import NoticeProvider from '../../src/components/NoticeProvider';
 import UserAdminPage from '../../src/pages/UserAdminPage';
 import { AuthContext } from '../../src/hooks/useAuth';
 import type { AuthContextValue } from '../../src/hooks/useAuth';
@@ -45,9 +46,11 @@ const meta = { current_page: 1, last_page: 2, per_page: 100, total: 130 };
 function renderPage(initialPath = '/admin/users') {
   return render(
     <AuthContext.Provider value={auth}>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <UserAdminPage />
-      </MemoryRouter>
+      <NoticeProvider>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <UserAdminPage />
+        </MemoryRouter>
+      </NoticeProvider>
     </AuthContext.Provider>,
   );
 }
@@ -55,7 +58,7 @@ function renderPage(initialPath = '/admin/users') {
 describe('UserAdminPage', () => {
   it('renders the table and pagination once loaded', () => {
     useUserAdminMock.mockReturnValue({
-      rows: [row], meta, loading: false, empty: false, failed: false, retry: vi.fn(), applyRow: vi.fn(),
+      rows: [row], meta, loading: false, empty: false, failed: false, retry: vi.fn(), applyRow: vi.fn(), removeRow: vi.fn(),
     });
 
     const { container } = renderPage();
@@ -68,7 +71,7 @@ describe('UserAdminPage', () => {
 
   it('renders an explicit no-accounts state for an empty list (FR-017)', () => {
     useUserAdminMock.mockReturnValue({
-      rows: [], meta: null, loading: false, empty: true, failed: false, retry: vi.fn(), applyRow: vi.fn(),
+      rows: [], meta: null, loading: false, empty: true, failed: false, retry: vi.fn(), applyRow: vi.fn(), removeRow: vi.fn(),
     });
 
     const { container } = renderPage();
@@ -79,7 +82,7 @@ describe('UserAdminPage', () => {
 
   it('shows a loading indicator while the page is in flight', () => {
     useUserAdminMock.mockReturnValue({
-      rows: [], meta: null, loading: true, empty: false, failed: false, retry: vi.fn(), applyRow: vi.fn(),
+      rows: [], meta: null, loading: true, empty: false, failed: false, retry: vi.fn(), applyRow: vi.fn(), removeRow: vi.fn(),
     });
 
     renderPage();
@@ -89,7 +92,7 @@ describe('UserAdminPage', () => {
 
   it('renders an error state with retry on a failed fetch, never the empty message', () => {
     useUserAdminMock.mockReturnValue({
-      rows: [], meta: null, loading: false, empty: false, failed: true, retry: vi.fn(), applyRow: vi.fn(),
+      rows: [], meta: null, loading: false, empty: false, failed: true, retry: vi.fn(), applyRow: vi.fn(), removeRow: vi.fn(),
     });
 
     renderPage();

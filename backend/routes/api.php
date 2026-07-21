@@ -59,6 +59,10 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::get('/users', [UserAdminController::class, 'index'])->name('api.admin.users.index');
     Route::post('/users/{hash}/disable', [UserAdminController::class, 'disable'])->name('api.admin.users.disable');
     Route::post('/users/{hash}/enable', [UserAdminController::class, 'enable'])->name('api.admin.users.enable');
+    // Permanent account deletion (013). Hard delete guarded by the same strict-rank rule; the
+    // account's memes orphan and any account it disabled loses only the actor name, via the
+    // existing nullOnDelete FKs (contracts/admin-user-delete-api.md). {hash} is the public handle.
+    Route::delete('/users/{hash}', [UserAdminController::class, 'destroy'])->name('api.admin.users.destroy');
 });
 
 // Email verification (008). {hash} is sha1 of the recipient's email — never a DB
