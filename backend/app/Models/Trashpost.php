@@ -53,10 +53,6 @@ class Trashpost extends Model {
             'updated_at' => 'datetime',
             'activated_at' => 'datetime',
             'deleted_at' => 'datetime',
-            // Written only by RatingService — kept out of $fillable so no
-            // request body can replay or suppress a rating adjustment.
-            'rating_credited' => 'boolean',
-            'rating_penalized' => 'boolean',
         ];
     }
 }

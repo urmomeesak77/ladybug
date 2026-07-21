@@ -54,9 +54,8 @@ class ModerationService {
         DB::beginTransaction();
         try {
             $post = $this->find($hash);
-            // Credit only on a real transition, so a repeated activate is +1 in total
-            // (FR-014) and re-activating an already-live legacy meme cannot mint a
-            // credit it never held (SC-005 caps legacy memes at 0).
+            // Credit only on a real inactive→active transition, so repeated or concurrent
+            // activates total +1, never more (design 2026-07-21).
             if ($post->activated_at === null) {
                 $post->activated_at = now();
                 $post->save();
@@ -80,11 +79,14 @@ class ModerationService {
         DB::beginTransaction();
         try {
             $post = $this->find($hash);
-            // Release BEFORE clearing activated_at: RatingService reads "was this meme
-            // live?" to charge legacy memes that hold no credit flag (FR-002, SC-005).
-            $this->rating->releaseCredit($post);
-            $post->activated_at = null;
-            $post->save();
+            // Charge −1 only on a real active→inactive transition, so deactivating an
+            // already-inactive meme is a no-op and repeats cannot compound (design
+            // 2026-07-21). Release before clearing activated_at, both under one transaction.
+            if ($post->activated_at !== null) {
+                $this->rating->releaseCredit($post);
+                $post->activated_at = null;
+                $post->save();
+            }
             DB::commit();
         }
         catch (Throwable $e) {
@@ -105,11 +107,12 @@ class ModerationService {
         DB::beginTransaction();
         try {
             $post = $this->find($hash);
+            // Penalise only on a real live→trashed transition, so a repeat delete costs
+            // nothing further (design 2026-07-21).
             if (!$post->trashed()) {
                 $post->delete();
+                $this->rating->penalize($post);
             }
-            // Flag-guarded, so a repeat delete costs nothing further (FR-008).
-            $this->rating->penalize($post);
             DB::commit();
         }
         catch (Throwable $e) {
@@ -128,10 +131,12 @@ class ModerationService {
         DB::beginTransaction();
         try {
             $post = $this->find($hash);
+            // Refund only on a real trashed→live transition, so restoring an already-live
+            // meme is a no-op (design 2026-07-21).
             if ($post->trashed()) {
                 $post->restore();
+                $this->rating->refund($post);
             }
-            $this->rating->refund($post);
             DB::commit();
         }
         catch (Throwable $e) {
@@ -171,9 +176,13 @@ class ModerationService {
     /**
      * Resolve a meme by its public hash, including soft-deleted ones so a trashed meme is
      * still reachable for a state change (contract lookup semantics). Missing → 404.
+     *
+     * The row is locked for update: every caller reads the meme's state to decide whether
+     * a rating delta applies, and the lock serialises concurrent transitions on the same
+     * meme so the guard sees a settled state and a delta cannot double-apply.
      */
     private function find(string $hash): Trashpost {
-        return Trashpost::withTrashed()->where('hash', $hash)->firstOrFail();
+        return Trashpost::withTrashed()->where('hash', $hash)->lockForUpdate()->firstOrFail();
     }
 
     /**

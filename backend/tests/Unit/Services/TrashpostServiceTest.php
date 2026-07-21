@@ -269,7 +269,6 @@ final class TrashpostServiceTest extends TestCase {
         $post = (new TrashpostService())->createPost($member, 'Waiting', null, 'dQw4w9WgXcQ');
 
         $this->assertNull($post->activated_at);
-        $this->assertFalse($post->fresh()->rating_credited);
         $this->assertSame(RatingService::TRUST_THRESHOLD - 1, $member->fresh()->rating);
     }
 
@@ -287,7 +286,7 @@ final class TrashpostServiceTest extends TestCase {
         );
 
         $this->assertNull($post->activated_at);
-        $this->assertFalse($post->fresh()->rating_credited);
+        $this->assertSame(RatingService::TRUST_THRESHOLD - 1, $member->fresh()->rating);
     }
 
     public function test_a_trusted_members_youtube_upload_is_activated_and_credited(): void {
@@ -299,7 +298,6 @@ final class TrashpostServiceTest extends TestCase {
         $post = (new TrashpostService())->createPost($member, 'Live now', null, 'dQw4w9WgXcQ');
 
         $this->assertNotNull($post->activated_at);
-        $this->assertTrue($post->fresh()->rating_credited);
         $this->assertSame(RatingService::TRUST_THRESHOLD + 1, $member->fresh()->rating);
     }
 
@@ -315,7 +313,6 @@ final class TrashpostServiceTest extends TestCase {
         );
 
         $this->assertNotNull($post->activated_at);
-        $this->assertTrue($post->fresh()->rating_credited);
         $this->assertSame(RatingService::TRUST_THRESHOLD + 1, $member->fresh()->rating);
     }
 

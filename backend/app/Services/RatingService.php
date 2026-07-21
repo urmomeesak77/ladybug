@@ -7,20 +7,18 @@ namespace App\Services;
 use App\Enums\Role;
 use App\Models\Trashpost;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
-use Throwable;
 
 /**
  * The single owner of every rating adjustment. Nothing else in the codebase writes
  * `users.rating` — the column is out of $fillable precisely so this class is the only
  * path to it (FR-003).
  *
- * The design rests on two per-meme bookkeeping flags rather than on the meme's state
- * columns: `activated_at` says what a meme *is*, `rating_credited` says what has already
- * been *paid out* for it. Every delta is conditional on a flag actually changing, and
- * that one rule delivers no-drift across activate/deactivate cycles (FR-006), at most one
- * deletion penalty per meme (FR-008), and idempotency under repeats (FR-014) — instead of
- * three special cases.
+ * The rating is state-reflective (design 2026-07-21): each method moves the owner by a
+ * fixed ±1 and carries no per-meme bookkeeping. Whether a transition should move the
+ * rating at all is decided by the state guards in the caller (ModerationService), which
+ * lock the meme row so a repeated or concurrent transition converges to a single delta.
+ * This class only applies the delta — saturating at the column bounds and charging
+ * nobody when the meme has no owner.
  */
 class RatingService {
     /** An account at or above this rating publishes without waiting for a moderator (FR-016). */
@@ -52,94 +50,52 @@ class RatingService {
     }
 
     /**
-     * Activation credit: the meme starts earning its owner +1 (FR-005). A second call
-     * on an already-credited meme moves nothing (FR-006, FR-014).
+     * Activation credit: the newly-live meme earns its owner +1 (FR-005). The caller
+     * fires this only on a real inactive→active transition, so repeats cannot compound.
      */
     public function credit(Trashpost $post): void {
-        $this->settle($post, 'rating_credited', true, 1);
+        $this->adjust($post->user_id, 1);
     }
 
     /**
-     * Release an activation credit: the meme stops earning its +1 (FR-005).
-     *
-     * Charges on "was live", not on the credit flag alone. A meme activated before this
-     * feature shipped holds no credit — every account's baseline is 0 (FR-002) — yet the
-     * spec is explicit that deactivating one still costs the normal −1 (spec §Scope of the
-     * model, Edge Cases, and SC-005's −2..0 attributable range for legacy memes). Keying
-     * only on the flag would make those deactivations free, contradicting all three. A
-     * meme that was never live is still a no-op, and the charge cannot repeat because the
-     * caller clears `activated_at` in the same transaction.
+     * Release an activation credit on deactivation: −1 (FR-005). The caller guards this
+     * on the meme actually having been active, so a never-activated meme is never charged.
      */
     public function releaseCredit(Trashpost $post): void {
-        $this->settle($post, 'rating_credited', false, -1, chargeWhenLive: true);
+        $this->adjust($post->user_id, -1);
     }
 
     /**
-     * The single deletion penalty (FR-007). Once applied it never applies again unless
-     * the meme is restored first (FR-008).
+     * The deletion penalty: −1 (FR-007). The caller fires this only on a real
+     * live→trashed transition, so a repeated delete costs nothing further.
      */
     public function penalize(Trashpost $post): void {
-        $this->settle($post, 'rating_penalized', true, -1);
+        $this->adjust($post->user_id, -1);
     }
 
     /**
-     * Give back the deletion penalty on restore (FR-010), leaving the meme penalizable
-     * again should it be deleted a second time.
+     * Give back the deletion penalty on restore: +1 (FR-010). Fired only on a real
+     * trashed→live transition.
      */
     public function refund(Trashpost $post): void {
-        $this->settle($post, 'rating_penalized', false, 1);
+        $this->adjust($post->user_id, 1);
     }
 
     /**
-     * Settle a meme's whole rating contribution before its row is destroyed (FR-009).
-     * A live, credited meme costs its owner −2 here — the credit is released and the
-     * deletion penalty applied at once — which still leaves its lifetime total at −1,
-     * the same as every other route to deletion (US1 §9, SC-004).
-     *
-     * Nesting is deliberate: both calls open their own transaction, which Laravel
-     * resolves to a savepoint inside the caller's, so the pair commits or rolls back
-     * together whether or not a moderation transaction already encloses it.
+     * Settle a meme's rating before its row is destroyed (FR-009). Purge always costs
+     * the owner exactly −1, whatever the meme's state (design 2026-07-21).
      */
     public function settlePurge(Trashpost $post): void {
-        $this->releaseCredit($post);
-        $this->penalize($post);
-    }
-
-    /**
-     * Write the flag and, when the flag actually moves, the matching rating delta —
-     * atomically (FR-013). Rows are locked post-first-then-user, a fixed order, so two
-     * moderators acting on two memes of the same owner cannot deadlock.
-     *
-     * An unowned meme books its flag and charges nobody (FR-012); the action still
-     * succeeds. The rating is clamped rather than incremented, because a bare atomic
-     * increment can neither saturate (FR-011a) nor read-check the flag in one statement.
-     */
-    private function settle(Trashpost $post, string $flag, bool $target, int $delta, bool $chargeWhenLive = false): void {
-        DB::beginTransaction();
-        try {
-            // firstOrFail, not first: every call site holds a live row (purge settles
-            // before forceDelete), so a miss is a broken invariant that must surface
-            // and roll the enclosing transition back — never pass silently.
-            $locked = Trashpost::withTrashed()->whereKey($post->getKey())->lockForUpdate()->firstOrFail();
-            $charges = (bool) $locked->{$flag} !== $target
-                || ($chargeWhenLive && $locked->activated_at !== null);
-            $locked->{$flag} = $target;
-            $locked->save();
-            $post->{$flag} = $target;
-            if ($charges) {
-                $this->adjust($locked->user_id, $delta);
-            }
-            DB::commit();
-        }
-        catch (Throwable $e) {
-            DB::rollBack();
-            throw $e;
-        }
+        $this->adjust($post->user_id, -1);
     }
 
     /**
      * Move one account's rating by $delta, saturating at the column's bounds. A null
-     * owner is a no-op (FR-012).
+     * owner is a no-op (FR-012). Runs inside the caller's transaction so the rating and
+     * the state change it settles commit or roll back together (FR-013).
+     *
+     * The owner row is locked and the rating clamped (not a bare atomic increment) so the
+     * read-modify-write can saturate at the bounds (FR-011a) without a race.
      */
     private function adjust(?int $userId, int $delta): void {
         if ($userId === null) {

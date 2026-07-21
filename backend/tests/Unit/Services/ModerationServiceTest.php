@@ -363,15 +363,24 @@ final class ModerationServiceTest extends TestCase {
         $this->service()->activate($post->hash);
 
         $this->assertSame(1, $post->user->fresh()->rating);
-        $this->assertTrue($post->fresh()->rating_credited);
     }
 
     public function test_deactivate_releases_the_owners_credit(): void {
-        $post = $this->ownedPost(5, ['rating_credited' => true]);
+        $post = $this->ownedPost(5, ['activated_at' => now()]);
 
         $this->service()->deactivate($post->hash);
 
         $this->assertSame(4, $post->user->fresh()->rating);
+    }
+
+    public function test_deactivate_of_a_never_activated_meme_moves_nothing(): void {
+        // The −1 fires only on a real active→inactive transition; a meme that was never
+        // activated has no credit to release (design 2026-07-21).
+        $post = $this->ownedPost(5, ['activated_at' => null]);
+
+        $this->service()->deactivate($post->hash);
+
+        $this->assertSame(5, $post->user->fresh()->rating);
     }
 
     public function test_delete_penalizes_the_owner(): void {
@@ -380,11 +389,10 @@ final class ModerationServiceTest extends TestCase {
         $this->service()->delete($post->hash);
 
         $this->assertSame(4, $post->user->fresh()->rating);
-        $this->assertTrue($post->fresh()->rating_penalized);
     }
 
     public function test_restore_refunds_the_owners_penalty(): void {
-        $post = $this->ownedPost(5, ['deleted_at' => now(), 'rating_penalized' => true]);
+        $post = $this->ownedPost(5, ['deleted_at' => now()]);
 
         $this->service()->restore($post->hash);
 
@@ -392,15 +400,15 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_purge_settles_the_rating_before_the_row_is_destroyed(): void {
-        // A live, credited meme costs −2 in one operation (US1 §9). This assertion is
+        // Purge always costs the owner exactly −1 (design 2026-07-21). This assertion is
         // also the ordering proof: settle after forceDelete would find no row and
         // silently adjust nothing.
-        $post = $this->ownedPost(5, ['rating_credited' => true]);
+        $post = $this->ownedPost(5, ['activated_at' => now()]);
         $user = $post->user;
 
         $this->service()->purge($post->hash);
 
-        $this->assertSame(3, $user->fresh()->rating);
+        $this->assertSame(4, $user->fresh()->rating);
     }
 
     public function test_moderation_on_an_unowned_meme_succeeds_without_a_rating(): void {
@@ -410,7 +418,6 @@ final class ModerationServiceTest extends TestCase {
         $updated = $this->service()->activate($post->hash);
 
         $this->assertNotNull($updated->activated_at);
-        $this->assertTrue($post->fresh()->rating_credited);
     }
 
     public function test_a_failed_rating_write_rolls_back_the_state_change(): void {
@@ -432,7 +439,7 @@ final class ModerationServiceTest extends TestCase {
     }
 
     public function test_a_failed_rating_write_rolls_back_a_deactivate(): void {
-        $post = $this->ownedPost(5, ['rating_credited' => true]);
+        $post = $this->ownedPost(5, ['activated_at' => now()]);
 
         $this->assertRatingFailureRollsBack('deactivate', $post);
 
@@ -458,7 +465,7 @@ final class ModerationServiceTest extends TestCase {
     public function test_a_failed_rating_write_rolls_back_a_purge(): void {
         // The strongest of the five: a lost rating settlement must not take the row
         // with it, or the meme is gone and the owner was never charged (FR-013).
-        $post = $this->ownedPost(5, ['rating_credited' => true]);
+        $post = $this->ownedPost(5, ['activated_at' => now()]);
 
         $this->assertRatingFailureRollsBack('purge', $post);
 
@@ -505,13 +512,15 @@ final class ModerationServiceTest extends TestCase {
         $this->assertSame(-1, $post->user->fresh()->rating);
     }
 
-    public function test_activate_then_purge_nets_minus_one(): void {
+    public function test_activate_then_purge_nets_zero(): void {
+        // +1 to activate, −1 to purge: the meme is gone and left the owner where it
+        // found them (design 2026-07-21 — purge is a flat −1, not the old −2).
         $post = $this->ownedPost(0, ['activated_at' => null]);
 
         $this->service()->activate($post->hash);
         $this->service()->purge($post->hash);
 
-        $this->assertSame(-1, $post->user->fresh()->rating);
+        $this->assertSame(0, $post->user->fresh()->rating);
     }
 
     public function test_activation_churn_cannot_farm_rating(): void {

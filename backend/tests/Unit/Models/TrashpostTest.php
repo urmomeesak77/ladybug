@@ -33,38 +33,6 @@ final class TrashpostTest extends TestCase {
         }
     }
 
-    public function test_rating_flags_default_to_false(): void {
-        $post = new Trashpost();
-        $post->hash = 'ratingflg1';
-        $post->save();
-
-        $fresh = $post->fresh();
-        $this->assertFalse($fresh->rating_credited);
-        $this->assertFalse($fresh->rating_penalized);
-    }
-
-    public function test_rating_flags_hydrate_as_booleans(): void {
-        $casts = (new Trashpost())->getCasts();
-
-        $this->assertSame('boolean', $casts['rating_credited']);
-        $this->assertSame('boolean', $casts['rating_penalized']);
-    }
-
-    public function test_rating_flags_are_not_mass_assignable(): void {
-        // The flags are the idempotency ledger RatingService writes; a request
-        // body must never be able to replay or suppress an adjustment.
-        $post = new Trashpost();
-        $post->hash = 'notfilled1';
-        $post->fill(['rating_credited' => true, 'rating_penalized' => true]);
-        $post->save();
-
-        // fill() drops both keys outright, so the row lands on its column
-        // defaults rather than the values the caller asked for.
-        $fresh = $post->fresh();
-        $this->assertFalse($fresh->rating_credited);
-        $this->assertFalse($fresh->rating_penalized);
-    }
-
     public function test_soft_delete_hides_the_row_and_sets_deleted_at(): void {
         // hash is identity, not content — no longer mass assignable (see
         // $fillable), so it is set explicitly like in the sibling tests.

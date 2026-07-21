@@ -100,8 +100,7 @@ class TrashpostService {
     /**
      * Publish an upload from a trusted account and pay its owner the same +1 a moderator's
      * activation would (FR-019). Both writes share one transaction (FR-013): a failed
-     * credit must not leave a live post that can never be credited, since the flag would
-     * then bar the +1 forever.
+     * credit must not leave an activated post whose owner was never paid.
      */
     private function activate(Trashpost $post): void {
         DB::beginTransaction();

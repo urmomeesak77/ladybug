@@ -47,9 +47,15 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
   `ModerationService` and `MediaVisibilityService`, which moves a non-public meme's
   bytes off the `public` disk so hidden media is not URL-addressable.
 - **011-user-rating-auto-activation** — a signed `users.rating` column (never exposed by
-  any API) driven solely by `RatingService`: +1 while a meme is live, −1 once on
-  deletion, settled atomically inside each moderation transition via the per-meme
-  `rating_credited` / `rating_penalized` flags. Uploads are no longer activated
+  any API) driven solely by `RatingService`. The model is **state-reflective** (redesign
+  2026-07-21, `docs/superpowers/specs/2026-07-21-rating-state-reflective-design.md`): each
+  method applies a fixed ±1 — **activate +1** (manual or auto), **deactivate −1**,
+  **soft-delete −1**, **restore +1**, and **purge a flat −1** whatever the state. There is
+  no per-meme ledger (the old `rating_credited` / `rating_penalized` flags were dropped);
+  idempotency comes from the state guards in `ModerationService`, whose `find()` locks the
+  row so a repeated/concurrent transition converges to a single delta, and each delta commits
+  atomically inside the transition (FR-013). Deletion is now **reversible** (soft-delete −1 /
+  restore +1 cancel), unlike the original permanent-penalty model. Uploads are not activated
   unconditionally — `createPost()` activates only for an uploader at or above
   `TRUST_THRESHOLD = 15` or holding admin+; everyone else's upload is created **pending**
   with its media hidden until a moderator activates it. The rating is purely internal —
