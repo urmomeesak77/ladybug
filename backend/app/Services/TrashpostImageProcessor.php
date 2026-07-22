@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Support\GifFile;
 use App\Support\ImageFile;
 use App\Support\MediaPath;
+use App\Support\WebpFile;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
@@ -20,6 +21,7 @@ class TrashpostImageProcessor {
     public function __construct(
         private readonly ImageFile $imageFile = new ImageFile(),
         private readonly GifFile $gifFile = new GifFile(),
+        private readonly WebpFile $webpFile = new WebpFile(),
     ) {
     }
 
@@ -70,25 +72,38 @@ class TrashpostImageProcessor {
         return match ($file->getMimeType()) {
             'image/png' => 'png',
             'image/gif' => 'gif',
+            'image/webp' => 'webp',
             default => 'jpg',
         };
     }
 
     private function generateVariants(string $hash, string $ext, string $originalPath, int $width): void {
+        // Pick the resizer once: animated formats (GIF, animated WebP) need a frame-preserving
+        // CLI; everything else (incl. static WebP) resizes in GD via ImageFile.
+        $resizer = $this->resizerFor($ext, $originalPath);
         foreach (MediaPath::imageSizes() as $size) {
             if ($size === 'original' || (int) $size >= $width) {
                 continue;
             }
             $variantPath = Storage::disk('public')->path(MediaPath::imageRelativePath($size, $hash, $ext));
             File::ensureDirectoryExists(dirname($variantPath));
-            // GIFs go through gifsicle: GD would flatten animation to the first frame.
-            if ($ext === 'gif') {
-                $this->gifFile->scaledDownCopy($originalPath, $variantPath, (int) $size);
-            }
-            else {
-                $this->imageFile->scaledDownCopy($originalPath, $variantPath, (int) $size);
-            }
+            $resizer->scaledDownCopy($originalPath, $variantPath, (int) $size);
         }
+    }
+
+    /**
+     * GD flattens animation to the first frame, so animated formats resize through a CLI:
+     * GIF via gifsicle, animated WebP via ImageMagick. Static WebP stays on the GD path.
+     */
+    private function resizerFor(string $ext, string $originalPath): ImageFile|GifFile|WebpFile {
+        if ($ext === 'gif') {
+            return $this->gifFile;
+        }
+        if ($ext === 'webp' && $this->webpFile->isAnimated($originalPath)) {
+            return $this->webpFile;
+        }
+
+        return $this->imageFile;
     }
 
     private function metadata(int $width, int $height, string $path): string {

@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use App\Services\TrashpostImageProcessor;
+use App\Support\GifFile;
+use App\Support\ImageFile;
 use App\Support\MediaPath;
+use App\Support\WebpFile;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class TrashpostImageProcessorTest extends TestCase {
@@ -19,6 +23,14 @@ class TrashpostImageProcessorTest extends TestCase {
     private function image(string $name, int $w, int $h): UploadedFile {
         // UploadedFile::fake()->image() draws a real GD image of the given size.
         return UploadedFile::fake()->image($name, $w, $h);
+    }
+
+    /** A real 400px-wide WebP fixture (static or animated) presented as an upload. */
+    private function webpUpload(string $fixture): UploadedFile {
+        $tmp = tempnam(sys_get_temp_dir(), 'webp');
+        copy(dirname(__DIR__, 2) . "/fixtures/{$fixture}", $tmp);
+
+        return new UploadedFile($tmp, $fixture, 'image/webp', null, true);
     }
 
     public function test_stores_original_and_returns_row_fields(): void {
@@ -68,6 +80,38 @@ class TrashpostImageProcessorTest extends TestCase {
         // GIF variants are made by gifsicle (not GD) so animation frames survive.
         $disk->assertExists(MediaPath::imageRelativePath('800', 'abc1234567', 'gif'));
         $disk->assertExists(MediaPath::imageRelativePath('100', 'abc1234567', 'gif'));
+    }
+
+    public function test_maps_webp_mime_to_a_webp_extension(): void {
+        $result = (new TrashpostImageProcessor())->process($this->webpUpload('static.webp'), 'abc1234567');
+
+        $this->assertSame('abc1234567.webp', $result['file']);
+        Storage::disk('public')->assertExists(MediaPath::imageRelativePath('original', 'abc1234567', 'webp'));
+    }
+
+    public function test_routes_a_static_webp_through_gd_not_imagemagick(): void {
+        // A static WebP resizes fine in GD; ImageMagick (WebpFile) is reserved for animation.
+        $webp = Mockery::mock(WebpFile::class);
+        $webp->shouldReceive('isAnimated')->andReturnFalse();
+        $webp->shouldNotReceive('scaledDownCopy');
+        $processor = new TrashpostImageProcessor(new ImageFile(), new GifFile(), $webp);
+
+        $processor->process($this->webpUpload('static.webp'), 'abc1234567');
+
+        // The GD path produced the narrower variant (fixture is 400px wide, so 100 exists).
+        Storage::disk('public')->assertExists(MediaPath::imageRelativePath('100', 'abc1234567', 'webp'));
+    }
+
+    public function test_routes_an_animated_webp_through_imagemagick(): void {
+        // Animated WebP must go to WebpFile so frames survive; assert it is the resizer invoked.
+        $webp = Mockery::mock(WebpFile::class);
+        $webp->shouldReceive('isAnimated')->andReturnTrue();
+        $webp->shouldReceive('scaledDownCopy')->andReturnTrue();
+        $processor = new TrashpostImageProcessor(new ImageFile(), new GifFile(), $webp);
+
+        $processor->process($this->webpUpload('animated.webp'), 'abc1234567');
+
+        $webp->shouldHaveReceived('scaledDownCopy');
     }
 
     public function test_extension_is_derived_from_content_not_the_client_filename(): void {

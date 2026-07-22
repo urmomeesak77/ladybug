@@ -7,7 +7,8 @@ namespace App\Support;
 /**
  * Thin ext-gd wrapper for upload processing (Principle I — no image package). Operates on
  * real filesystem paths so it can run against the public disk's backing files (incl.
- * Storage::fake in tests). Supports jpg/png/gif — the only types the upload validator admits.
+ * Storage::fake in tests). Handles jpg/png/gif and static WebP — animated WebP goes through
+ * WebpFile (ImageMagick) instead, since GD would flatten it to one frame.
  */
 class ImageFile {
     /**
@@ -58,6 +59,7 @@ class ImageFile {
         $img = match ($ext) {
             'png' => imagecreatefrompng($path),
             'gif' => imagecreatefromgif($path),
+            'webp' => imagecreatefromwebp($path),
             default => imagecreatefromjpeg($path),
         };
         if ($img === false) {
@@ -80,6 +82,7 @@ class ImageFile {
         $ok = match ($ext) {
             'png' => imagepng($img, $path),
             'gif' => imagegif($img, $path),
+            'webp' => imagewebp($img, $path, 85),
             default => imagejpeg($img, $path, 85),
         };
         if ($ok === false) {

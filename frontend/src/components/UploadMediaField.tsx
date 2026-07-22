@@ -32,7 +32,7 @@ function UploadMediaField({ mode, youtube, errors, onFile, onYoutube }: {
       <input
         id="image"
         type="file"
-        accept="image/jpeg,image/png,image/gif"
+        accept="image/jpeg,image/png,image/gif,image/webp"
         aria-invalid={errors.image ? true : undefined}
         aria-describedby={errors.image ? 'image-error' : undefined}
         onChange={(event) => onFile(event.target.files?.[0] ?? null)}

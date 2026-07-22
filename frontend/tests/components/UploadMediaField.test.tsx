@@ -25,7 +25,7 @@ describe('UploadMediaField', () => {
 
     const input = screen.getByLabelText('Image file');
     expect(input.getAttribute('type')).toBe('file');
-    expect(input.getAttribute('accept')).toBe('image/jpeg,image/png,image/gif');
+    expect(input.getAttribute('accept')).toBe('image/jpeg,image/png,image/gif,image/webp');
     expect(screen.queryByRole('alert')).toBeNull();
   });
 

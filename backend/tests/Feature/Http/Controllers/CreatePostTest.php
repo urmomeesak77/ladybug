@@ -67,6 +67,65 @@ class CreatePostTest extends TestCase {
         $this->assertSame($user->id, $post->user_id);
     }
 
+    /** A real 400px-wide WebP fixture (static or animated) presented as an upload. */
+    private function webpUpload(string $fixture): UploadedFile {
+        $tmp = tempnam(sys_get_temp_dir(), 'webp');
+        copy(dirname(__DIR__, 3) . "/fixtures/{$fixture}", $tmp);
+
+        return new UploadedFile($tmp, $fixture, 'image/webp', null, true);
+    }
+
+    public function test_static_webp_upload_is_created_with_webp_variants(): void {
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD);
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'A static webp',
+            'image' => $this->webpUpload('static.webp'),
+        ]);
+
+        $response->assertCreated();
+        $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
+        $code = pathinfo($post->file, PATHINFO_FILENAME);
+        $this->assertSame('webp', pathinfo($post->file, PATHINFO_EXTENSION));
+        // Fixture is 400px wide, so the original plus the narrower 100 variant exist as .webp.
+        Storage::disk('public')->assertExists(MediaPath::imageRelativePath('original', $code, 'webp'));
+        Storage::disk('public')->assertExists(MediaPath::imageRelativePath('100', $code, 'webp'));
+    }
+
+    public function test_animated_webp_upload_keeps_every_variant_animated(): void {
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD);
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'An animated webp',
+            'image' => $this->webpUpload('animated.webp'),
+        ]);
+
+        $response->assertCreated();
+        $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
+        $code = pathinfo($post->file, PATHINFO_FILENAME);
+        $disk = Storage::disk('public');
+        // Every downscaled variant must still animate — ANMF chunks are the per-frame markers,
+        // so more than one means the resize preserved the animation (never GD-flattened).
+        foreach (['300', '100'] as $size) {
+            $path = $disk->path(MediaPath::imageRelativePath($size, $code, 'webp'));
+            $this->assertGreaterThan(1, substr_count((string) file_get_contents($path), 'ANMF'), "variant {$size} lost its frames");
+        }
+    }
+
+    public function test_rejects_a_malformed_webp(): void {
+        // A .webp whose bytes are not a real image fails the `image`/`mimes` well-formedness
+        // check, so widening the allow-list to WebP did not relax validation (FR-013).
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Fake webp',
+            'image' => UploadedFile::fake()->create('bad.webp', 10, 'application/octet-stream'),
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('image');
+        $this->assertDatabaseCount('trashposts', 0);
+    }
+
     public function test_authenticated_youtube_upload_stores_only_the_id(): void {
         $user = User::factory()->create();
 

@@ -82,6 +82,17 @@ class ImageFileTest extends TestCase {
         $this->assertSame([200, 100], (new ImageFile())->dimensions($dest));
     }
 
+    public function test_scaled_down_copy_handles_static_webp(): void {
+        // Static WebP flows through the GD path (imagecreatefromwebp / imagewebp), same as the
+        // other formats — only animated WebP needs ImageMagick (App\Support\WebpFile).
+        $src = $this->makeImage('src.webp', 1000, 500, 'imagewebp');
+        $dest = "{$this->dir}/dest.webp";
+
+        $this->assertTrue((new ImageFile())->scaledDownCopy($src, $dest, 200));
+        $this->assertSame([200, 100], (new ImageFile())->dimensions($dest));
+        $this->assertSame('image/webp', (new ImageFile())->mime($dest));
+    }
+
     public function test_scaled_down_copy_throws_when_the_destination_is_unwritable(): void {
         $src = $this->makeJpeg('src.jpg', 1000, 500);
         // Parent directory does not exist, so the GD write fails — must surface, not swallow.

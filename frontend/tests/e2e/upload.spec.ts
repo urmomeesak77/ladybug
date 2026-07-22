@@ -30,6 +30,16 @@ const PNG_1X1 = Buffer.from(
   'base64',
 );
 
+// A real 400x200 static WebP (same bytes as backend/tests/fixtures/static.webp) — proves the
+// WebP path (GD --with-webp + imagemagick) works end-to-end through the isolated stack.
+const WEBP_STATIC = Buffer.from(
+  'UklGRv4AAABXRUJQVlA4IPIAAAAwFQCdASqQAcgAPpFIoU0lpCMiICgAsBIJaW7hd2EaHAAAE94JyHvtk5D32ych77ZOQ99snIe+2TkP'
+  + 'fbJyHvtk5D32ygZeLk5D32ych77ZjLT2ych77ZOQ99uZfp7ZOQ99snIe/AEA99snIe+2TkPgP0u14uTkPfbJyH0L6Xa8XJyHvtk5EQP'
+  + 'JyHvtk5D32ycj/nk5D32ych77ZOcRFych77ZOQ99soGXi5OQ99snIe9IAAP7/rxRf/9izlsC8f//7nA/7nA/7nA/jbhYyU2gmw9bAQJ'
+  + 'vPmkXzZz5s582c+bOfNnPmznzZz5s582c+YAAAAA==',
+  'base64',
+);
+
 async function verify(page: import('@playwright/test').Page, email: string): Promise<void> {
   await expect(page).toHaveURL('/verify-email');
   const link = MailLog.latestVerificationLink(email);
@@ -40,7 +50,9 @@ async function verify(page: import('@playwright/test').Page, email: string): Pro
 
 async function uploadImage(page: import('@playwright/test').Page, title: string): Promise<void> {
   await page.goto('/upload');
-  await page.getByLabel('Image', { exact: true }).check();
+  // The media chooser is now a tablist (US2); Image is the default tab. Select it explicitly
+  // so the step is robust and exercises the tab.
+  await page.getByRole('tab', { name: 'Image' }).click();
   await page.getByLabel('Title').fill(title);
   await page.getByLabel('Image file').setInputFiles({
     name: 'meme.png',
@@ -71,6 +83,35 @@ test.describe('Upload', () => {
     // work. This asserts today's behaviour rather than endorsing it.
     await expect(page).toHaveURL(/\/posts\/[A-Za-z0-9_-]{10}$/);
     await expect(page.locator('img.meme-media__image')).toHaveCount(0);
+  });
+
+  test('accepts a WebP upload and enforces the required title and media tabs', async ({ page }) => {
+    const email = uniqueEmail();
+    await register(page, email);
+    await verify(page, email);
+    await page.goto('/upload');
+
+    // Required title (US1): an empty title blocks the post with a field error, no navigation.
+    await page.getByLabel('Image file').setInputFiles({ name: 'm.webp', mimeType: 'image/webp', buffer: WEBP_STATIC });
+    await page.getByRole('button', { name: 'Post' }).click();
+    await expect(page.getByRole('alert')).toContainText(/title/i);
+    await expect(page).toHaveURL('/upload');
+
+    // Media tabs (US2): switching to YouTube swaps the input, and back to Image restores it —
+    // only the active tab's input is ever in the DOM.
+    await page.getByRole('tab', { name: 'YouTube' }).click();
+    await expect(page.getByLabel('YouTube link')).toBeVisible();
+    await expect(page.getByLabel('Image file')).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Image' }).click();
+    await expect(page.getByLabel('Image file')).toBeVisible();
+
+    // A valid WebP + title is accepted (US3) and routes to the new meme's permalink. As with a
+    // fresh member's PNG upload above, the meme is created pending, so this asserts acceptance
+    // (the route), not public visibility.
+    await page.getByLabel('Title').fill('My webp meme');
+    await page.getByLabel('Image file').setInputFiles({ name: 'm.webp', mimeType: 'image/webp', buffer: WEBP_STATIC });
+    await page.getByRole('button', { name: 'Post' }).click();
+    await expect(page).toHaveURL(/\/posts\/[A-Za-z0-9_-]{10}$/);
   });
 
   test('a moderator activates a pending upload and it reaches the feed', async ({ page }) => {

@@ -140,55 +140,55 @@ its animation in every size variant; a malformed/oversized "webp" is rejected `4
 
 ### Environment setup for User Story 3
 
-- [ ] T018 [US3] In `docker/php/Dockerfile` add the `imagemagick` apt package and `libwebp-dev`,
+- [X] T018 [US3] In `docker/php/Dockerfile` add the `imagemagick` apt package and `libwebp-dev`,
   and rebuild GD with `--with-webp`; record the owner-approved ImageMagick rationale in a comment
   (research R1/R2). Rebuild: `docker compose build backend && docker compose up -d backend`.
-- [ ] T019 [P] [US3] In `.github/workflows/ci.yml` install `imagemagick` in **both** the `backend`
+- [X] T019 [P] [US3] In `.github/workflows/ci.yml` install `imagemagick` in **both** the `backend`
   job (extend the gifsicle step) and the `e2e` job image, and assert GD WebP support in the
   `backend` job. The backend coverage gate (T032, Principle VII) exercises `WebpFile`'s real
   `convert` call, so imagemagick must be present there — not only in e2e; the WebP e2e spec needs
   it in the e2e image.
-- [ ] T020 [P] [US3] Add WebP test fixtures — one valid **static** `.webp` and one valid
+- [X] T020 [P] [US3] Add WebP test fixtures — one valid **static** `.webp` and one valid
   **animated** (multi-frame) `.webp` — alongside the existing image fixtures used by
   `CreatePostTest` / `ImageFileTest` under `backend/tests/`.
 
 ### Tests for User Story 3 (write first — must FAIL) ⚠️
 
-- [ ] T021 [P] [US3] Create `backend/tests/Unit/Support/WebpFileTest.php`: `WebpFile::isAnimated`
+- [X] T021 [P] [US3] Create `backend/tests/Unit/Support/WebpFileTest.php`: `WebpFile::isAnimated`
   returns `false` for the static fixture and `true` for the animated one; the resize produces a
   downscaled variant whose frame count is > 1 for the animated input.
-- [ ] T022 [P] [US3] Extend `backend/tests/Unit/Support/ImageFileTest.php`: the WebP read/write
+- [X] T022 [P] [US3] Extend `backend/tests/Unit/Support/ImageFileTest.php`: the WebP read/write
   branch (`imagecreatefromwebp` / `imagewebp`) scales and writes a valid `.webp`.
-- [ ] T023 [P] [US3] Extend `backend/tests/Unit/Services/TrashpostImageProcessorTest.php`:
+- [X] T023 [P] [US3] Extend `backend/tests/Unit/Services/TrashpostImageProcessorTest.php`:
   `image/webp` maps to the `webp` stored extension; a **static** WebP dispatches to `ImageFile`
   and an **animated** WebP dispatches to `WebpFile`.
-- [ ] T024 [P] [US3] Extend `backend/tests/Feature/Http/Controllers/CreatePostTest.php`: valid
+- [X] T024 [P] [US3] Extend `backend/tests/Feature/Http/Controllers/CreatePostTest.php`: valid
   static WebP + title ⇒ `201` with `.webp` original + variants; valid animated WebP + title ⇒
   `201` with every variant animated (frame count > 1); malformed "webp" ⇒ `422` `errors.image`.
-- [ ] T025 [P] [US3] Extend `frontend/tests/components/UploadMediaField.test.tsx`: the image file
+- [X] T025 [P] [US3] Extend `frontend/tests/components/UploadMediaField.test.tsx`: the image file
   input's `accept` includes `image/webp`.
 
 ### Implementation for User Story 3
 
-- [ ] T026 [P] [US3] In `backend/app/Support/ImageFile.php` add WebP read (`imagecreatefromwebp`)
+- [X] T026 [P] [US3] In `backend/app/Support/ImageFile.php` add WebP read (`imagecreatefromwebp`)
   and write (`imagewebp`) branches; `imagescale` handles the resize (research R2).
-- [ ] T027 [P] [US3] Create `backend/app/Support/WebpFile.php`: `isAnimated(path)` via in-house
+- [X] T027 [P] [US3] Create `backend/app/Support/WebpFile.php`: `isAnimated(path)` via in-house
   RIFF/`VP8X` header parse (research R3) and a frame-preserving resize invoking ImageMagick
   through a Symfony `Process` **argv array** (`convert in -coalesce -resize {w}x -layers optimize
   out`) — never a shell string; `declare(strict_types=1)`, methods ≤30 lines (mirror `GifFile`).
-- [ ] T028 [US3] In `backend/app/Services/TrashpostImageProcessor.php` map the validated
+- [X] T028 [US3] In `backend/app/Services/TrashpostImageProcessor.php` map the validated
   `image/webp` MIME to the `webp` extension and dispatch static→`ImageFile`, animated→`WebpFile`;
   size-variant set, `MediaPath` layout, never-upscale, and rollback-on-failure unchanged (depends
   on T026, T027).
-- [ ] T029 [P] [US3] In `backend/app/Http/Requests/CreatePostRequest.php` add `webp` to the
+- [X] T029 [P] [US3] In `backend/app/Http/Requests/CreatePostRequest.php` add `webp` to the
   `image` rule's `mimes:` list (keep `max:10240` and `image` well-formedness — nothing else
   relaxed, FR-013).
-- [ ] T030 [P] [US3] In `frontend/src/components/UploadMediaField.tsx` add `image/webp` to the
+- [X] T030 [P] [US3] In `frontend/src/components/UploadMediaField.tsx` add `image/webp` to the
   file input's `accept` attribute.
 
 ### End-to-end for User Story 3
 
-- [ ] T031 [US3] Extend `frontend/tests/e2e/upload.spec.ts`: WebP upload succeeds and appears; the
+- [X] T031 [US3] Extend `frontend/tests/e2e/upload.spec.ts`: WebP upload succeeds and appears; the
   required-title rule and tab-switch behavior are exercised end-to-end (runs via `scripts\e2e.ps1`
   against the isolated stack; needs T018/T019).
 
@@ -200,15 +200,15 @@ its animation in every size variant; a malformed/oversized "webp" is rejected `4
 
 **Purpose**: Run the real CI gates and validate end-to-end.
 
-- [ ] T032 [P] Backend gate (Docker): `docker compose exec backend php artisan test --coverage` —
+- [X] T032 [P] Backend gate (Docker): `docker compose exec backend php artisan test --coverage` —
   all green, ≥90% line coverage; `docker compose exec backend ./vendor/bin/pint --test` clean.
-- [ ] T033 [P] Frontend gate: `cd frontend; npm run lint; npm run test -- --coverage` — all green,
+- [X] T033 [P] Frontend gate: `cd frontend; npm run lint; npm run test -- --coverage` — all green,
   ≥90% over all of `src/` (new `MediaTabs`, `useTabsKeyboard`, and edited modules covered).
-- [ ] T034 E2E gate: `scripts\e2e.ps1` — the upload spec (WebP + required-title + tab-switch)
+- [X] T034 E2E gate: `scripts\e2e.ps1` — the upload spec (WebP + required-title + tab-switch)
   passes against the isolated stack with imagemagick + libwebp present.
-- [ ] T035 Run the `quickstart.md` manual validation scenarios (US1/US2/US3 + SC-006 regression:
+- [X] T035 Run the `quickstart.md` manual validation scenarios (US1/US2/US3 + SC-006 regression:
   JPEG/PNG/animated-GIF/YouTube still succeed with the new required title).
-- [ ] T036 Dispatch the `commit-quality-verifier` subagent on the staged diff; commit only on PASS
+- [X] T036 Dispatch the `commit-quality-verifier` subagent on the staged diff; commit only on PASS
   (Constitution, conventions, ≥90% coverage, Principle VI security, minimal-deps).
 
 ---
