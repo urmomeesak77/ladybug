@@ -114,4 +114,23 @@ final class TrashpostImageServiceTest extends TestCase {
 
         $this->assertSame(['original' => null, 'default' => null, 'sizes' => []], $data);
     }
+
+    public function test_lists_the_1200_size_widest_first_when_present(): void {
+        $this->putSize('1200');
+        $this->putSize('800');
+        $this->putSize('300');
+
+        $data = $this->service()->imageData($this->imagePost());
+
+        // 1200 is the widest numeric size and must lead the list.
+        $this->assertSame([1200, 800, 300], array_column($data['sizes'], 'width'));
+    }
+
+    public function test_default_still_prefers_800_even_when_1200_exists(): void {
+        $this->putSize('1200');
+        $this->putSize('800');
+
+        // The src fallback stays 800; the large sizes are served through srcset, not default.
+        $this->assertSame($this->urlFor('800'), $this->service()->imageData($this->imagePost())['default']);
+    }
 }
