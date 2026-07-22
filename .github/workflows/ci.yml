@@ -43,10 +43,18 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      # gifsicle: animated-GIF variant generation (App\Support\GifFile) — the unit
-      # tests shell out to the real binary, same as the ladybug-php dev image.
-      - name: Install gifsicle
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gifsicle
+      # gifsicle + imagemagick: animated-media variant generation. gifsicle
+      # resizes animated GIFs (App\Support\GifFile); imagemagick (`convert`)
+      # resizes animated WebP frame-preserving (App\Support\WebpFile) — the
+      # owner-approved 2026-07-22 dependency. Both are shelled out to by the
+      # unit/feature tests, same as the ladybug-php dev image.
+      - name: Install gifsicle + imagemagick
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gifsicle imagemagick
+
+      # WebP read/write (App\Support\ImageFile) needs GD built with WebP; the
+      # setup-php GD normally includes it — fail loudly here if it ever does not.
+      - name: Assert GD WebP support
+        run: php -r 'exit(function_exists("imagecreatefromwebp") ? 0 : 1);'
 
       - name: Prepare environment
         run: |

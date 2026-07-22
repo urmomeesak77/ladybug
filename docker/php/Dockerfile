@@ -3,13 +3,15 @@
 # production image (FR-009).
 FROM php:8.3-cli
 
-# System libraries required to build the bundled PHP extensions below, plus
-# gifsicle: animated-GIF resizing for upload size variants (approved dependency —
-# GD can only read the first frame, so resizing GIFs in PHP would flatten them).
+# System libraries required to build the bundled PHP extensions below, plus two
+# approved animated-media resizers (GD only reads the first frame, so resizing in
+# PHP would flatten them): gifsicle for animated GIFs, and imagemagick (`convert`)
+# for animated WebP (owner-approved 2026-07-22). libwebp-dev enables GD's WebP
+# read/write for static WebP (--with-webp below).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        git unzip libzip-dev libpng-dev libjpeg62-turbo-dev libfreetype6-dev \
-        gifsicle \
+        git unzip libzip-dev libpng-dev libjpeg62-turbo-dev libfreetype6-dev libwebp-dev \
+        gifsicle imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
 # pdo_mysql: app database driver. zip: composer dist installs. bcmath:
@@ -21,7 +23,7 @@ RUN apt-get update \
 # releases available for package pecl.php.net/pcov" often enough to take the e2e
 # job down twice, and retrying does not help a registry-side failure.
 ENV PCOV_VERSION=1.0.12
-RUN docker-php-ext-configure gd --with-jpeg --with-freetype \
+RUN docker-php-ext-configure gd --with-jpeg --with-freetype --with-webp \
     && docker-php-ext-install pdo_mysql zip bcmath gd \
     && mkdir -p /usr/src/pcov \
     && curl -fsSL "https://codeload.github.com/krakjoe/pcov/tar.gz/refs/tags/v${PCOV_VERSION}" \
