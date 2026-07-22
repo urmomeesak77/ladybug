@@ -4,8 +4,28 @@ import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import HomePage from '../../src/pages/HomePage';
+import NoticeProvider from '../../src/components/NoticeProvider';
+import { AuthContext } from '../../src/hooks/useAuth';
+import type { AuthContextValue } from '../../src/hooks/useAuth';
 import { Api } from '../../src/lib/api';
+import type { RoleName } from '../../src/lib/role';
 import type { FeedPost } from '../../src/lib/feedModel';
+
+// A minimal AuthContext value; HomePage reads only `role` to decide the admin kebab.
+function auth(role: RoleName): AuthContextValue {
+  return {
+    status: role === 'guest' ? 'anonymous' : 'authenticated',
+    user: role === 'guest' ? null : {
+      hash: 'u000000001', name: 'Admin', email: 'a@example.test',
+      emailVerifiedAt: null, role, createdAt: '', updatedAt: '',
+    },
+    role,
+    register: async () => ({ ok: true, user: null as never }),
+    login: async () => ({ ok: true, user: null as never }),
+    logout: async () => {},
+    refresh: async () => {},
+  };
+}
 
 function post(hash: string): FeedPost {
   return {
@@ -38,11 +58,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderHome(path = '/') {
+function renderHome(path = '/', role: RoleName = 'guest') {
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <HomePage />
-    </MemoryRouter>,
+    <AuthContext.Provider value={auth(role)}>
+      <NoticeProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <HomePage />
+        </MemoryRouter>
+      </NoticeProvider>
+    </AuthContext.Provider>,
   );
 }
 
@@ -89,10 +113,14 @@ describe('HomePage', () => {
     const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(3, 'b') });
 
     render(
-      <MemoryRouter initialEntries={['/']}>
-        <Link to="/">Home</Link>
-        <HomePage />
-      </MemoryRouter>,
+      <AuthContext.Provider value={auth('guest')}>
+        <NoticeProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <Link to="/">Home</Link>
+            <HomePage />
+          </MemoryRouter>
+        </NoticeProvider>
+      </AuthContext.Provider>,
     );
 
     // The initial mount is a POP navigation: it hydrates the snapshot without fetching.
@@ -107,5 +135,22 @@ describe('HomePage', () => {
     expect(screen.queryByText('Post a0000000')).toBeNull();
     expect(fetchFeed).toHaveBeenCalledWith({ limit: 10, start: undefined });
     expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
+  });
+
+  it('shows the admin actions kebab on feed items for an admin', async () => {
+    vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: [post('a0000000')] });
+
+    renderHome('/', 'admin');
+
+    expect(await screen.findByRole('button', { name: /more actions for post a0000000/i })).toBeTruthy();
+  });
+
+  it('shows no admin actions for an anonymous viewer', async () => {
+    vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: [post('a0000000')] });
+
+    renderHome();
+
+    expect(await screen.findByText('Post a0000000')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /more actions/i })).toBeNull();
   });
 });

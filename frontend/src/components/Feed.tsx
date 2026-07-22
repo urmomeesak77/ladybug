@@ -29,7 +29,7 @@ function FeedStatusRegion({ status, onRetry }: { status: FeedStatus; onRetry: ()
 // The endless feed: renders loaded posts, auto-appends the next batch when a sentinel at
 // the list end scrolls into view, and surfaces the "Load more" page break at 200 entries.
 // Renders only the posts the API returned (FR-014); "Load more" advances the URL (US2).
-function Feed({ after }: { after?: string }) {
+function Feed({ after, canModerate = false }: { after?: string; canModerate?: boolean }) {
   const location = useLocation();
   const navigationType = useNavigationType();
   const cacheKey = FeedCache.feedKey(location.pathname, location.search);
@@ -37,7 +37,7 @@ function Feed({ after }: { after?: string }) {
   // for the page anew — top of feed, newest posts; Back/Forward/refresh/initial load
   // (POP) restore the saved snapshot (Constitution: history must restore state).
   const fresh = navigationType !== 'POP';
-  const { state, load, atPageBreak, canAutoLoad } = useFeed(after, cacheKey, fresh);
+  const { state, load, atPageBreak, canAutoLoad, removePost } = useFeed(after, cacheKey, fresh);
   useScrollRestoration(cacheKey, fresh);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   // The next page's `?after` cursor is the last loaded post's hash (FR-004/FR-005).
@@ -61,7 +61,7 @@ function Feed({ after }: { after?: string }) {
       <ul className="feed__list">
         {state.posts.map((post) => (
           <li key={post.hash} data-hash={post.hash}>
-            <FeedItem post={post} />
+            <FeedItem post={post} canModerate={canModerate} onRemove={removePost} />
           </li>
         ))}
       </ul>

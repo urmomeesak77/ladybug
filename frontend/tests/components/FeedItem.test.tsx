@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import FeedItem from '../../src/components/FeedItem';
+import NoticeProvider from '../../src/components/NoticeProvider';
+import { ModerationApi } from '../../src/lib/moderationApi';
 import type { FeedPost } from '../../src/lib/feedModel';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function post(overrides: Partial<FeedPost> = {}): FeedPost {
   return {
@@ -56,5 +61,46 @@ describe('FeedItem', () => {
 
     expect(screen.getByText(/by alice/i)).toBeTruthy();
     expect(screen.getByText(/Jul 22, 2026/)).toBeTruthy();
+  });
+
+  it('shows no admin actions by default', () => {
+    render(<FeedItem post={post()} />, { wrapper: MemoryRouter });
+
+    expect(screen.queryByRole('button', { name: /more actions/i })).toBeNull();
+  });
+
+  it('shows the admin actions kebab when canModerate', () => {
+    render(
+      <NoticeProvider>
+        <MemoryRouter>
+          <FeedItem post={post()} canModerate onRemove={() => {}} />
+        </MemoryRouter>
+      </NoticeProvider>,
+    );
+
+    expect(screen.getByRole('button', { name: /more actions for funny cat/i })).toBeTruthy();
+  });
+
+  it('removes the item after a successful deactivate', async () => {
+    const onRemove = vi.fn();
+    vi.spyOn(ModerationApi, 'deactivate').mockResolvedValue({
+      ok: true,
+      row: {
+        hash: 'abc1234567', thumbnail: null, title: null, type: null,
+        username: null, createdAt: null, activatedAt: null, deletedAt: null,
+      },
+    });
+    render(
+      <NoticeProvider>
+        <MemoryRouter>
+          <FeedItem post={post()} canModerate onRemove={onRemove} />
+        </MemoryRouter>
+      </NoticeProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^deactivate$/i }));
+
+    await waitFor(() => expect(onRemove).toHaveBeenCalledWith('abc1234567'));
   });
 });

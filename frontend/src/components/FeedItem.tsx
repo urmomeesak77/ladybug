@@ -1,20 +1,43 @@
 import { Link } from 'react-router-dom';
 
 import type { FeedPost } from '../lib/feedModel';
+import AdminPostActions from './moderation/AdminPostActions';
 import MemeMedia from './MemeMedia';
 import PostByline from './PostByline';
 
+type FeedItemProps = {
+  post: FeedPost;
+  // Admin-only in-place moderation (default off): the parent decides eligibility.
+  canModerate?: boolean;
+  onRemove?: (hash: string) => void;
+};
+
 // One feed entry: title + media. The title links to the meme's /posts/{hash} permalink
 // (US2, FR-007) and stays the link for assistive tech; an image also links there via
-// MemeMedia's linkTo (pointer-only duplicate) rather than wrapping the whole article,
-// which would nest the media (incl. an iframe) inside an <a>.
-function FeedItem({ post }: { post: FeedPost }) {
+// MemeMedia's linkTo. Admins additionally get the moderation kebab in the header's
+// top-right; any action that hides or removes the meme drops it from the feed, since a
+// deactivated/deleted meme is no longer public and a live-looking card would mislead.
+function FeedItem({ post, canModerate = false, onRemove }: FeedItemProps) {
   const title = post.title ?? 'Untitled meme';
+  function drop(): void {
+    onRemove?.(post.hash);
+  }
   return (
     <article className="feed-item">
-      <h2 className="feed-item__title">
-        <Link to={post.permalink}>{title}</Link>
-      </h2>
+      <div className="feed-item__header">
+        <h2 className="feed-item__title">
+          <Link to={post.permalink}>{title}</Link>
+        </h2>
+        {canModerate && (
+          <AdminPostActions
+            hash={post.hash}
+            title={post.title}
+            hidden={post.hidden}
+            onApplied={(hidden) => { if (hidden !== null) { drop(); } }}
+            onRemoved={drop}
+          />
+        )}
+      </div>
       <MemeMedia media={post.media} linkTo={post.permalink} />
       <PostByline author={post.author} createdAt={post.createdAt} />
     </article>

@@ -237,6 +237,21 @@ main {
   overflow: hidden;
 }
 
+/* Header row: the entry title on the left, the admin actions kebab pinned top-right.
+   The title keeps its own padding; the actions get matching top/right padding so the
+   kebab lines up with the title's first line. Non-admins see just the title here. */
+.feed-item__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.post-actions {
+  padding: var(--space-md) var(--space-md) 0 0;
+  flex-shrink: 0;
+}
+
 .feed-item__title {
   font-size: 1.125rem;
   padding: var(--space-md);
