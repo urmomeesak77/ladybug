@@ -124,7 +124,11 @@ navigates to `/` with `useNavigate`, since the permalink no longer resolves.
 - **Feed:** add a `removePost` action to `Pagination.reducer`
   (`posts.filter(p => p.hash !== hash)`), expose `removePost(hash)` from `useFeed`, and
   thread it Feed → FeedItem → `AdminPostActions`. The existing snapshot effect persists
-  the shortened list, so Back/refresh does not resurrect the removed card.
+  the shortened list, so Back/refresh does not resurrect the removed card. When the removed
+  post is the keyset cursor (the last loaded one), `removePost` reseats `useFeed`'s
+  `cursorRef` onto the prior post first — otherwise the next batch would key off a hash the
+  server can no longer resolve, dead-ending the feed (a deactivated row's `activated_at` is
+  null) or resetting to the newest page and duplicating posts.
 - **Post page:** add `applyModeration` to `PostModel.reducer` — on a `loaded` state it
   returns `{ status: 'loaded', post: { ...post, hidden } }`; a no-op in any other state.
   Expose it from `usePost`.
