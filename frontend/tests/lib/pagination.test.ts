@@ -106,3 +106,23 @@ describe('feedReducer', () => {
     expect(again).toBe(loading);
   });
 });
+
+describe('Pagination.reducer removePost', () => {
+  const p = (hash: string): FeedPost => ({
+    hash, title: null, permalink: `/posts/${hash}`,
+    media: { kind: 'none' }, hidden: null, author: null, createdAt: null,
+  });
+
+  it('drops the named post and keeps the status', () => {
+    const state = { status: 'loaded' as const, posts: [p('aaa'), p('bbb'), p('ccc')] };
+    const next = Pagination.reducer(state, { type: 'removePost', hash: 'bbb' });
+    expect(next.posts.map((x) => x.hash)).toEqual(['aaa', 'ccc']);
+    expect(next.status).toBe('loaded');
+  });
+
+  it('is a no-op when the post is not present', () => {
+    const state = { status: 'end' as const, posts: [p('aaa')] };
+    const next = Pagination.reducer(state, { type: 'removePost', hash: 'zzz' });
+    expect(next.posts.map((x) => x.hash)).toEqual(['aaa']);
+  });
+});

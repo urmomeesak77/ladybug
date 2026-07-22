@@ -11,7 +11,8 @@ export type PostPageAction =
   | { type: 'loadStart' }
   | { type: 'loadSuccess'; post: FeedPost }
   | { type: 'loadNotFound' }
-  | { type: 'loadError' };
+  | { type: 'loadError' }
+  | { type: 'applyModeration'; hidden: 'pending' | 'deleted' | null };
 
 // The site name shown in the tab; matches the static <title> in index.html.
 const SITE_NAME = 'online-trash';
@@ -27,6 +28,13 @@ export class PostModel {
   static reducer(state: PostPageState, action: PostPageAction): PostPageState {
     if (action.type === 'loadStart') {
       return { status: 'loading' };
+    }
+    if (action.type === 'applyModeration') {
+      // Refresh the visible state after an in-place admin action; only meaningful once
+      // the post is on screen, a no-op in every other lifecycle state.
+      return state.status === 'loaded'
+        ? { status: 'loaded', post: { ...state.post, hidden: action.hidden } }
+        : state;
     }
     if (state.status === 'idle') {
       // No request is in flight before the first loadStart; stray results are no-ops.

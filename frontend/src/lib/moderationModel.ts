@@ -68,6 +68,19 @@ export class ModerationModel {
     return `${subject} is already hidden from the site. Permanent delete removes it and its files forever.`;
   }
 
+  // The coarse public-visibility status the feed/post surfaces use, derived from a returned
+  // row: soft-deleted → 'deleted', else never-activated → 'pending', else null (public).
+  // Mirrors the backend's TrashpostResource::hiddenStatus() so both agree.
+  static hiddenFromRow(row: ModerationRow): 'pending' | 'deleted' | null {
+    if (row.deletedAt !== null) {
+      return 'deleted';
+    }
+    if (row.activatedAt === null) {
+      return 'pending';
+    }
+    return null;
+  }
+
   static mapRow(raw: RawModerationRow): ModerationRow {
     return {
       hash: raw.hash,

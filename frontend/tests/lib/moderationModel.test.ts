@@ -143,3 +143,22 @@ describe('ModerationModel.purgeConfirmMessage', () => {
     );
   });
 });
+
+describe('ModerationModel.hiddenFromRow', () => {
+  const base = {
+    hash: 'h', thumbnail: null, title: null, type: null, username: null, createdAt: null,
+  };
+
+  it('reports deleted when the row is soft-deleted, whatever its activation', () => {
+    expect(ModerationModel.hiddenFromRow({ ...base, activatedAt: '2026-07-09 08:00:00', deletedAt: '2026-07-09 09:00:00' })).toBe('deleted');
+    expect(ModerationModel.hiddenFromRow({ ...base, activatedAt: null, deletedAt: '2026-07-09 09:00:00' })).toBe('deleted');
+  });
+
+  it('reports pending for a live, never-activated row', () => {
+    expect(ModerationModel.hiddenFromRow({ ...base, activatedAt: null, deletedAt: null })).toBe('pending');
+  });
+
+  it('reports null (public) for an activated, live row', () => {
+    expect(ModerationModel.hiddenFromRow({ ...base, activatedAt: '2026-07-09 08:00:00', deletedAt: null })).toBeNull();
+  });
+});

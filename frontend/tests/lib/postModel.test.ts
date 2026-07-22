@@ -160,3 +160,16 @@ describe('formatDocumentTitle', () => {
     expect(PostModel.formatDocumentTitle('   ')).toBe('online-trash');
   });
 });
+
+describe('PostModel.reducer applyModeration', () => {
+  it('updates hidden on a loaded post without touching anything else', () => {
+    const loaded: PostPageState = { status: 'loaded', post };
+    const next = PostModel.reducer(loaded, { type: 'applyModeration', hidden: 'deleted' });
+    expect(next).toEqual({ status: 'loaded', post: { ...post, hidden: 'deleted' } });
+  });
+
+  it('is a no-op when no post is loaded', () => {
+    const loading: PostPageState = { status: 'loading' };
+    expect(PostModel.reducer(loading, { type: 'applyModeration', hidden: 'pending' })).toBe(loading);
+  });
+});

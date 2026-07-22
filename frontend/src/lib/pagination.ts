@@ -17,7 +17,8 @@ export type FeedState = { status: FeedStatus; posts: FeedPost[] };
 export type FeedAction =
   | { type: 'loadStart' }
   | { type: 'loadSuccess'; posts: FeedPost[]; limit: number }
-  | { type: 'loadError' };
+  | { type: 'loadError' }
+  | { type: 'removePost'; hash: string };
 
 // Keyset pagination math plus the feed-load reducer, converged onto one class.
 export class Pagination {
@@ -65,6 +66,10 @@ export class Pagination {
       case 'loadError':
         // Keep already-loaded posts so the user does not lose the feed on a failed append.
         return { ...state, status: 'error' };
+      case 'removePost':
+        // Drop a meme an admin just hid/removed in place; the persisted snapshot follows
+        // the shortened list, so Back/refresh does not resurrect it.
+        return { ...state, posts: state.posts.filter((post) => post.hash !== action.hash) };
       default:
         return state;
     }
