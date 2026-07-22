@@ -35,6 +35,25 @@ function renderUpload() {
 }
 
 describe('UploadPage', () => {
+  it('shows the heading exactly "Upload"', () => {
+    renderUpload();
+
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Upload');
+  });
+
+  it('blocks submission with a field error when the title is empty', async () => {
+    const uploadImage = vi.spyOn(UploadApi, 'uploadImage');
+    renderUpload();
+    const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
+
+    // A file is chosen so the only outstanding rule is the required title.
+    fireEvent.change(screen.getByLabelText('Image file'), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/title/i);
+    expect(uploadImage).not.toHaveBeenCalled();
+  });
+
   it('starts in image mode with the file picker active', () => {
     renderUpload();
 
@@ -56,6 +75,8 @@ describe('UploadPage', () => {
     const uploadImage = vi.spyOn(UploadApi, 'uploadImage');
     renderUpload();
 
+    // A title is present so the only outstanding rule is the missing file.
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'My meme' } });
     fireEvent.click(screen.getByRole('button', { name: 'Post' }));
 
     expect(await screen.findByRole('alert')).toBeTruthy();
@@ -68,7 +89,7 @@ describe('UploadPage', () => {
     renderUpload();
     const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
 
-    fireEvent.change(screen.getByLabelText('Title (optional)'), { target: { value: 'My meme' } });
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'My meme' } });
     fireEvent.change(screen.getByLabelText('Image file'), { target: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Post' }));
 
@@ -82,13 +103,14 @@ describe('UploadPage', () => {
     renderUpload();
     const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
 
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'My meme' } });
     fireEvent.change(screen.getByLabelText('Image file'), { target: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Post' }));
 
     const button = await screen.findByRole('button', { name: 'Posting…' });
     expect(button.getAttribute('aria-busy')).toBe('true');
     expect(button.querySelector('.busy-button__spinner')).not.toBeNull();
-    const fieldset = screen.getByLabelText('Title (optional)').closest('fieldset');
+    const fieldset = screen.getByLabelText('Title').closest('fieldset');
     expect(fieldset?.disabled).toBe(true);
 
     pending.resolve({ ok: true, hash: 'newpost001' });
@@ -101,6 +123,7 @@ describe('UploadPage', () => {
     renderUpload();
 
     fireEvent.click(screen.getByRole('radio', { name: 'YouTube' }));
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'My clip' } });
     fireEvent.change(screen.getByLabelText('YouTube link'), { target: { value: 'dQw4w9WgXcQ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Post' }));
 

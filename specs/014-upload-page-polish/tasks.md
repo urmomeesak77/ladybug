@@ -28,7 +28,7 @@ each stack's `tests/` dir. Backend runs in Docker (`php:8.3-cli`); no local PHP.
 npm/Composer package**. The single environment change (ImageMagick + GD `--with-webp`) is
 US3-specific and lives in Phase 5, so US1/US2 are not blocked by it.
 
-- [ ] T001 Confirm the reusable auth-form primitives exist and note them for reuse: `.auth` /
+- [X] T001 Confirm the reusable auth-form primitives exist and note them for reuse: `.auth` /
   `.auth-form` / `.auth-field` in `frontend/src/styles/theme.css`, and the `AuthField` +
   `BusyButton` components in `frontend/src/components/`. No code change — this grounds US1's
   "read as one family" visual reuse (research R6).
@@ -56,27 +56,27 @@ with a field-level "required" message (no meme created).
 
 ### Tests for User Story 1 (write first — must FAIL) ⚠️
 
-- [ ] T002 [P] [US1] Extend `backend/tests/Feature/Http/Controllers/CreatePostTest.php`: title
+- [X] T002 [P] [US1] Extend `backend/tests/Feature/Http/Controllers/CreatePostTest.php`: title
   omitted ⇒ `422` with `errors.title` and **no** `Trashpost` created; title whitespace-only ⇒
   `422` with `errors.title`; existing valid-title happy path still `201` (per contract §1 tests).
-- [ ] T003 [P] [US1] Extend `frontend/tests/lib/uploadModel.test.ts`: `UploadModel.validate`
+- [X] T003 [P] [US1] Extend `frontend/tests/lib/uploadModel.test.ts`: `UploadModel.validate`
   flags a missing title and a whitespace-only title (trimmed) with a field-level message.
-- [ ] T004 [P] [US1] Extend `frontend/tests/hooks/useUploadForm.test.tsx`: an empty/whitespace
+- [X] T004 [P] [US1] Extend `frontend/tests/hooks/useUploadForm.test.tsx`: an empty/whitespace
   title blocks `submit()` (no API call) and exposes `errors.title`.
-- [ ] T005 [P] [US1] Extend `frontend/tests/pages/UploadPage.test.tsx`: the page heading is
+- [X] T005 [P] [US1] Extend `frontend/tests/pages/UploadPage.test.tsx`: the page heading is
   **exactly** "Upload"; submitting with an empty title shows the field-level error and does not
   submit.
 
 ### Implementation for User Story 1
 
-- [ ] T006 [P] [US1] In `backend/app/Http/Requests/CreatePostRequest.php` change the `title` rule
+- [X] T006 [P] [US1] In `backend/app/Http/Requests/CreatePostRequest.php` change the `title` rule
   from `['nullable','string','max:255']` to `['required','string','max:255']` (research R4;
   `TrimStrings` middleware makes whitespace-only ⇒ empty ⇒ fails `required`).
-- [ ] T007 [P] [US1] In `frontend/src/lib/uploadModel.ts` add a trimmed required-title check to
+- [X] T007 [P] [US1] In `frontend/src/lib/uploadModel.ts` add a trimmed required-title check to
   `UploadModel.validate` returning a field-level `title` message when empty/whitespace.
-- [ ] T008 [US1] In `frontend/src/hooks/useUploadForm.ts` surface the required-title error and
+- [X] T008 [US1] In `frontend/src/hooks/useUploadForm.ts` surface the required-title error and
   short-circuit `submit()` when validation fails (depends on T007).
-- [ ] T009 [US1] In `frontend/src/pages/UploadPage.tsx`: change heading to exactly `Upload`; wrap
+- [X] T009 [US1] In `frontend/src/pages/UploadPage.tsx`: change heading to exactly `Upload`; wrap
   the page in `<section className="auth">` reusing `.auth-form`; change the `AuthField` label from
   `"Title (optional)"` to `"Title"` (required). Leave the existing radio media toggle in place for
   now — US2 replaces it (depends on T008).

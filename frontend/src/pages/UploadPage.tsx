@@ -5,8 +5,8 @@ import BusyButton from '../components/BusyButton';
 import UploadMediaField from '../components/UploadMediaField';
 import { useUploadForm } from '../hooks/useUploadForm';
 
-// Authenticated upload form: a meme is either an image file or a YouTube link, plus an
-// optional title. The mode toggle keeps exactly one input active so the "either/or" server
+// Authenticated upload form: a meme is either an image file or a YouTube link, plus a
+// required title. The mode toggle keeps exactly one input active so the "either/or" server
 // rule cannot be violated from the UI. State + submit live in useUploadForm.
 function UploadPage() {
   const {
@@ -20,8 +20,8 @@ function UploadPage() {
   }
 
   return (
-    <section className="upload">
-      <h1>Upload a meme</h1>
+    <section className="auth">
+      <h1>Upload</h1>
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         {formError ? <p className="auth-form__error" role="alert">{formError}</p> : null}
 
@@ -42,7 +42,7 @@ function UploadPage() {
 
           <AuthField
             id="title"
-            label="Title (optional)"
+            label="Title"
             type="text"
             value={title}
             autoComplete="off"

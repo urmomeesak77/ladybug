@@ -38,10 +38,35 @@ describe('useUploadForm', () => {
     expect(uploadImage).not.toHaveBeenCalled();
   });
 
+  it('blocks a submission with an empty title, before any request', async () => {
+    const uploadImage = vi.spyOn(UploadApi, 'uploadImage');
+    const { result } = renderHook(() => useUploadForm(), { wrapper });
+
+    // A file is chosen so any block is unambiguously the title rule, not the missing file.
+    act(() => result.current.setFile(new File(['x'], 'm.jpg', { type: 'image/jpeg' })));
+    await act(() => result.current.submit());
+
+    expect(result.current.errors.title?.[0]).toMatch(/title/i);
+    expect(uploadImage).not.toHaveBeenCalled();
+  });
+
+  it('treats a whitespace-only title as missing', async () => {
+    const uploadImage = vi.spyOn(UploadApi, 'uploadImage');
+    const { result } = renderHook(() => useUploadForm(), { wrapper });
+
+    act(() => result.current.setFile(new File(['x'], 'm.jpg', { type: 'image/jpeg' })));
+    act(() => result.current.setTitle('   '));
+    await act(() => result.current.submit());
+
+    expect(result.current.errors.title?.[0]).toMatch(/title/i);
+    expect(uploadImage).not.toHaveBeenCalled();
+  });
+
   it('navigates to the new post after a successful upload', async () => {
     vi.spyOn(UploadApi, 'uploadImage').mockResolvedValue({ ok: true, hash: 'newpost001' });
     const { result } = renderHook(() => useUploadForm(), { wrapper });
 
+    act(() => result.current.setTitle('My meme'));
     act(() => result.current.setFile(new File(['x'], 'm.jpg', { type: 'image/jpeg' })));
     await act(() => result.current.submit());
 
@@ -71,6 +96,7 @@ describe('useUploadForm', () => {
     const { result } = renderHook(() => useUploadForm(), { wrapper });
 
     act(() => result.current.setMode('youtube'));
+    act(() => result.current.setTitle('T'));
     await act(() => result.current.submit());
 
     expect(result.current.errors.youtube?.[0]).toMatch(/valid youtube link/i);
@@ -81,6 +107,7 @@ describe('useUploadForm', () => {
     const { result } = renderHook(() => useUploadForm(), { wrapper });
 
     act(() => result.current.setMode('youtube'));
+    act(() => result.current.setTitle('T'));
     await act(() => result.current.submit());
 
     expect(result.current.formError).toMatch(/log in again/i);
@@ -91,6 +118,7 @@ describe('useUploadForm', () => {
     const { result } = renderHook(() => useUploadForm(), { wrapper });
 
     act(() => result.current.setMode('youtube'));
+    act(() => result.current.setTitle('T'));
     await act(() => result.current.submit());
 
     expect(result.current.formError).toBe('Verify your e-mail address before posting.');
@@ -101,6 +129,7 @@ describe('useUploadForm', () => {
     const { result } = renderHook(() => useUploadForm(), { wrapper });
 
     act(() => result.current.setMode('youtube'));
+    act(() => result.current.setTitle('T'));
     await act(() => result.current.submit());
 
     expect(result.current.formError).toMatch(/something went wrong/i);

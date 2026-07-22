@@ -41,7 +41,7 @@ async function verify(page: import('@playwright/test').Page, email: string): Pro
 async function uploadImage(page: import('@playwright/test').Page, title: string): Promise<void> {
   await page.goto('/upload');
   await page.getByLabel('Image', { exact: true }).check();
-  await page.getByLabel('Title (optional)').fill(title);
+  await page.getByLabel('Title').fill(title);
   await page.getByLabel('Image file').setInputFiles({
     name: 'meme.png',
     mimeType: 'image/png',

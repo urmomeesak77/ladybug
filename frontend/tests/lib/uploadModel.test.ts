@@ -9,18 +9,29 @@ afterEach(() => {
 
 describe('UploadModel.validate', () => {
   it('requires a file in image mode', () => {
-    expect(UploadModel.validate('image', { title: '', file: null, youtube: '' })).toEqual({
+    expect(UploadModel.validate('image', { title: 'T', file: null, youtube: '' })).toEqual({
       image: ['Choose an image to upload.'],
     });
   });
 
-  it('passes when an image file is present', () => {
+  it('passes when a title and an image file are present', () => {
     const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
-    expect(UploadModel.validate('image', { title: '', file, youtube: '' })).toEqual({});
+    expect(UploadModel.validate('image', { title: 'T', file, youtube: '' })).toEqual({});
   });
 
   it('does not require a file in youtube mode', () => {
-    expect(UploadModel.validate('youtube', { title: '', file: null, youtube: 'x' })).toEqual({});
+    expect(UploadModel.validate('youtube', { title: 'T', file: null, youtube: 'x' })).toEqual({});
+  });
+
+  it('requires a title', () => {
+    const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
+    const errors = UploadModel.validate('image', { title: '', file, youtube: '' });
+    expect(errors.title?.[0]).toMatch(/title/i);
+  });
+
+  it('treats a whitespace-only title as missing (trimmed)', () => {
+    const errors = UploadModel.validate('youtube', { title: '   ', file: null, youtube: 'x' });
+    expect(errors.title?.[0]).toMatch(/title/i);
   });
 });
 

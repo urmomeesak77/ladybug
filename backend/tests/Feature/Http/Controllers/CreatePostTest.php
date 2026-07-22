@@ -71,6 +71,7 @@ class CreatePostTest extends TestCase {
         $user = User::factory()->create();
 
         $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'My song',
             'youtube' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
         ]);
 
@@ -99,9 +100,31 @@ class CreatePostTest extends TestCase {
         $response->assertStatus(422);
     }
 
+    public function test_rejects_when_title_is_missing(): void {
+        // 014: a title is now required. A valid YouTube payload isolates the title rule.
+        $user = User::factory()->create();
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'youtube' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        ]);
+        $response->assertStatus(422)->assertJsonValidationErrors('title');
+        $this->assertDatabaseCount('trashposts', 0);
+    }
+
+    public function test_rejects_a_whitespace_only_title(): void {
+        // TrimStrings collapses a whitespace-only title to empty, which fails `required`.
+        $user = User::factory()->create();
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => '   ',
+            'youtube' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        ]);
+        $response->assertStatus(422)->assertJsonValidationErrors('title');
+        $this->assertDatabaseCount('trashposts', 0);
+    }
+
     public function test_rejects_when_both_image_and_youtube_are_present(): void {
         $user = User::factory()->create();
         $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Both',
             'image' => UploadedFile::fake()->image('m.jpg', 10, 10),
             'youtube' => 'dQw4w9WgXcQ',
         ]);
@@ -110,17 +133,20 @@ class CreatePostTest extends TestCase {
 
     public function test_rejects_an_invalid_youtube_link(): void {
         $user = User::factory()->create();
-        $response = $this->actingAs($user)->postJson('/api/posts', ['youtube' => 'https://example.com/x']);
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Bad link',
+            'youtube' => 'https://example.com/x',
+        ]);
         $response->assertStatus(422)->assertJsonValidationErrors('youtube');
     }
 
     public function test_upload_is_rate_limited_after_too_many_attempts(): void {
         $user = User::factory()->create();
         for ($i = 0; $i < 10; $i++) {
-            $this->actingAs($user)->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ']);
+            $this->actingAs($user)->postJson('/api/posts', ['title' => 'Spam', 'youtube' => 'dQw4w9WgXcQ']);
         }
 
-        $response = $this->actingAs($user)->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ']);
+        $response = $this->actingAs($user)->postJson('/api/posts', ['title' => 'Spam', 'youtube' => 'dQw4w9WgXcQ']);
 
         // Uploads are heavier than reads (image processing, disk writes); a per-user
         // cap keeps one account from flooding the feed or the disk.
@@ -130,6 +156,7 @@ class CreatePostTest extends TestCase {
     public function test_rejects_a_non_image_file(): void {
         $user = User::factory()->create();
         $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'A doc',
             'image' => UploadedFile::fake()->create('doc.pdf', 100, 'application/pdf'),
         ]);
         $response->assertStatus(422)->assertJsonValidationErrors('image');
@@ -140,6 +167,7 @@ class CreatePostTest extends TestCase {
         $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
 
         $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Pending meme',
             'image' => UploadedFile::fake()->image('m.jpg', 200, 200),
         ]);
 
@@ -155,6 +183,7 @@ class CreatePostTest extends TestCase {
         $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
 
         $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Pending image',
             'image' => UploadedFile::fake()->image('m.jpg', 1000, 500),
         ]);
 
@@ -171,7 +200,7 @@ class CreatePostTest extends TestCase {
     public function test_a_pending_youtube_uploads_thumbnail_stays_on_the_public_disk(): void {
         $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
 
-        $response = $this->actingAs($user)->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ']);
+        $response = $this->actingAs($user)->postJson('/api/posts', ['title' => 'Pending clip', 'youtube' => 'dQw4w9WgXcQ']);
 
         $response->assertCreated();
         $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
@@ -183,7 +212,7 @@ class CreatePostTest extends TestCase {
         $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
 
         $hash = $this->actingAs($user)
-            ->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ'])
+            ->postJson('/api/posts', ['title' => 'Pending public', 'youtube' => 'dQw4w9WgXcQ'])
             ->json('data.hash');
 
         // Assert the PUBLIC perspective: a pending upload is visible to its owner (who is
@@ -201,7 +230,7 @@ class CreatePostTest extends TestCase {
         $admin->save();
 
         $hash = $this->actingAs($admin)
-            ->postJson('/api/posts', ['youtube' => 'dQw4w9WgXcQ'])
+            ->postJson('/api/posts', ['title' => 'Admin post', 'youtube' => 'dQw4w9WgXcQ'])
             ->assertCreated()
             ->json('data.hash');
 

@@ -10,12 +10,17 @@ export type UploadValues = { title: string; file: File | null; youtube: string }
 // per-mode endpoint dispatch. The server stays authoritative for everything else
 // (type/size/well-formedness, YouTube parsing).
 export class UploadModel {
-  // In image mode a file is required; the server validates the rest.
+  // A title is always required (trimmed); in image mode a file is required too. The server
+  // stays authoritative for the rest (type/size/well-formedness, YouTube parsing).
   static validate(mode: UploadMode, values: UploadValues): FieldErrors {
-    if (mode === 'image' && values.file === null) {
-      return { image: ['Choose an image to upload.'] };
+    const errors: FieldErrors = {};
+    if (values.title.trim() === '') {
+      errors.title = ['Enter a title.'];
     }
-    return {};
+    if (mode === 'image' && values.file === null) {
+      errors.image = ['Choose an image to upload.'];
+    }
+    return errors;
   }
 
   // Dispatch a submission to the right endpoint for the active mode.

@@ -244,6 +244,7 @@ final class ModerationControllerTest extends TestCase {
         // back onto the public disk, and pays the same +1 as any other activation.
         $owner = User::factory()->create();
         $this->actingAs($owner)->postJson('/api/posts', [
+            'title' => 'Pending meme',
             // Large enough that every size variant is actually generated, so the
             // move back onto the public disk is asserted over the full set.
             'image' => UploadedFile::fake()->image('m.jpg', 1000, 500),
