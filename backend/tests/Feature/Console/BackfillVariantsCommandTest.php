@@ -54,12 +54,15 @@ final class BackfillVariantsCommandTest extends TestCase {
         $this->assertStringContainsString('variants written: 0', $output);
     }
 
-    public function test_dry_run_writes_nothing(): void {
+    public function test_dry_run_writes_nothing_but_reports_the_real_count(): void {
         $this->putOriginal('wideimage0', 1600);
 
         $exit = Artisan::call('media:backfill-variants', ['--dry-run' => true]);
+        $output = Artisan::output();
 
         $this->assertSame(0, $exit);
         Storage::disk('public')->assertMissing(MediaPath::imageRelativePath('1200', 'wideimage0', 'jpg'));
+        // 1600px original ⇒ 1200/800/500/300/100 would be written = 5 candidates.
+        $this->assertStringContainsString('variants to write: 5', $output);
     }
 }

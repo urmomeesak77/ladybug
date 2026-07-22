@@ -35,18 +35,20 @@ final class BackfillVariantsCommand extends Command {
         }
 
         $this->line("originals scanned: {$originals}");
-        $this->line('variants written: ' . ($dryRun ? '0 (dry run)' : (string) $written));
+        $this->line($dryRun ? "variants to write: {$written} (dry run)" : "variants written: {$written}");
 
         return self::SUCCESS;
     }
 
-    /** Generate (or, in dry-run, count) the missing variants for one original; returns the count. */
+    /**
+     * Generate (or, in dry-run, count without writing) the missing variants for one original;
+     * returns the count in both modes so the report line reflects real impact.
+     */
     private function backfillOne(TrashpostImageProcessor $processor, string $path, string $rel, bool $dryRun): int {
         $code = pathinfo($rel, PATHINFO_FILENAME);
         $ext = pathinfo($rel, PATHINFO_EXTENSION);
         if ($dryRun) {
-            // Report the file as a candidate without touching disk; count is informational.
-            return 0;
+            return count($processor->missingVariants($path, $code, $ext));
         }
 
         return count($processor->generateMissingVariants($path, $code, $ext));

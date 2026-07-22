@@ -160,6 +160,21 @@ class TrashpostImageProcessorTest extends TestCase {
         $this->assertSame('stale', $disk->get(MediaPath::imageRelativePath('800', 'abc1234567', 'jpg')));
     }
 
+    public function test_missing_variants_lists_narrower_absent_sizes_without_writing(): void {
+        $disk = Storage::disk('public');
+        $processor = new TrashpostImageProcessor();
+        $original = $this->image('m.jpg', 1600, 800);
+        $originalRel = MediaPath::imageRelativePath('original', 'abc1234567', 'jpg');
+        $disk->putFileAs(dirname($originalRel), $original, basename($originalRel));
+        $disk->put(MediaPath::imageRelativePath('800', 'abc1234567', 'jpg'), 'exists');
+
+        $missing = $processor->missingVariants($disk->path($originalRel), 'abc1234567', 'jpg');
+
+        // 800 already on disk; 1200/500/300/100 are absent and narrower than 1600.
+        $this->assertSame(['1200', '500', '300', '100'], $missing);
+        $disk->assertMissing(MediaPath::imageRelativePath('1200', 'abc1234567', 'jpg'));
+    }
+
     public function test_metadata_carries_dimensions_ratio_and_mime(): void {
         $result = (new TrashpostImageProcessor())->process($this->image('m.jpg', 1200, 600), 'abc1234567');
 

@@ -78,6 +78,29 @@ class TrashpostImageProcessor {
     }
 
     /**
+     * The size variants generateMissingVariants would write for this original: those narrower
+     * than the source (never upscale) whose file is not already on the public disk. Read-only —
+     * the dry-run backfill reports impact through this without touching disk.
+     *
+     * @return list<string>
+     */
+    public function missingVariants(string $originalPath, string $hash, string $ext): array {
+        [$width] = $this->imageFile->dimensions($originalPath);
+        $disk = Storage::disk('public');
+        $missing = [];
+        foreach (MediaPath::imageSizes() as $size) {
+            if ($size === 'original' || (int) $size >= $width) {
+                continue;
+            }
+            if (! $disk->exists(MediaPath::imageRelativePath($size, $hash, $ext))) {
+                $missing[] = $size;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
      * Generate every size variant for an already-stored original that is both narrower than
      * the source (we never upscale) and not already on disk. Shared by the upload write path
      * and the media:backfill-variants backfill so both apply identical rules. Returns the
@@ -86,19 +109,11 @@ class TrashpostImageProcessor {
      * @return list<string>
      */
     public function generateMissingVariants(string $originalPath, string $hash, string $ext): array {
-        [$width] = $this->imageFile->dimensions($originalPath);
         $resizer = $this->resizerFor($ext, $originalPath);
         $disk = Storage::disk('public');
         $written = [];
-        foreach (MediaPath::imageSizes() as $size) {
-            if ($size === 'original' || (int) $size >= $width) {
-                continue;
-            }
-            $rel = MediaPath::imageRelativePath($size, $hash, $ext);
-            if ($disk->exists($rel)) {
-                continue;
-            }
-            $variantPath = $disk->path($rel);
+        foreach ($this->missingVariants($originalPath, $hash, $ext) as $size) {
+            $variantPath = $disk->path(MediaPath::imageRelativePath($size, $hash, $ext));
             File::ensureDirectoryExists(dirname($variantPath));
             if ($resizer->scaledDownCopy($originalPath, $variantPath, (int) $size)) {
                 $written[] = $size;
