@@ -243,7 +243,8 @@ class CreatePostTest extends TestCase {
 
         $response = $this->actingAs($user)->postJson('/api/posts', [
             'title' => 'Pending image',
-            'image' => UploadedFile::fake()->image('m.jpg', 1000, 500),
+            // Wider than the widest variant (1200) so the whole size set is generated and asserted.
+            'image' => UploadedFile::fake()->image('m.jpg', 1600, 800),
         ]);
 
         $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();

@@ -245,9 +245,9 @@ final class ModerationControllerTest extends TestCase {
         $owner = User::factory()->create();
         $this->actingAs($owner)->postJson('/api/posts', [
             'title' => 'Pending meme',
-            // Large enough that every size variant is actually generated, so the
-            // move back onto the public disk is asserted over the full set.
-            'image' => UploadedFile::fake()->image('m.jpg', 1000, 500),
+            // Wider than the widest variant (1200) so every size variant is actually generated,
+            // and the stay-on-public-disk assertion covers the full set.
+            'image' => UploadedFile::fake()->image('m.jpg', 1600, 800),
         ])->assertCreated();
         $post = Trashpost::where('user_id', $owner->id)->firstOrFail();
         $this->assertNull($post->activated_at);
