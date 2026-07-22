@@ -1,11 +1,38 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PostPage from '../../src/pages/PostPage';
+import NoticeProvider from '../../src/components/NoticeProvider';
+import { AuthContext } from '../../src/hooks/useAuth';
+import type { AuthContextValue } from '../../src/hooks/useAuth';
 import { Api } from '../../src/lib/api';
+import { ModerationApi } from '../../src/lib/moderationApi';
+import type { RoleName } from '../../src/lib/role';
 import type { FeedPost } from '../../src/lib/feedModel';
+
+if (!HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.open = true;
+  };
+}
+
+// A minimal AuthContext value; PostPage reads only `role` to decide the admin kebab.
+function auth(role: RoleName): AuthContextValue {
+  return {
+    status: role === 'guest' ? 'anonymous' : 'authenticated',
+    user: role === 'guest' ? null : {
+      hash: 'u000000001', name: 'Admin', email: 'a@example.test',
+      emailVerifiedAt: null, role, createdAt: '', updatedAt: '',
+    },
+    role,
+    register: async () => ({ ok: true, user: null as never }),
+    login: async () => ({ ok: true, user: null as never }),
+    logout: async () => {},
+    refresh: async () => {},
+  };
+}
 
 beforeEach(() => {
   vi.stubGlobal('scrollTo', vi.fn());
@@ -33,13 +60,18 @@ const post: FeedPost = {
   createdAt: '2026-07-22T12:00:00Z',
 };
 
-function renderPost(hash = 'abc1234567') {
+function renderPost(hash = 'abc1234567', role: RoleName = 'guest') {
   render(
-    <MemoryRouter initialEntries={[`/posts/${hash}`]}>
-      <Routes>
-        <Route path="/posts/:hash" element={<PostPage />} />
-      </Routes>
-    </MemoryRouter>,
+    <AuthContext.Provider value={auth(role)}>
+      <NoticeProvider>
+        <MemoryRouter initialEntries={[`/posts/${hash}`]}>
+          <Routes>
+            <Route path="/posts/:hash" element={<PostPage />} />
+            <Route path="/" element={<h1>Home</h1>} />
+          </Routes>
+        </MemoryRouter>
+      </NoticeProvider>
+    </AuthContext.Provider>,
   );
 }
 
@@ -124,5 +156,48 @@ describe('PostPage', () => {
 
     expect(await screen.findByText(/by alice/i)).toBeTruthy();
     expect(screen.getByText(/Jul 22, 2026/)).toBeTruthy();
+  });
+
+  it('shows no admin actions for an anonymous viewer', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post });
+
+    renderPost();
+    await screen.findByRole('heading', { name: 'Funny cat' });
+
+    expect(screen.queryByRole('button', { name: /more actions/i })).toBeNull();
+  });
+
+  it('lets an admin deactivate, flipping the post to the pending banner', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post });
+    vi.spyOn(ModerationApi, 'deactivate').mockResolvedValue({
+      ok: true,
+      row: {
+        hash: 'abc1234567', thumbnail: null, title: null, type: null,
+        username: null, createdAt: null, activatedAt: null, deletedAt: null,
+      },
+    });
+
+    renderPost('abc1234567', 'admin');
+    await screen.findByRole('heading', { name: 'Funny cat' });
+
+    fireEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^deactivate$/i }));
+
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/pending review/i));
+  });
+
+  it('navigates home after an admin permanently deletes the post', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post: { ...post, hidden: 'deleted' } });
+    vi.spyOn(ModerationApi, 'purge').mockResolvedValue({ ok: true });
+
+    renderPost('abc1234567', 'admin');
+    await screen.findByRole('heading', { name: 'Funny cat' });
+
+    fireEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^delete$/i }));
+    const dialog = document.querySelector('dialog') as HTMLDialogElement;
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete permanently' }));
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Home' })).toBeTruthy());
   });
 });
