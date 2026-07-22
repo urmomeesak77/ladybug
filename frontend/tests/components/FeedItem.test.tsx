@@ -15,6 +15,8 @@ function post(overrides: Partial<FeedPost> = {}): FeedPost {
     permalink: '/posts/abc1234567',
     media: { kind: 'none' },
     hidden: null,
+    author: 'alice',
+    createdAt: '2026-07-22T12:00:00Z',
     ...overrides,
   };
 }
@@ -47,5 +49,12 @@ describe('FeedItem', () => {
     render(<FeedItem post={post({ title: null })} />, { wrapper: MemoryRouter });
 
     expect(screen.getByRole('link', { name: 'Untitled meme' })).toBeTruthy();
+  });
+
+  it('shows the uploader byline below the media', () => {
+    render(<FeedItem post={post()} />, { wrapper: MemoryRouter });
+
+    expect(screen.getByText(/by alice/i)).toBeTruthy();
+    expect(screen.getByText(/Jul 22, 2026/)).toBeTruthy();
   });
 });

@@ -29,6 +29,8 @@ const post: FeedPost = {
     alt: 'Funny cat',
   },
   hidden: null,
+  author: 'alice',
+  createdAt: '2026-07-22T12:00:00Z',
 };
 
 function renderPost(hash = 'abc1234567') {
@@ -113,5 +115,14 @@ describe('PostPage', () => {
     await screen.findByRole('heading', { name: 'Funny cat' });
 
     expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+  });
+
+  it('shows the uploader byline on the loaded meme', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post });
+
+    renderPost();
+
+    expect(await screen.findByText(/by alice/i)).toBeTruthy();
+    expect(screen.getByText(/Jul 22, 2026/)).toBeTruthy();
   });
 });

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
 import MemeMedia from '../components/MemeMedia';
+import PostByline from '../components/PostByline';
 import ErrorState from '../components/states/ErrorState';
 import HiddenNotice from '../components/states/HiddenNotice';
 import LoadingState from '../components/states/LoadingState';
@@ -44,6 +45,7 @@ function PostPage() {
           {state.post.hidden && <HiddenNotice status={state.post.hidden} />}
           <h1 className="feed-item__title">{state.post.title ?? 'Untitled meme'}</h1>
           <MemeMedia media={state.post.media} />
+          <PostByline author={state.post.author} createdAt={state.post.createdAt} />
         </article>
       )}
     </div>
