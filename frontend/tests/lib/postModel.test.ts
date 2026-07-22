@@ -9,6 +9,9 @@ const post: FeedPost = {
   title: 'Hi',
   permalink: '/posts/abc1234567',
   media: { kind: 'none' },
+  hidden: null,
+  author: 'alice',
+  createdAt: '2026-07-22T12:00:00Z',
 };
 
 const otherPost: FeedPost = {
@@ -16,6 +19,9 @@ const otherPost: FeedPost = {
   title: 'Other',
   permalink: '/posts/xyz7654321',
   media: { kind: 'none' },
+  hidden: null,
+  author: 'bob',
+  createdAt: '2026-07-21T08:30:00Z',
 };
 
 const loadStart: PostPageAction = { type: 'loadStart' };

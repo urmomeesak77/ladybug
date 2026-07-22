@@ -8,7 +8,15 @@ import { Api } from '../../src/lib/api';
 import type { FeedPost } from '../../src/lib/feedModel';
 
 function post(hash: string): FeedPost {
-  return { hash, title: `Post ${hash}`, permalink: `/posts/${hash}`, media: { kind: 'none' }, hidden: null };
+  return {
+    hash,
+    title: `Post ${hash}`,
+    permalink: `/posts/${hash}`,
+    media: { kind: 'none' },
+    hidden: null,
+    author: 'alice',
+    createdAt: '2026-07-22T12:00:00Z',
+  };
 }
 
 function posts(count: number, prefix: string): FeedPost[] {

@@ -19,7 +19,15 @@ function memoryStorage(): Storage {
 }
 
 const sample: FeedSnapshot = {
-  posts: [{ hash: 'a', title: null, permalink: '/posts/a', media: { kind: 'none' }, hidden: null }],
+  posts: [{
+    hash: 'a',
+    title: null,
+    permalink: '/posts/a',
+    media: { kind: 'none' },
+    hidden: null,
+    author: 'alice',
+    createdAt: '2026-07-22T12:00:00Z',
+  }],
   cursor: 'a',
   status: 'loaded',
   anchorHash: null,

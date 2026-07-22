@@ -17,6 +17,8 @@ const post: FeedPost = {
   permalink: '/posts/abc1234567',
   media: { kind: 'none' },
   hidden: null,
+  author: 'alice',
+  createdAt: '2026-07-22T12:00:00Z',
 };
 
 describe('usePost', () => {

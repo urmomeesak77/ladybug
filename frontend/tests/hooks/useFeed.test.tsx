@@ -11,7 +11,15 @@ import type { FeedPost } from '../../src/lib/feedModel';
 const CACHE_KEY = 'ladybug.feed:/test';
 
 function post(hash: string): FeedPost {
-  return { hash, title: hash, permalink: `/posts/${hash}`, media: { kind: 'none' }, hidden: null };
+  return {
+    hash,
+    title: hash,
+    permalink: `/posts/${hash}`,
+    media: { kind: 'none' },
+    hidden: null,
+    author: 'alice',
+    createdAt: '2026-07-22T12:00:00Z',
+  };
 }
 
 function posts(count: number, prefix: string): FeedPost[] {

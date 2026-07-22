@@ -11,6 +11,8 @@ function posts(n: number): FeedPost[] {
     permalink: `/posts/hash-${i}`,
     media: { kind: 'none' },
     hidden: null,
+    author: 'alice',
+    createdAt: '2026-07-22T12:00:00Z',
   }));
 }
 
