@@ -262,4 +262,35 @@ final class TrashpostsApiControllerTest extends TestCase {
         $response->assertJsonPath('data.default', null);
         $response->assertJsonPath('data.sizes', []);
     }
+
+    public function test_feed_username_reflects_the_linked_accounts_current_name(): void {
+        $user = User::factory()->create(['name' => 'Current Name']);
+        // The snapshot column holds a stale name; the live account name must win.
+        Trashpost::factory()->visible()->create([
+            'user_id' => $user->id,
+            'username' => 'Stale Snapshot',
+        ]);
+
+        $this->getJson('/api/posts')->assertJsonPath('data.0.username', 'Current Name');
+    }
+
+    public function test_feed_username_falls_back_to_the_snapshot_for_an_orphaned_post(): void {
+        // No user_id (orphaned/legacy row): the stored username snapshot is shown.
+        Trashpost::factory()->visible()->create([
+            'user_id' => null,
+            'username' => 'Legacy Author',
+        ]);
+
+        $this->getJson('/api/posts')->assertJsonPath('data.0.username', 'Legacy Author');
+    }
+
+    public function test_show_username_reflects_the_linked_accounts_current_name(): void {
+        $user = User::factory()->create(['name' => 'Live Name']);
+        $post = Trashpost::factory()->visible()->create([
+            'user_id' => $user->id,
+            'username' => 'Stale Snapshot',
+        ]);
+
+        $this->getJson("/api/posts/{$post->hash}")->assertJsonPath('data.username', 'Live Name');
+    }
 }

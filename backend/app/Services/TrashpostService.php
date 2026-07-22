@@ -38,6 +38,7 @@ class TrashpostService {
      */
     public function feed(array $query): Collection {
         $builder = $this->visible()
+            ->with('user')
             ->orderByDesc('activated_at')
             ->orderByDesc('id')
             ->limit($this->resolveLimit($query['limit'] ?? null));
@@ -56,7 +57,7 @@ class TrashpostService {
      * Every other case (guest or non-owner on a hidden post) resolves to null → 404.
      */
     public function findViewableByHash(string $hash, ?User $viewer): ?Trashpost {
-        $post = Trashpost::withTrashed()->where('hash', $hash)->first();
+        $post = Trashpost::withTrashed()->with('user')->where('hash', $hash)->first();
         if ($post === null) {
             return null;
         }

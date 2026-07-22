@@ -32,7 +32,7 @@ class TrashpostResource extends JsonResource {
             'type' => $this->type,
             'file' => $this->file,
             'youtube' => $this->youtube,
-            'username' => $this->username,
+            'username' => $this->authorName(),
             'metadata' => $this->metadata,
             'created_at' => $this->created_at,
             'activated_at' => $this->activated_at,
@@ -43,6 +43,15 @@ class TrashpostResource extends JsonResource {
             'default' => $image['default'],
             'sizes' => $image['sizes'],
         ];
+    }
+
+    /**
+     * The uploader's account name when the owner still resolves, else the name stored on
+     * the row at upload time — an orphaned or legacy post still shows who posted it. Same
+     * rule as AdminTrashpostResource::uploaderName so both surfaces agree.
+     */
+    private function authorName(): ?string {
+        return $this->user?->name ?? $this->username;
     }
 
     /**

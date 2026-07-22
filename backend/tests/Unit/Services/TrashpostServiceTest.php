@@ -372,4 +372,15 @@ final class TrashpostServiceTest extends TestCase {
 
         $this->assertSame(0, Trashpost::withTrashed()->whereNotNull('activated_at')->count());
     }
+
+    public function test_feed_eager_loads_the_owner_to_avoid_n_plus_one(): void {
+        $user = User::factory()->create();
+        Trashpost::factory()->visible()->create(['user_id' => $user->id]);
+
+        $posts = (new TrashpostService())->feed([]);
+
+        // The owner is hydrated up front, so the resource reads user->name without a
+        // per-row lazy query across a page.
+        $this->assertTrue($posts->first()->relationLoaded('user'));
+    }
 }
