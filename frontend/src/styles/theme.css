@@ -257,10 +257,13 @@ main {
   display: block;
 }
 
-/* Images scale within the card; the reset already caps width and sets display:block. */
+/* Never upscale: the reset caps width at the card (max-width:100%) and we do NOT force
+   width:100%, so an original narrower than the column renders at its own pixel width rather
+   than being stretched. height:auto keeps the ratio when a wide image is capped; the image
+   centers in its card when it is narrower than the column. */
 .meme-media__image {
-  width: 100%;
   height: auto;
+  margin-inline: auto;
 }
 
 /* YouTube embeds keep a 16:9 box and the iframe fills it, scaling with the column. */
