@@ -103,4 +103,30 @@ describe('FeedItem', () => {
 
     await waitFor(() => expect(onRemove).toHaveBeenCalledWith('abc1234567'));
   });
+
+  it('keeps the item when an action leaves the meme public', async () => {
+    const onRemove = vi.fn();
+    // Defensive: if an action returns a still-public row (hidden null), the feed keeps it —
+    // dropping it would hide a meme that is still visible to everyone.
+    vi.spyOn(ModerationApi, 'deactivate').mockResolvedValue({
+      ok: true,
+      row: {
+        hash: 'abc1234567', thumbnail: null, title: null, type: null,
+        username: null, createdAt: null, activatedAt: '2026-07-09 08:00:00', deletedAt: null,
+      },
+    });
+    render(
+      <NoticeProvider>
+        <MemoryRouter>
+          <FeedItem post={post()} canModerate onRemove={onRemove} />
+        </MemoryRouter>
+      </NoticeProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^deactivate$/i }));
+
+    await waitFor(() => expect(ModerationApi.deactivate).toHaveBeenCalled());
+    expect(onRemove).not.toHaveBeenCalled();
+  });
 });
