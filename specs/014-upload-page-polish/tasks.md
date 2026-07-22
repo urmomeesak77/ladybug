@@ -99,28 +99,28 @@ stale error.
 
 ### Tests for User Story 2 (write first — must FAIL) ⚠️
 
-- [ ] T010 [P] [US2] Create `frontend/tests/components/MediaTabs.test.tsx`: renders two tabs with
+- [X] T010 [P] [US2] Create `frontend/tests/components/MediaTabs.test.tsx`: renders two tabs with
   Image `aria-selected="true"` by default; clicking YouTube flips `aria-selected` and swaps the
   `role="tabpanel"`; exactly one tabpanel is in the DOM (contract §2).
-- [ ] T011 [P] [US2] Create `frontend/tests/hooks/useTabsKeyboard.test.tsx`: Left/Right move
+- [X] T011 [P] [US2] Create `frontend/tests/hooks/useTabsKeyboard.test.tsx`: Left/Right move
   selection, Home/End jump to first/last, roving `tabIndex` is `0` on selected and `-1` on the
   other.
-- [ ] T012 [P] [US2] Extend `frontend/tests/pages/UploadPage.test.tsx`: switching media tabs
+- [X] T012 [P] [US2] Extend `frontend/tests/pages/UploadPage.test.tsx`: switching media tabs
   clears the departed input's stale field error (edge case) and submits only the active tab's
   value.
 
 ### Implementation for User Story 2
 
-- [ ] T013 [P] [US2] Create `frontend/src/hooks/useTabsKeyboard.ts`: roving-tabindex Left/Right/
+- [X] T013 [P] [US2] Create `frontend/src/hooks/useTabsKeyboard.ts`: roving-tabindex Left/Right/
   Home/End handler for the tablist (mirror the shape of `frontend/src/hooks/useMenuKeyboard.ts`).
-- [ ] T014 [US2] Create `frontend/src/components/MediaTabs.tsx`: `role="tablist"` (accessible
+- [X] T014 [US2] Create `frontend/src/components/MediaTabs.tsx`: `role="tablist"` (accessible
   name) with two `role="tab"` buttons (`aria-selected`, `aria-controls`, `id`, roving `tabIndex`)
   and one rendered `role="tabpanel"` (`aria-labelledby`) for the active tab (depends on T013).
-- [ ] T015 [US2] In `frontend/src/pages/UploadPage.tsx` replace the radio `fieldset` with
+- [X] T015 [US2] In `frontend/src/pages/UploadPage.tsx` replace the radio `fieldset` with
   `<MediaTabs>`, rendering `UploadMediaField` inside the active tabpanel (depends on T014).
-- [ ] T016 [US2] In `frontend/src/hooks/useUploadForm.ts` clear the departed tab's field error
+- [X] T016 [US2] In `frontend/src/hooks/useUploadForm.ts` clear the departed tab's field error
   when `setMode` switches tabs (so no stale error lingers against a hidden input).
-- [ ] T017 [P] [US2] In `frontend/src/styles/theme.css` add a theme-aware, responsive
+- [X] T017 [P] [US2] In `frontend/src/styles/theme.css` add a theme-aware, responsive
   `.media-tabs` block: non-color selected affordance (underline/weight), ≥2.75rem touch targets,
   no horizontal scroll 320px→desktop.
 

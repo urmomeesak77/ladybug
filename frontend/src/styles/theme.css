@@ -445,6 +445,43 @@ main {
   opacity: 0.5;
 }
 
+/* The Image/YouTube media chooser: a WAI-ARIA tablist. The tabs wrap rather than scroll on
+   narrow screens (no horizontal scroll, Principle VIII) and sit above the active tab's panel. */
+.media-tabs__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  border-bottom: 1px solid var(--color-control-border);
+  margin-bottom: var(--space-md);
+}
+
+.media-tabs__tab {
+  min-height: 2.75rem; /* ~44px comfortable touch target (Principle VIII). */
+  padding: 0 var(--space-md);
+  font: inherit;
+  color: var(--color-text-muted);
+  background: none;
+  border: 0;
+  /* A transparent underline reserves the space the selected state fills, so switching tabs
+     does not shift the row. */
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px; /* Overlap the list's hairline so the selected underline sits on it. */
+  cursor: pointer;
+}
+
+/* Selected state carries TWO non-color signals — heavier weight and an underline — so it
+   reads without relying on the accent colour alone (Principle IV / FR-010). */
+.media-tabs__tab--selected {
+  color: var(--color-text);
+  font-weight: 600;
+  border-bottom-color: var(--color-focus);
+}
+
+.media-tabs__tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 .busy-button__spinner {
   display: inline-block;
   width: 1em;

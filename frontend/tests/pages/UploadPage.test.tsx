@@ -54,21 +54,52 @@ describe('UploadPage', () => {
     expect(uploadImage).not.toHaveBeenCalled();
   });
 
-  it('starts in image mode with the file picker active', () => {
+  it('starts on the Image tab with the file picker active', () => {
     renderUpload();
 
-    expect(screen.getByRole('radio', { name: 'Image' })).toHaveProperty('checked', true);
+    expect(screen.getByRole('tab', { name: 'Image' }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByLabelText('Image file')).toBeTruthy();
     expect(screen.queryByLabelText('YouTube link')).toBeNull();
   });
 
-  it('switches to the YouTube link input in youtube mode', () => {
+  it('switches to the YouTube link input when the YouTube tab is chosen', () => {
     renderUpload();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'YouTube' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'YouTube' }));
 
     expect(screen.getByLabelText('YouTube link')).toBeTruthy();
     expect(screen.queryByLabelText('Image file')).toBeNull();
+  });
+
+  it('drops the departed tab stale field error when switching tabs', async () => {
+    renderUpload();
+
+    // Force an image field error (submit in image mode with no file, but a title present).
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'My meme' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/choose an image/i);
+
+    // Switching to YouTube must clear the stale image error rather than leave it lingering
+    // against a now-hidden input.
+    fireEvent.click(screen.getByRole('tab', { name: 'YouTube' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('submits only the active tab value after switching tabs', async () => {
+    const uploadYoutube = vi.spyOn(UploadApi, 'uploadYoutube').mockResolvedValue({ ok: true, hash: 'clip123456' });
+    const uploadImage = vi.spyOn(UploadApi, 'uploadImage');
+    renderUpload();
+    const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
+
+    // Enter an image, then switch to YouTube and submit — only the YouTube value must go out.
+    fireEvent.change(screen.getByLabelText('Image file'), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('tab', { name: 'YouTube' }));
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'My clip' } });
+    fireEvent.change(screen.getByLabelText('YouTube link'), { target: { value: 'dQw4w9WgXcQ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+
+    await waitFor(() => expect(uploadYoutube).toHaveBeenCalledWith({ title: 'My clip', youtube: 'dQw4w9WgXcQ' }));
+    expect(uploadImage).not.toHaveBeenCalled();
   });
 
   it('blocks an image submission without a chosen file', async () => {
@@ -122,7 +153,7 @@ describe('UploadPage', () => {
     vi.spyOn(UploadApi, 'uploadYoutube').mockResolvedValue({ ok: false, kind: 'auth' });
     renderUpload();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'YouTube' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'YouTube' }));
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'My clip' } });
     fireEvent.change(screen.getByLabelText('YouTube link'), { target: { value: 'dQw4w9WgXcQ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Post' }));

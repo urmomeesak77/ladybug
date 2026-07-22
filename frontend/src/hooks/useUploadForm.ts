@@ -17,6 +17,18 @@ export function useUploadForm() {
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Switch the active media tab and drop the departed input's stale field error, so an error
+  // raised against (say) the image field cannot linger once the YouTube tab hides that input.
+  function changeMode(next: UploadMode): void {
+    setMode(next);
+    const departed = next === 'image' ? 'youtube' : 'image';
+    if (errors[departed]) {
+      const remaining = { ...errors };
+      delete remaining[departed];
+      setErrors(remaining);
+    }
+  }
+
   async function submit(): Promise<void> {
     const clientErrors = UploadModel.validate(mode, { title, file, youtube });
     if (Object.keys(clientErrors).length > 0) {
@@ -48,5 +60,5 @@ export function useUploadForm() {
     setFormError('Something went wrong. Please try again.');
   }
 
-  return { mode, setMode, title, setTitle, youtube, setYoutube, setFile, errors, formError, submitting, submit };
+  return { mode, setMode: changeMode, title, setTitle, youtube, setYoutube, setFile, errors, formError, submitting, submit };
 }

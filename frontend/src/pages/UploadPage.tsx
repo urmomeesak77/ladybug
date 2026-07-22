@@ -2,12 +2,13 @@ import type { FormEvent } from 'react';
 
 import AuthField from '../components/AuthField';
 import BusyButton from '../components/BusyButton';
+import MediaTabs from '../components/MediaTabs';
 import UploadMediaField from '../components/UploadMediaField';
 import { useUploadForm } from '../hooks/useUploadForm';
 
 // Authenticated upload form: a meme is either an image file or a YouTube link, plus a
-// required title. The mode toggle keeps exactly one input active so the "either/or" server
-// rule cannot be violated from the UI. State + submit live in useUploadForm.
+// required title. The Image/YouTube tabs keep exactly one input active so the "either/or"
+// server rule cannot be violated from the UI. State + submit live in useUploadForm.
 function UploadPage() {
   const {
     mode, setMode, title, setTitle, youtube, setYoutube,
@@ -28,18 +29,6 @@ function UploadPage() {
         {/* Disabling this wrapper (not just the button) makes the in-flight state
             visually detectable across the whole form while the request runs. */}
         <fieldset disabled={submitting}>
-          <fieldset className="upload__mode">
-            <legend>What are you posting?</legend>
-            <label>
-              <input type="radio" name="mode" checked={mode === 'image'} onChange={() => setMode('image')} />
-              Image
-            </label>
-            <label>
-              <input type="radio" name="mode" checked={mode === 'youtube'} onChange={() => setMode('youtube')} />
-              YouTube
-            </label>
-          </fieldset>
-
           <AuthField
             id="title"
             label="Title"
@@ -49,7 +38,9 @@ function UploadPage() {
             error={errors.title?.[0]}
             onChange={setTitle}
           />
-          <UploadMediaField mode={mode} youtube={youtube} errors={errors} onFile={setFile} onYoutube={setYoutube} />
+          <MediaTabs selected={mode} onSelect={setMode}>
+            <UploadMediaField mode={mode} youtube={youtube} errors={errors} onFile={setFile} onYoutube={setYoutube} />
+          </MediaTabs>
 
           <BusyButton type="submit" busy={submitting}>
             {submitting ? 'Posting…' : 'Post'}
