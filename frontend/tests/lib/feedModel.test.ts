@@ -18,6 +18,8 @@ function makeRaw(overrides: Partial<RawPost> = {}): RawPost {
     metadata: '{"width":1280,"height":720}',
     url: '/posts/abc1234567',
     hidden: null,
+    username: 'alice',
+    created_at: '2026-07-22T14:30:00Z',
     ...overrides,
   };
 }
@@ -150,5 +152,24 @@ describe('parseDimensions', () => {
     expect(FeedModel.parseDimensions('not json')).toBeNull();
     expect(FeedModel.parseDimensions('{"width":0,"height":600}')).toBeNull();
     expect(FeedModel.parseDimensions('{"format":"landscape"}')).toBeNull();
+  });
+});
+
+describe('mapPost author and date', () => {
+  it('carries the resolved author name through', () => {
+    expect(FeedModel.mapPost(makeRaw({ username: 'alice' })).author).toBe('alice');
+  });
+
+  it('carries the created_at timestamp through as createdAt', () => {
+    expect(FeedModel.mapPost(makeRaw({ created_at: '2026-07-22T14:30:00Z' })).createdAt).toBe(
+      '2026-07-22T14:30:00Z',
+    );
+  });
+
+  it('passes a null author and date through unchanged', () => {
+    const post = FeedModel.mapPost(makeRaw({ username: null, created_at: null }));
+
+    expect(post.author).toBeNull();
+    expect(post.createdAt).toBeNull();
   });
 });
