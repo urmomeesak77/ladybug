@@ -65,7 +65,11 @@ export class Api {
   // other failure (non-2xx, rejection, bad body) stays retryable (FR-006, FR-007).
   static async fetchPost(hash: string): Promise<PostResult> {
     try {
+      // Send the Sanctum session cookie: the show route is viewer-aware, returning a hidden
+      // post (pending/deactivated/soft-deleted) to its admin/owner. Without credentials the
+      // backend sees a guest and 404s even for the post's own uploader.
       const response = await fetch(Api.buildPostUrl(hash), {
+        credentials: 'include',
         headers: { Accept: 'application/json' },
       });
       if (response.status === 404) {

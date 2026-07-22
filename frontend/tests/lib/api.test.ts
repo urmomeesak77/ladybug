@@ -134,15 +134,17 @@ describe('fetchPost', () => {
     }
   });
 
-  it('requests the post URL with the JSON Accept header', async () => {
+  it('requests the post URL with the JSON Accept header and the session cookie', async () => {
     const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ data: rawPost }) }));
     vi.stubGlobal('fetch', fetchMock);
 
     await Api.fetchPost('abc1234567');
 
+    // credentials: 'include' sends the Sanctum session cookie cross-origin so the viewer-
+    // aware show route can return a hidden post to its admin/owner (else it 404s as guest).
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringMatching(/\/api\/posts\/abc1234567$/),
-      { headers: { Accept: 'application/json' } },
+      { credentials: 'include', headers: { Accept: 'application/json' } },
     );
   });
 
