@@ -12,7 +12,7 @@ const imageMedia: FeedMedia = {
   kind: 'image',
   src: '/img/800/a/abc.jpg',
   srcset: '/img/800/a/abc.jpg 800w, /img/300/a/abc.jpg 300w',
-  sizes: '(min-width: 48rem) 48rem, 100vw',
+  sizes: '(min-width: 80rem) 80rem, 100vw',
   alt: 'Funny cat',
   width: 800,
   height: 400,
@@ -25,7 +25,7 @@ describe('MemeMedia', () => {
     const img = screen.getByRole('img', { name: 'Funny cat' });
     expect(img.getAttribute('src')).toBe('/img/800/a/abc.jpg');
     expect(img.getAttribute('srcset')).toContain('300w');
-    expect(img.getAttribute('sizes')).toContain('48rem');
+    expect(img.getAttribute('sizes')).toContain('80rem');
     expect(img.getAttribute('loading')).toBe('lazy');
     expect(img.getAttribute('width')).toBe('800');
   });

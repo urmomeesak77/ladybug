@@ -38,7 +38,7 @@ export type FeedPost = {
 const GENERIC_ALT = 'Meme image';
 
 // The <img sizes> hint: the feed column is capped at the layout max width, full-bleed below.
-const IMAGE_SIZES = '(min-width: 48rem) 48rem, 100vw';
+const IMAGE_SIZES = '(min-width: 80rem) 80rem, 100vw';
 
 // Maps a raw API post into the render-ready FeedPost the feed/post views consume.
 export class FeedModel {
