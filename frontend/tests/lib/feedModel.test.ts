@@ -12,7 +12,7 @@ function makeRaw(overrides: Partial<RawPost> = {}): RawPost {
     default: 'https://cdn.example/x/default.jpg',
     sizes: [
       { url: 'https://cdn.example/x/small.jpg', width: 320 },
-      { url: 'https://cdn.example/x/large.jpg', width: 1280 },
+      { url: 'https://cdn.example/x/large.jpg', width: 800 },
     ],
     original: 'https://cdn.example/x/original.jpg',
     metadata: '{"width":1280,"height":720}',
@@ -55,16 +55,34 @@ describe('mapPost', () => {
     expect(post.media.kind).toBe('image');
   });
 
-  it('assembles srcset widest-first from sizes', () => {
+  it('assembles srcset widest-first with the original as the widest candidate', () => {
     const post = FeedModel.mapPost(makeRaw());
 
     if (post.media.kind === 'image') {
       expect(post.media.src).toBe('https://cdn.example/x/default.jpg');
       expect(post.media.srcset).toBe(
-        'https://cdn.example/x/large.jpg 1280w, https://cdn.example/x/small.jpg 320w',
+        'https://cdn.example/x/original.jpg 1280w, ' +
+          'https://cdn.example/x/large.jpg 800w, ' +
+          'https://cdn.example/x/small.jpg 320w',
       );
     } else {
       throw new Error('expected image media');
+    }
+  });
+
+  it('serves the original alone in srcset when no numeric sizes exist', () => {
+    const post = FeedModel.mapPost(makeRaw({ sizes: [] }));
+
+    if (post.media.kind === 'image') {
+      expect(post.media.srcset).toBe('https://cdn.example/x/original.jpg 1280w');
+    }
+  });
+
+  it('omits srcset when there is neither a numeric size nor an original width', () => {
+    const post = FeedModel.mapPost(makeRaw({ sizes: [], metadata: null }));
+
+    if (post.media.kind === 'image') {
+      expect(post.media.srcset).toBe('');
     }
   });
 
@@ -77,14 +95,6 @@ describe('mapPost', () => {
     }
     if (untitled.media.kind === 'image') {
       expect(untitled.media.alt.length).toBeGreaterThan(0);
-    }
-  });
-
-  it('omits srcset when there are no sizes', () => {
-    const post = FeedModel.mapPost(makeRaw({ sizes: [] }));
-
-    if (post.media.kind === 'image') {
-      expect(post.media.srcset).toBe('');
     }
   });
 

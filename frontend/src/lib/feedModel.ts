@@ -93,11 +93,21 @@ export class FeedModel {
     return [...sizes].sort((a, b) => b.width - a.width)[0];
   }
 
-  private static buildSrcset(sizes: ImageSize[] | null): string {
-    if (!sizes || sizes.length === 0) {
+  private static buildSrcset(
+    sizes: ImageSize[] | null,
+    original: string | null,
+    originalWidth: number | null,
+  ): string {
+    const candidates: ImageSize[] = sizes ? [...sizes] : [];
+    // The original is the widest candidate so the browser never has to upscale a variant
+    // to fill a slot wider than 1200px (it picks the original there instead).
+    if (original && originalWidth && originalWidth > 0) {
+      candidates.push({ url: original, width: originalWidth });
+    }
+    if (candidates.length === 0) {
       return '';
     }
-    return [...sizes]
+    return candidates
       .sort((a, b) => b.width - a.width)
       .map((size) => `${size.url} ${size.width}w`)
       .join(', ');
@@ -114,7 +124,7 @@ export class FeedModel {
       return {
         kind: 'image',
         src,
-        srcset: FeedModel.buildSrcset(raw.sizes),
+        srcset: FeedModel.buildSrcset(raw.sizes, raw.original, dimensions?.width ?? null),
         sizes: IMAGE_SIZES,
         alt: raw.title ?? GENERIC_ALT,
         width: dimensions?.width,
