@@ -88,9 +88,12 @@ The one reusable control both surfaces render. Props:
   component dumb and its tests role-free). The server enforces admin on the data
   regardless.
 
-The derive-hidden helper and the menu-item builder live as small `static` methods on a
-new `PostModerationModel` class (`lib/postModerationModel.ts`) so they are unit-testable
-without a DOM, per the one-class-of-statics convention.
+The derive-hidden helper lives as a `static` method on the existing `ModerationModel`
+(`ModerationModel.hiddenFromRow`, `lib/moderationModel.ts`) so it is unit-testable without
+a DOM and mirrors the backend's `hiddenStatus()`. The menu-item builder stays inline in
+`AdminPostActions.tsx` as a `PostActionMenu` class of statics (it produces JSX
+`ActionMenuItem`s, so it belongs with the component, matching `ModerationMenu` in
+`ModerationActions.tsx`) — no separate `lib/postModerationModel.ts` module was needed.
 
 ### Shared action glyphs — `components/moderation/ActionGlyph.tsx` (extracted)
 

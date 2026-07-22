@@ -22,6 +22,13 @@ function FeedItem({ post, canModerate = false, onRemove }: FeedItemProps) {
   function drop(): void {
     onRemove?.(post.hash);
   }
+  // An action that leaves the meme public (hidden null) keeps its card; anything that hides
+  // it (pending/deleted) drops it, since a live-looking card would then mislead.
+  function onApplied(hidden: 'pending' | 'deleted' | null): void {
+    if (hidden !== null) {
+      drop();
+    }
+  }
   return (
     <article className="feed-item">
       <div className="feed-item__header">
@@ -33,7 +40,7 @@ function FeedItem({ post, canModerate = false, onRemove }: FeedItemProps) {
             hash={post.hash}
             title={post.title}
             hidden={post.hidden}
-            onApplied={(hidden) => { if (hidden !== null) { drop(); } }}
+            onApplied={onApplied}
             onRemoved={drop}
           />
         )}
