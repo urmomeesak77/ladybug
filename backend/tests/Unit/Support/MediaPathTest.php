@@ -28,6 +28,8 @@ final class MediaPathTest extends TestCase {
         $this->assertTrue(MediaPath::isMediaFile('photo.JPEG'));
         $this->assertTrue(MediaPath::isMediaFile('photo.Png'));
         $this->assertTrue(MediaPath::isMediaFile('photo.GIF'));
+        $this->assertTrue(MediaPath::isMediaFile('photo.webp'));
+        $this->assertTrue(MediaPath::isMediaFile('photo.WEBP'));
     }
 
     public function test_is_media_file_rejects_non_media_files(): void {

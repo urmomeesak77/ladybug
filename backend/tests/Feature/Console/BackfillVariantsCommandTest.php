@@ -65,4 +65,18 @@ final class BackfillVariantsCommandTest extends TestCase {
         // 1600px original ⇒ 1200/800/500/300/100 would be written = 5 candidates.
         $this->assertStringContainsString('variants to write: 5', $output);
     }
+
+    public function test_it_backfills_variants_for_a_webp_original(): void {
+        // Regression: MediaPath::isMediaFile must recognise webp so the backfill does not skip it.
+        $rel = MediaPath::imageRelativePath('original', 'widewebp00', 'webp');
+        // static.webp is a real 400px-wide static WebP fixture (used by the processor tests).
+        $bytes = (string) file_get_contents(dirname(__DIR__, 2) . '/fixtures/static.webp');
+        Storage::disk('public')->put($rel, $bytes);
+
+        $exit = Artisan::call('media:backfill-variants');
+
+        $this->assertSame(0, $exit);
+        // 400px original ⇒ the 300 variant is generated (static webp resizes through GD).
+        Storage::disk('public')->assertExists(MediaPath::imageRelativePath('300', 'widewebp00', 'webp'));
+    }
 }

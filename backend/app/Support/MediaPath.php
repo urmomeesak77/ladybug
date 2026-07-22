@@ -22,7 +22,7 @@ final class MediaPath {
     private const IMAGE_SIZES = ['original', '1200', '800', '500', '300', '100'];
 
     /** Only these are treated as media; anything else (e.g. .gitignore) is a stray. */
-    private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif'];
+    private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
     /**
      * @return list<string>
