@@ -252,6 +252,13 @@ main {
   text-decoration: underline;
 }
 
+.feed-item__byline {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md) var(--space-md);
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
 /* The permalink wrapper must be block so the inline <a> adds no line-height gap below the image. */
 .meme-media__link {
   display: block;
