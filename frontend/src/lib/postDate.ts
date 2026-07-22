@@ -1,8 +1,10 @@
 // Formats a post's creation timestamp for the byline. In-house (no date library):
 // Intl.DateTimeFormat is a platform built-in, so no dependency is added (Principle I).
 export class PostDate {
-  // Fixed 'en-US' locale so the byline reads the same 'Jul 22, 2026' for every visitor,
-  // matching the design's chosen format rather than varying per browser locale.
+  // Fixed 'en-US' locale so the byline's *format* is the design's 'Jul 22, 2026' for
+  // every visitor, rather than varying per browser locale. Timezone is intentionally the
+  // viewer's local zone (no `timeZone` option), so the displayed calendar day is the
+  // visitor's local day — the conventional "date added" behaviour for a social feed.
   private static readonly formatter = new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'short',
