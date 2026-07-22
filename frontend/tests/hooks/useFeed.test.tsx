@@ -143,3 +143,17 @@ describe('useFeed', () => {
     expect(saved?.anchorHash).toBeNull();
   });
 });
+
+describe('useFeed removePost', () => {
+  it('drops a loaded post from the feed', async () => {
+    vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(10, 'a') });
+
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
+    await waitFor(() => expect(result.current.state.posts).toHaveLength(10));
+
+    act(() => { result.current.removePost('a0000003'); });
+
+    expect(result.current.state.posts.some((p) => p.hash === 'a0000003')).toBe(false);
+    expect(result.current.state.posts).toHaveLength(9);
+  });
+});

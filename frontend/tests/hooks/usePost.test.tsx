@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { renderHook, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { usePost } from '../../src/hooks/usePost';
@@ -86,5 +87,18 @@ describe('usePost', () => {
 
     const state = result.current.state;
     expect(state.status === 'loaded' && state.post.title).toBe('Second');
+  });
+});
+
+describe('usePost applyModeration', () => {
+  it('updates the loaded post hidden state', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post });
+
+    const { result } = renderHook(() => usePost('abc1234567'));
+    await waitFor(() => expect(result.current.state.status).toBe('loaded'));
+
+    act(() => { result.current.applyModeration('deleted'); });
+
+    expect(result.current.state).toMatchObject({ status: 'loaded', post: { hidden: 'deleted' } });
   });
 });

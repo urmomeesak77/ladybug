@@ -7,7 +7,11 @@ import { PostModel } from '../lib/postModel';
 // Thin React glue for the single-meme page: fetch on mount and on every hash change,
 // expose an in-place retry. State transitions live in lib/postModel and IO in lib/api
 // (both coverage-gated); this hook only sequences them.
-export function usePost(hash: string | undefined): { state: PostPageState; retry: () => void } {
+export function usePost(hash: string | undefined): {
+  state: PostPageState;
+  retry: () => void;
+  applyModeration: (hidden: 'pending' | 'deleted' | null) => void;
+} {
   const [state, dispatch] = useReducer(PostModel.reducer, PostModel.initialState);
   // The hash whose response is still wanted. A slow response that resolves after the
   // user navigated to another meme must never paint over the new meme's state, so each
@@ -44,5 +48,11 @@ export function usePost(hash: string | undefined): { state: PostPageState; retry
     }
   }, [hash, load]);
 
-  return { state, retry };
+  // Refresh the visible state after an in-place admin action (no refetch); the reducer
+  // ignores it unless a post is loaded.
+  const applyModeration = useCallback((hidden: 'pending' | 'deleted' | null) => {
+    dispatch({ type: 'applyModeration', hidden });
+  }, []);
+
+  return { state, retry, applyModeration };
 }

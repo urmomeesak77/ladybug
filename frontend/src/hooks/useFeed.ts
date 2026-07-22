@@ -107,9 +107,15 @@ export function useFeed(after: string | undefined, cacheKey: string, fresh: bool
 
   usePersistSnapshot(state, cacheKey, readCursor);
 
+  // Drop a meme an admin hid/removed in place (in-feed moderation). Dispatch only — the
+  // persist effect writes the shortened list to the snapshot on the next settled render.
+  const removePost = useCallback((hash: string) => {
+    dispatch({ type: 'removePost', hash });
+  }, []);
+
   const atPageBreak = Pagination.isPageBreak(state.posts.length);
   // Auto-load only while the API has more and we have not hit the explicit page break.
   const canAutoLoad = state.status === 'loaded' && !atPageBreak;
 
-  return { state, load, atPageBreak, canAutoLoad };
+  return { state, load, atPageBreak, canAutoLoad, removePost };
 }
