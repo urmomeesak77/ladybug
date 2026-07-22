@@ -1,7 +1,6 @@
-import type { ReactElement } from 'react';
-
 import ActionMenu from '../admin/ActionMenu';
 import type { ActionMenuItem } from '../admin/ActionMenu';
+import { ActionIcon } from './ActionGlyph';
 import { useNotice } from '../../hooks/useNotice';
 import { ModerationApi } from '../../lib/moderationApi';
 import type { ModerationActionResult } from '../../lib/moderationApi';
@@ -14,27 +13,6 @@ type Remove = (hash: string) => void;
 
 // Runs a moderation action's promise and refreshes the row on success (bound to onApply).
 type ApplyAction = (action: Promise<ModerationActionResult>) => void;
-
-type ActionGlyph = 'activate' | 'deactivate' | 'delete' | 'restore';
-
-// Flat single-path glyphs (24x24, filled with currentColor) drawn in the same spirit as the
-// LeftMenu icon set: a play triangle, pause bars, a trash can, and an undo arc.
-const GLYPHS: Record<ActionGlyph, string> = {
-  activate: 'M8 5v14l11-7z',
-  deactivate: 'M6 19h4V5H6v14zm8-14v14h4V5h-4z',
-  delete: 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
-  restore: 'M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 7 7 6.97 6.97 0 0 1-4.9-2L6.7 18.4A9 9 0 1 0 13 3z',
-};
-
-// Decorative only: the menu item's text label carries the accessible meaning (Principle IV /
-// FR-002); the icon accompanies it (FR-015).
-function ActionIcon({ glyph }: { glyph: ActionGlyph }): ReactElement {
-  return (
-    <svg className="moderation-actions__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d={GLYPHS[glyph]} />
-    </svg>
-  );
-}
 
 // Await a moderation action and, on success, push the updated row upward; a failed action
 // (non-2xx or network) leaves the row untouched — the table simply doesn't change. A class
