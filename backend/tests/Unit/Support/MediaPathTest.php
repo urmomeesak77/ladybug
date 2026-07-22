@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 final class MediaPathTest extends TestCase {
     public function test_image_sizes_are_returned_in_canonical_order(): void {
-        $this->assertSame(['original', '800', '500', '300', '100'], MediaPath::imageSizes());
+        $this->assertSame(['original', '1200', '800', '500', '300', '100'], MediaPath::imageSizes());
     }
 
     public function test_shard_for_uses_lowercased_first_character(): void {

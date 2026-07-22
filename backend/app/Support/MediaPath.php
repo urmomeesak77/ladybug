@@ -19,7 +19,7 @@ final class MediaPath {
     private const OTHER_SHARD = 'other';
 
     /** Ordered widest-to-narrowest so reports iterate deterministically. */
-    private const IMAGE_SIZES = ['original', '800', '500', '300', '100'];
+    private const IMAGE_SIZES = ['original', '1200', '800', '500', '300', '100'];
 
     /** Only these are treated as media; anything else (e.g. .gitignore) is a stray. */
     private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif'];
