@@ -107,11 +107,18 @@ export function useFeed(after: string | undefined, cacheKey: string, fresh: bool
 
   usePersistSnapshot(state, cacheKey, readCursor);
 
-  // Drop a meme an admin hid/removed in place (in-feed moderation). Dispatch only — the
-  // persist effect writes the shortened list to the snapshot on the next settled render.
+  // Drop a meme an admin hid/removed in place (in-feed moderation). When the dropped post is
+  // the keyset cursor (the last loaded one), reseat the cursor onto the prior post first: the
+  // next batch keys off the last loaded hash, and a removed cursor no longer resolves on the
+  // server — which would either dead-end the feed (a deactivated row's activated_at is null)
+  // or reset to the newest page and duplicate posts. The persist effect then writes the
+  // shortened list and corrected cursor to the snapshot on the next settled render.
   const removePost = useCallback((hash: string) => {
+    if (cursorRef.current === hash) {
+      cursorRef.current = Pagination.nextStart(state.posts.filter((post) => post.hash !== hash));
+    }
     dispatch({ type: 'removePost', hash });
-  }, []);
+  }, [state.posts]);
 
   const atPageBreak = Pagination.isPageBreak(state.posts.length);
   // Auto-load only while the API has more and we have not hit the explicit page break.

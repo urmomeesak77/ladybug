@@ -156,4 +156,35 @@ describe('useFeed removePost', () => {
     expect(result.current.state.posts.some((p) => p.hash === 'a0000003')).toBe(false);
     expect(result.current.state.posts).toHaveLength(9);
   });
+
+  it('reseats the keyset cursor when the last (cursor) post is removed', async () => {
+    const fetchFeed = vi.spyOn(Api, 'fetchFeed')
+      .mockResolvedValueOnce({ ok: true, posts: posts(10, 'a') })
+      .mockResolvedValueOnce({ ok: true, posts: posts(10, 'b') });
+
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
+    await waitFor(() => expect(result.current.state.posts).toHaveLength(10));
+
+    // Remove the last loaded post — it is the keyset cursor (a0000009).
+    act(() => { result.current.removePost('a0000009'); });
+    await act(() => result.current.load());
+
+    // The next batch keys off the new last post, never the removed cursor (which would
+    // dead-end the feed or duplicate the newest page).
+    expect(fetchFeed).toHaveBeenLastCalledWith({ limit: 10, start: 'a0000008' });
+  });
+
+  it('keeps the cursor when a non-last post is removed', async () => {
+    const fetchFeed = vi.spyOn(Api, 'fetchFeed')
+      .mockResolvedValueOnce({ ok: true, posts: posts(10, 'a') })
+      .mockResolvedValueOnce({ ok: true, posts: posts(10, 'b') });
+
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
+    await waitFor(() => expect(result.current.state.posts).toHaveLength(10));
+
+    act(() => { result.current.removePost('a0000003'); });
+    await act(() => result.current.load());
+
+    expect(fetchFeed).toHaveBeenLastCalledWith({ limit: 10, start: 'a0000009' });
+  });
 });
