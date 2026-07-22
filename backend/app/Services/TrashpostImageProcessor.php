@@ -38,7 +38,7 @@ class TrashpostImageProcessor {
 
         [$width, $height] = $this->imageFile->dimensions($originalPath);
 
-        $this->generateVariants($hash, $ext, $originalPath, $width);
+        $this->generateMissingVariants($originalPath, $hash, $ext);
 
         return [
             'file' => "{$hash}.{$ext}",
@@ -77,18 +77,35 @@ class TrashpostImageProcessor {
         };
     }
 
-    private function generateVariants(string $hash, string $ext, string $originalPath, int $width): void {
-        // Pick the resizer once: animated formats (GIF, animated WebP) need a frame-preserving
-        // CLI; everything else (incl. static WebP) resizes in GD via ImageFile.
+    /**
+     * Generate every size variant for an already-stored original that is both narrower than
+     * the source (we never upscale) and not already on disk. Shared by the upload write path
+     * and the media:backfill-variants backfill so both apply identical rules. Returns the
+     * size strings actually written.
+     *
+     * @return list<string>
+     */
+    public function generateMissingVariants(string $originalPath, string $hash, string $ext): array {
+        [$width] = $this->imageFile->dimensions($originalPath);
         $resizer = $this->resizerFor($ext, $originalPath);
+        $disk = Storage::disk('public');
+        $written = [];
         foreach (MediaPath::imageSizes() as $size) {
             if ($size === 'original' || (int) $size >= $width) {
                 continue;
             }
-            $variantPath = Storage::disk('public')->path(MediaPath::imageRelativePath($size, $hash, $ext));
+            $rel = MediaPath::imageRelativePath($size, $hash, $ext);
+            if ($disk->exists($rel)) {
+                continue;
+            }
+            $variantPath = $disk->path($rel);
             File::ensureDirectoryExists(dirname($variantPath));
-            $resizer->scaledDownCopy($originalPath, $variantPath, (int) $size);
+            if ($resizer->scaledDownCopy($originalPath, $variantPath, (int) $size)) {
+                $written[] = $size;
+            }
         }
+
+        return $written;
     }
 
     /**

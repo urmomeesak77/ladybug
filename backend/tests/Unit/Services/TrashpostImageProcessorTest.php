@@ -130,6 +130,36 @@ class TrashpostImageProcessorTest extends TestCase {
         Storage::disk('public')->assertMissing(MediaPath::imageRelativePath('original', 'abc1234567', 'php'));
     }
 
+    public function test_generates_the_1200_variant_for_a_wide_original(): void {
+        (new TrashpostImageProcessor())->process($this->image('m.jpg', 1600, 800), 'abc1234567');
+
+        Storage::disk('public')->assertExists(MediaPath::imageRelativePath('1200', 'abc1234567', 'jpg'));
+    }
+
+    public function test_does_not_generate_1200_when_the_original_is_narrower(): void {
+        (new TrashpostImageProcessor())->process($this->image('m.jpg', 1000, 500), 'abc1234567');
+
+        // 1000 < 1200, so the 1200 variant must never be created (no upscaling).
+        Storage::disk('public')->assertMissing(MediaPath::imageRelativePath('1200', 'abc1234567', 'jpg'));
+    }
+
+    public function test_generate_missing_variants_skips_existing_files_and_reports_writes(): void {
+        $disk = Storage::disk('public');
+        $processor = new TrashpostImageProcessor();
+        // Seed a real 1600px original on disk, then pre-create the 800 variant so it is "existing".
+        $original = $this->image('m.jpg', 1600, 800);
+        $originalRel = MediaPath::imageRelativePath('original', 'abc1234567', 'jpg');
+        $disk->putFileAs(dirname($originalRel), $original, basename($originalRel));
+        $disk->put(MediaPath::imageRelativePath('800', 'abc1234567', 'jpg'), 'stale');
+
+        $written = $processor->generateMissingVariants($disk->path($originalRel), 'abc1234567', 'jpg');
+
+        // 800 already existed so it is skipped; 1200/500/300/100 are all written.
+        $this->assertNotContains('800', $written);
+        $this->assertContains('1200', $written);
+        $this->assertSame('stale', $disk->get(MediaPath::imageRelativePath('800', 'abc1234567', 'jpg')));
+    }
+
     public function test_metadata_carries_dimensions_ratio_and_mime(): void {
         $result = (new TrashpostImageProcessor())->process($this->image('m.jpg', 1200, 600), 'abc1234567');
 
