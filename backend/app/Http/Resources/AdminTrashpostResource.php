@@ -50,7 +50,10 @@ class AdminTrashpostResource extends JsonResource {
      */
     private function thumbnailUrl(): ?string {
         if ($this->type === 'youtube') {
-            return $this->youtubeThumbnailUrl();
+            // Prefer the dedicated still fetched at upload time; migrated prototype posts
+            // never populated that column but kept their still as a normal image file
+            // (with size variants), so fall back to the stored 100-variant.
+            return $this->youtubeThumbnailUrl() ?? $this->imageThumbnailUrl();
         }
 
         return $this->imageThumbnailUrl();

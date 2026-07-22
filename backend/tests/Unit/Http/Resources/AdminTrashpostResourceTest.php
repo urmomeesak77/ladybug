@@ -142,6 +142,26 @@ final class AdminTrashpostResourceTest extends TestCase {
         Http::assertNothingSent();
     }
 
+    public function test_youtube_thumbnail_falls_back_to_the_stored_image_variant(): void {
+        // Migrated prototype YouTube posts stored their still as a normal image file (with
+        // size variants) and left youtube_thumbnail null. The row must show that stored
+        // 100-variant rather than the empty placeholder — still without any HTTP call.
+        Http::fake();
+        $post = Trashpost::factory()->create([
+            'type' => 'youtube',
+            'file' => 'abc1234567.jpg',
+            'youtube' => 'dQw4w9WgXcQ',
+            'youtube_thumbnail' => null,
+        ]);
+        $rel = MediaPath::imageRelativePath('100', 'abc1234567', 'jpg');
+        Storage::disk('public')->put($rel, 'x');
+
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+        $this->assertSame($disk->url($rel), $this->toArray($post)['thumbnail']);
+        Http::assertNothingSent();
+    }
+
     public function test_thumbnail_is_null_when_the_file_is_missing_from_the_public_disk(): void {
         // The resource never points at a file that is not on the public disk — a missing
         // still yields the UI placeholder, not a 404ing URL.
