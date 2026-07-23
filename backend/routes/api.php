@@ -9,11 +9,32 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\TrashpostsApiController;
+use Database\Seeders\E2eSeeder;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 // Liveness probe for the dev environment and CI. Intentionally has no database
 // dependency so it answers before any migrations exist. See contracts/health.md.
 Route::get('/health', static fn () => response()->json(['status' => 'ok']));
+
+// Test-only: reset the disposable e2e database to the pristine seed. The Playwright suite
+// runs every spec serially against one shared stack, and each spec's assertions assume the
+// baseline corpus (20 posts, the newest carrying 3 comments); destructive specs (deactivating
+// a meme, adding a comment) would otherwise leak state into later specs. The e2e harness calls
+// this before each test so every test starts identical and order-independent. Gated to the
+// `e2e` environment, so the route does NOT exist in dev ('local') or production — it is never
+// registered off the isolated docker-compose.e2e.yml stack (backend/.env.e2e sets APP_ENV=e2e).
+if (app()->environment('e2e')) {
+    Route::post('/testing/reset', static function () {
+        Artisan::call('migrate:fresh', [
+            '--force' => true,
+            '--seed' => true,
+            '--seeder' => E2eSeeder::class,
+        ]);
+
+        return response()->noContent();
+    })->name('api.testing.reset');
+}
 
 // Read-side feed API (public, read-only). The show route is registered here so
 // `url_api` resolves now; its controller method lands in US2 (contracts/feed-api.md).

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/e2eReset';
 
 // End-to-end coverage of the Home feed (US1/US2) against the live stack: the shell renders,
 // the newest memes load with titles + media, scrolling appends the next batch with no

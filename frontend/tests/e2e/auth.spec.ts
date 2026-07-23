@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/e2eReset';
 
 // End-to-end coverage of the auth feature (007) against the ISOLATED e2e stack (run via
 // scripts\e2e.ps1): register logs the user in, the nav reflects auth state, guards enforce
