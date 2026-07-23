@@ -19,12 +19,18 @@ function CommentSection({ hash }: { hash: string }) {
       {!loading && failed ? (
         <p className="comments__status" role="alert">Comments could not be loaded.</p>
       ) : null}
-      {!loading && !failed && total === 0 ? (
+      {/* Gate on the rows the viewer actually has, not the public `total`: an admin sees hidden
+          rows the public count excludes, so once every remaining comment is hidden `total` is 0
+          while the admin still holds rows to moderate — gating on `total` would hide them and
+          their Unhide control (D6/D7). The count line stays on the public total. */}
+      {!loading && !failed && comments.length === 0 ? (
         <p className="comments__empty">No comments yet. Be the first to comment.</p>
       ) : null}
-      {!loading && !failed && total > 0 ? (
+      {!loading && !failed && comments.length > 0 ? (
         <>
-          <p className="comments__count">{total === 1 ? '1 comment' : `${total} comments`}</p>
+          {total > 0 ? (
+            <p className="comments__count">{total === 1 ? '1 comment' : `${total} comments`}</p>
+          ) : null}
           <CommentList
             comments={comments}
             hasMore={hasMore}
