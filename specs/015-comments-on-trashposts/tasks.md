@@ -314,17 +314,17 @@ stories are independently functional.
 
 **Purpose**: Verification, coverage, and consistency across all stories.
 
-- [ ] T063 [P] Run the backend suite + Clover coverage via the `php:8.3-cli` container and
+- [x] T063 [P] Run the backend suite + Clover coverage via the `php:8.3-cli` container and
   confirm ≥90% line coverage on the new code (`CommentService`, both controllers,
   `CommentResource`, `CreateCommentRequest`, `Comment`) (Principle VII).
-- [ ] T064 [P] Run `npm run lint` and `npm run test` (Vitest coverage spans all of `src/`) and
+- [x] T064 [P] Run `npm run lint` and `npm run test` (Vitest coverage spans all of `src/`) and
   confirm ≥90% on the new comment modules/components/hook (Principle VII).
 - [ ] T065 Manual responsive/theming pass on the comment section from ~320px to wide desktop
   in light and dark — no horizontal scroll, no clipped controls, hidden badge legible
   (FR-018, SC-008, Principles IV & VIII).
 - [ ] T066 Run the `quickstart.md` scenarios end-to-end (US1–US4 + lifecycle/cascade/orphan)
   against the dev stack and confirm each maps to its acceptance criteria.
-- [ ] T067 Update `backend`/`frontend` docs and the root `CLAUDE.md` "Current State" list with
+- [x] T067 Update `backend`/`frontend` docs and the root `CLAUDE.md` "Current State" list with
   a **015-comments-on-trashposts** entry summarizing the delivered surface (comments table,
   `CommentService`, public + admin controllers, `CommentSection`). Note: the Current-State
   list currently ends at 013; add 015 here and, if not already present, backfill the

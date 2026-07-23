@@ -84,4 +84,40 @@ describe('CommentForm submission', () => {
     await waitFor(() => expect(screen.getByText('The body field is required.')).toBeTruthy());
     expect(box.value).toBe('oops');
   });
+
+  it('rejects a body over the length limit inline without calling onSubmit', () => {
+    const { onSubmit } = renderForm(auth('member'));
+    const box = screen.getByLabelText(/add a comment/i) as HTMLTextAreaElement;
+    // fireEvent.change sets the value directly, past the textarea maxLength.
+    fireEvent.change(box, { target: { value: 'a'.repeat(1001) } });
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }));
+    expect(screen.getByText(/1000 characters or fewer/i)).toBeTruthy();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('maps each failure kind to its own message', async () => {
+    const cases = [
+      [{ ok: false as const, kind: 'validation' as const, errors: {} }, /could not be posted/i],
+      [{ ok: false as const, kind: 'rateLimited' as const }, /too quickly/i],
+      [{ ok: false as const, kind: 'auth' as const }, /sign in again/i],
+      [{ ok: false as const, kind: 'unverified' as const }, /verify your e-mail/i],
+      [{ ok: false as const, kind: 'notFound' as const }, /no longer available/i],
+      [{ ok: false as const, kind: 'network' as const }, /something went wrong/i],
+    ] as const;
+    for (const [result, matcher] of cases) {
+      const onSubmit = vi.fn(async () => result);
+      const { unmount } = render(
+        <AuthContext.Provider value={auth('member')}>
+          <MemoryRouter>
+            <CommentForm onSubmit={onSubmit} />
+          </MemoryRouter>
+        </AuthContext.Provider>,
+      );
+      const box = screen.getByLabelText(/add a comment/i) as HTMLTextAreaElement;
+      fireEvent.change(box, { target: { value: 'text' } });
+      fireEvent.click(screen.getByRole('button', { name: /post comment/i }));
+      await waitFor(() => expect(screen.getByText(matcher)).toBeTruthy());
+      unmount();
+    }
+  });
 });

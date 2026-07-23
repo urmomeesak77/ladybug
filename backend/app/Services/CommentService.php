@@ -68,7 +68,7 @@ class CommentService {
     public function create(Trashpost $post, User $author, string $body): Comment {
         for ($attempt = 1; ; $attempt++) {
             $comment = new Comment();
-            $comment->hash = Str::createUniqueHash();
+            $comment->hash = $this->mintHash();
             $comment->trashpost_id = $post->id;
             $comment->user_id = $author->id;
             $comment->username = $author->name;
@@ -105,19 +105,28 @@ class CommentService {
 
     /**
      * Permanently remove the comment (hard delete — no SoftDeletes, D3). Supersedes the hidden
-     * state: a hidden comment can still be deleted. Wrapped in a transaction to mirror the other
-     * transitions; irreversible once committed (FR-013).
+     * state: a hidden comment can still be deleted. Loads the row FOR UPDATE inside a transaction
+     * (as the hide/unhide transitions) so a concurrent moderation action serialises cleanly; a
+     * missing row is a 404-worthy ModelNotFoundException. Irreversible once committed (FR-013).
      */
     public function delete(Comment $comment): void {
         DB::beginTransaction();
         try {
-            $comment->delete();
+            Comment::where('id', $comment->id)->lockForUpdate()->firstOrFail()->delete();
             DB::commit();
         }
         catch (Throwable $e) {
             DB::rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Mint a candidate public hash. Protected so collision tests can substitute a deterministic
+     * sequence; production always delegates to Str::createUniqueHash (as TrashpostService).
+     */
+    protected function mintHash(): string {
+        return Str::createUniqueHash();
     }
 
     /**

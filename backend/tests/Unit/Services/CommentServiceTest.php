@@ -8,6 +8,8 @@ use App\Models\Comment;
 use App\Models\Trashpost;
 use App\Models\User;
 use App\Services\CommentService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -231,5 +233,50 @@ final class CommentServiceTest extends TestCase {
         $this->service()->delete($comment);
 
         $this->assertDatabaseMissing('comments', ['id' => $comment->id]);
+    }
+
+    public function test_list_ignores_an_unknown_before_cursor(): void {
+        $post = Trashpost::factory()->create();
+        Comment::factory()->for($post, 'trashpost')->count(2)->create();
+
+        // A cursor that resolves to no comment is ignored — the newest batch is returned.
+        $result = $this->service()->list($post, 'Nonexist99', null);
+
+        $this->assertCount(2, $result['comments']);
+    }
+
+    public function test_hide_on_a_vanished_comment_throws(): void {
+        // The row is loaded FOR UPDATE inside the transaction; a missing row aborts the
+        // transition (the transaction rolls back and the error propagates as a 404).
+        $comment = Comment::factory()->create();
+        Comment::whereKey($comment->id)->delete();
+
+        $this->expectException(ModelNotFoundException::class);
+        $this->service()->hide($comment);
+    }
+
+    public function test_delete_on_a_vanished_comment_throws(): void {
+        $comment = Comment::factory()->create();
+        Comment::whereKey($comment->id)->delete();
+
+        $this->expectException(ModelNotFoundException::class);
+        $this->service()->delete($comment);
+    }
+
+    public function test_create_rethrows_after_exhausting_hash_collision_retries(): void {
+        // Force every minted hash to collide with an existing row: after MAX_HASH_ATTEMPTS the
+        // unique-constraint violation propagates rather than looping forever (matches reserve()).
+        $post = Trashpost::factory()->create();
+        $author = User::factory()->create();
+        Comment::factory()->for($post, 'trashpost')->create(['hash' => 'FixedHash1']);
+
+        $service = new class () extends CommentService {
+            protected function mintHash(): string {
+                return 'FixedHash1';
+            }
+        };
+
+        $this->expectException(UniqueConstraintViolationException::class);
+        $service->create($post, $author, 'boom');
     }
 }
