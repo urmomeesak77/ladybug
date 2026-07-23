@@ -75,6 +75,14 @@ class User extends Authenticatable implements MustVerifyEmail {
     }
 
     /**
+     * Get the comments authored by the user. The FK nulls on this account's hard delete
+     * (nullOnDelete), so the comments survive as orphaned rows (data-model D5).
+     */
+    public function comments(): HasMany {
+        return $this->hasMany(Comment::class);
+    }
+
+    /**
      * The moderator who disabled this account, or null when the account is active
      * or the acting account has since been deleted (nullOnDelete — INV-3).
      */

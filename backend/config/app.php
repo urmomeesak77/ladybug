@@ -46,6 +46,8 @@ return [
 
     'upload_throttle' => env('UPLOAD_THROTTLE_PER_MINUTE', 10),
 
+    'comment_throttle' => env('COMMENT_THROTTLE', 10),
+
     /*
     |--------------------------------------------------------------------------
     | Frontend URL
