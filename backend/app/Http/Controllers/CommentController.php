@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\CreateCommentRequest;
 use App\Http\Resources\CommentResource;
 use App\Services\CommentService;
 use App\Services\TrashpostService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -40,5 +42,23 @@ class CommentController extends Controller {
                 'has_more' => $page['has_more'],
             ],
         ]);
+    }
+
+    /**
+     * POST /api/posts/{hash}/comments — create a comment on the post. The route middleware
+     * (auth:sanctum + verified + throttle:comments) has already enforced the gate, so the
+     * caller is a verified account. The post is resolved viewer-aware (404 if not viewable);
+     * the created row is returned as a single CommentResource with 201 (contracts).
+     */
+    public function store(CreateCommentRequest $request, string $hash): JsonResponse {
+        $author = $request->user();
+        $post = $this->posts->findViewableByHash($hash, $author);
+        if ($post === null) {
+            abort(404);
+        }
+
+        $comment = $this->comments->create($post, $author, $request->string('body')->toString());
+
+        return (new CommentResource($comment))->response()->setStatusCode(201);
     }
 }

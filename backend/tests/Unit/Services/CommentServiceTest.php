@@ -136,4 +136,44 @@ final class CommentServiceTest extends TestCase {
         $this->assertSame([$mine->hash], $result['comments']->pluck('hash')->all());
         $this->assertSame(1, $result['total']);
     }
+
+    public function test_create_persists_a_comment_attributed_to_the_author(): void {
+        $post = Trashpost::factory()->create();
+        $author = User::factory()->create(['name' => 'Alice']);
+
+        $comment = $this->service()->create($post, $author, 'Nice meme!');
+
+        $this->assertSame($post->id, $comment->trashpost_id);
+        $this->assertSame($author->id, $comment->user_id);
+        $this->assertSame('Nice meme!', $comment->body);
+        $this->assertDatabaseHas('comments', ['id' => $comment->id, 'body' => 'Nice meme!']);
+    }
+
+    public function test_create_snapshots_the_authors_name(): void {
+        $post = Trashpost::factory()->create();
+        $author = User::factory()->create(['name' => 'Alice']);
+
+        $comment = $this->service()->create($post, $author, 'hi');
+
+        $this->assertSame('Alice', $comment->username);
+    }
+
+    public function test_create_mints_a_ten_char_hash(): void {
+        $post = Trashpost::factory()->create();
+        $author = User::factory()->create();
+
+        $comment = $this->service()->create($post, $author, 'hi');
+
+        $this->assertSame(10, strlen((string) $comment->hash));
+    }
+
+    public function test_create_is_immediately_public(): void {
+        $post = Trashpost::factory()->create();
+        $author = User::factory()->create();
+
+        $comment = $this->service()->create($post, $author, 'hi');
+
+        $this->assertNull($comment->hidden_at);
+        $this->assertFalse($comment->isHidden());
+    }
 }

@@ -8,7 +8,9 @@ use App\Enums\Role;
 use App\Models\Comment;
 use App\Models\Trashpost;
 use App\Models\User;
+use App\Utils\Str;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
  * The comment query layer plus the create/hide/unhide/delete transitions. Reads are
@@ -20,6 +22,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class CommentService {
     /** One newest-first batch per request (FR-019). */
     private const PER_PAGE = 10;
+
+    /** Retries for the astronomically rare public-hash collision (unique column). */
+    private const MAX_HASH_ATTEMPTS = 3;
 
     /**
      * One newest-first batch of the post's comments plus the public count and the
@@ -49,6 +54,34 @@ class CommentService {
             'next_cursor' => $hasMore ? $comments->last()->hash : null,
             'has_more' => $hasMore,
         ];
+    }
+
+    /**
+     * Create a comment on the post, attributed to the author and immediately public. Identity
+     * and ownership are assigned explicitly, never mass-assigned — $fillable stays limited to
+     * `body` so no request body can smuggle a hash/user_id/hidden_at (mass-assignment guard,
+     * Principle VI). The author's current name is snapshotted so an orphaned comment still
+     * shows who wrote it (data-model D5). Retries on the unique-hash collision (as reserve()).
+     */
+    public function create(Trashpost $post, User $author, string $body): Comment {
+        for ($attempt = 1; ; $attempt++) {
+            $comment = new Comment();
+            $comment->hash = Str::createUniqueHash();
+            $comment->trashpost_id = $post->id;
+            $comment->user_id = $author->id;
+            $comment->username = $author->name;
+            $comment->body = $body;
+            try {
+                $comment->save();
+
+                return $comment;
+            }
+            catch (UniqueConstraintViolationException $e) {
+                if ($attempt >= self::MAX_HASH_ATTEMPTS) {
+                    throw $e;
+                }
+            }
+        }
     }
 
     /**

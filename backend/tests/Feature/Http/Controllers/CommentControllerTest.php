@@ -126,4 +126,93 @@ final class CommentControllerTest extends TestCase {
 
         $this->getJson("/api/posts/{$post->hash}/comments")->assertJsonPath('data.0.username', 'Current Name');
     }
+
+    public function test_store_rejects_a_guest_with_401(): void {
+        $post = Trashpost::factory()->visible()->create();
+
+        $this->postJson("/api/posts/{$post->hash}/comments", ['body' => 'hi'])->assertUnauthorized();
+        $this->assertDatabaseCount('comments', 0);
+    }
+
+    public function test_store_rejects_an_unverified_user_with_403(): void {
+        $post = Trashpost::factory()->visible()->create();
+        $user = User::factory()->unverified()->create();
+
+        $this->actingAs($user)->postJson("/api/posts/{$post->hash}/comments", ['body' => 'hi'])->assertForbidden();
+        $this->assertDatabaseCount('comments', 0);
+    }
+
+    public function test_store_creates_a_comment_for_a_verified_user(): void {
+        $post = Trashpost::factory()->visible()->create();
+        $user = User::factory()->create(['name' => 'Alice']);
+
+        $response = $this->actingAs($user)->postJson("/api/posts/{$post->hash}/comments", ['body' => 'Nice meme!']);
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.body', 'Nice meme!');
+        $response->assertJsonPath('data.username', 'Alice');
+        $response->assertJsonPath('data.hidden', false);
+        $this->assertNotNull($response->json('data.hash'));
+        $this->assertDatabaseHas('comments', ['trashpost_id' => $post->id, 'user_id' => $user->id, 'body' => 'Nice meme!']);
+    }
+
+    public function test_store_rejects_an_empty_body_with_422(): void {
+        $post = Trashpost::factory()->visible()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->postJson("/api/posts/{$post->hash}/comments", ['body' => ''])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('body');
+        $this->assertDatabaseCount('comments', 0);
+    }
+
+    public function test_store_rejects_a_whitespace_only_body_with_422(): void {
+        // prepareForValidation trims, so an all-whitespace body reduces to '' and fails required.
+        $post = Trashpost::factory()->visible()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->postJson("/api/posts/{$post->hash}/comments", ['body' => "   \n\t  "])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('body');
+        $this->assertDatabaseCount('comments', 0);
+    }
+
+    public function test_store_rejects_a_body_over_1000_chars_with_422(): void {
+        $post = Trashpost::factory()->visible()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->postJson("/api/posts/{$post->hash}/comments", ['body' => str_repeat('a', 1001)])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('body');
+    }
+
+    public function test_store_on_an_unknown_post_hash_is_404(): void {
+        $this->actingAs(User::factory()->create())
+            ->postJson('/api/posts/__nomatch__/comments', ['body' => 'hi'])
+            ->assertNotFound();
+    }
+
+    public function test_store_stores_a_markup_body_verbatim(): void {
+        // Server stores the bytes as-is (no sanitisation); the client escapes on output (D10).
+        $post = Trashpost::factory()->visible()->create();
+        $body = '<script>alert(1)</script>';
+
+        $response = $this->actingAs(User::factory()->create())
+            ->postJson("/api/posts/{$post->hash}/comments", ['body' => $body]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('comments', ['trashpost_id' => $post->id, 'body' => $body]);
+    }
+
+    public function test_store_is_rate_limited_after_too_many_comments(): void {
+        $post = Trashpost::factory()->visible()->create();
+        $user = User::factory()->create();
+        for ($i = 0; $i < 10; $i++) {
+            $this->actingAs($user)->postJson("/api/posts/{$post->hash}/comments", ['body' => "c{$i}"]);
+        }
+
+        $this->actingAs($user)
+            ->postJson("/api/posts/{$post->hash}/comments", ['body' => 'over cap'])
+            ->assertStatus(429);
+    }
 }

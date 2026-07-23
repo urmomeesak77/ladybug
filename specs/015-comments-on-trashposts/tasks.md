@@ -157,43 +157,43 @@ to you, no reload; sign out and reload → form replaced by sign-in prompt; sign
 
 ### Tests for User Story 2 ⚠️ (write first, must FAIL before implementation)
 
-- [ ] T027 [P] [US2] Extend `backend/tests/Unit/Services/CommentServiceTest.php` — `create`:
+- [x] T027 [P] [US2] Extend `backend/tests/Unit/Services/CommentServiceTest.php` — `create`:
   sets `hash`, `trashpost_id`, `user_id`, `username` snapshot, `body`; `hidden_at` null
   (immediately public); attributed to the author (data-model).
-- [ ] T028 [P] [US2] Extend
+- [x] T028 [P] [US2] Extend
   `backend/tests/Feature/Http/Controllers/CommentControllerTest.php` — `POST`: guest → 401,
   unverified → 403, verified → 201 with the created row; empty/whitespace → 422, >1000 → 422;
   unknown post hash → 404; `<script>` body stored verbatim; over-cap → 429 (contracts, D8).
-- [ ] T029 [P] [US2] Extend `frontend/tests/lib/commentApi.test.ts` and
+- [x] T029 [P] [US2] Extend `frontend/tests/lib/commentApi.test.ts` and
   `frontend/tests/hooks/useComments.test.ts` — `CommentApi.create` posts the body; hook
   prepends the new row and increments the count (FR-006).
-- [ ] T030 [P] [US2] `frontend/tests/components/comments/CommentForm.test.tsx` — verified user
+- [x] T030 [P] [US2] `frontend/tests/components/comments/CommentForm.test.tsx` — verified user
   sees the labeled textarea + submit with inline validation; guest sees the sign-in prompt;
   unverified sees the verify-e-mail prompt (FR-005).
-- [ ] T031 [P] [US2] Extend `frontend/tests/e2e/comments.spec.ts` — verified user posts a
+- [x] T031 [P] [US2] Extend `frontend/tests/e2e/comments.spec.ts` — verified user posts a
   comment (appears on top, no reload); guest and unverified see their respective prompt.
 
 ### Implementation for User Story 2
 
-- [ ] T032 [P] [US2] Create `backend/app/Http/Requests/CreateCommentRequest.php` —
+- [x] T032 [P] [US2] Create `backend/app/Http/Requests/CreateCommentRequest.php` —
   `prepareForValidation` trims `body`; rules `required|string|max:1000`; `authorize()` returns
   `true` (gate is middleware's job) (data-model validation, D8).
-- [ ] T033 [US2] Add `create(Trashpost $post, User $author, string $body): Comment` to
+- [x] T033 [US2] Add `create(Trashpost $post, User $author, string $body): Comment` to
   `backend/app/Services/CommentService.php` — assign hash/trashpost/user/username snapshot/
   body explicitly (never mass-assign), `hidden_at` null.
-- [ ] T034 [US2] Add `store` to `backend/app/Http/Controllers/CommentController.php` —
+- [x] T034 [US2] Add `store` to `backend/app/Http/Controllers/CommentController.php` —
   resolve the post by hash (404 if not viewable), call `create`, return the row as a
   `CommentResource` with 201 (contracts).
-- [ ] T035 [US2] Add `POST /api/posts/{hash}/comments` → `CommentController@store` behind
+- [x] T035 [US2] Add `POST /api/posts/{hash}/comments` → `CommentController@store` behind
   `['auth:sanctum','verified','throttle:comments']` in `backend/routes/api.php` (D8).
-- [ ] T036 [P] [US2] Add `CommentApi.create(hash, body)` (with `Csrf.ensure()` header) to
+- [x] T036 [P] [US2] Add `CommentApi.create(hash, body)` (with `Csrf.ensure()` header) to
   `frontend/src/lib/commentApi.ts`.
-- [ ] T037 [US2] Extend `frontend/src/hooks/useComments.ts` — `submit` prepends the created
+- [x] T037 [US2] Extend `frontend/src/hooks/useComments.ts` — `submit` prepends the created
   row in place and increments the count without reload (FR-006, SC-001).
-- [ ] T038 [US2] Create `frontend/src/components/comments/CommentForm.tsx` — labeled textarea,
+- [x] T038 [US2] Create `frontend/src/components/comments/CommentForm.tsx` — labeled textarea,
   submit, inline length/empty validation, server-error surfacing; themed/accessible (FR-005,
   FR-007, FR-008, FR-018).
-- [ ] T039 [US2] Wire `CommentForm` into `CommentSection.tsx` gated by auth/verified state:
+- [x] T039 [US2] Wire `CommentForm` into `CommentSection.tsx` gated by auth/verified state:
   verified → form; guest → sign-in prompt; signed-in unverified → verify-e-mail prompt
   (reuse existing auth/role hooks) (FR-005).
 

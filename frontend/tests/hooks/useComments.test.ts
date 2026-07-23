@@ -75,3 +75,41 @@ describe('useComments loadMore', () => {
     expect(fetchPage).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('useComments submit', () => {
+  it('prepends the created comment in place and increments the count', async () => {
+    const first = page({ comments: [comment('Old0000001')], total: 1, cursor: null, hasMore: false });
+    vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: true, page: first });
+    const fresh = comment('New0000001');
+    const create = vi.spyOn(CommentApi, 'create').mockResolvedValue({ ok: true, comment: fresh });
+
+    const { result } = renderHook(() => useComments('Post000001'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.submit('a new comment');
+    });
+
+    expect(create).toHaveBeenCalledWith('Post000001', 'a new comment');
+    expect(result.current.comments.map((c) => c.hash)).toEqual(['New0000001', 'Old0000001']);
+    expect(result.current.total).toBe(2);
+  });
+
+  it('returns the failure and leaves the list unchanged on a failed create', async () => {
+    const first = page({ comments: [comment('Old0000001')], total: 1, cursor: null, hasMore: false });
+    vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: true, page: first });
+    vi.spyOn(CommentApi, 'create').mockResolvedValue({ ok: false, kind: 'validation', errors: { body: ['required'] } });
+
+    const { result } = renderHook(() => useComments('Post000001'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let outcome;
+    await act(async () => {
+      outcome = await result.current.submit('');
+    });
+
+    expect(outcome).toEqual({ ok: false, kind: 'validation', errors: { body: ['required'] } });
+    expect(result.current.comments.map((c) => c.hash)).toEqual(['Old0000001']);
+    expect(result.current.total).toBe(1);
+  });
+});

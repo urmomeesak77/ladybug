@@ -32,6 +32,9 @@ Route::post('/posts', [TrashpostsApiController::class, 'store'])
 // exactly like uploads — signed in AND verified — and throttled per user (contracts, D8). The
 // create controller method lands in US2.
 Route::get('/posts/{hash}/comments', [CommentController::class, 'index'])->name('api.posts.comments.index');
+Route::post('/posts/{hash}/comments', [CommentController::class, 'store'])
+    ->middleware(['auth:sanctum', 'verified', 'throttle:comments'])
+    ->name('api.posts.comments.store');
 
 // Auth (Sanctum SPA cookie-session). Register/login establish the session; the
 // stateful middleware (bootstrap/app.php) starts it for requests from the SPA.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { CommentApi } from '../lib/commentApi';
+import type { CommentCreateResult } from '../lib/commentApi';
 import type { Comment, CommentPage } from '../lib/commentModel';
 import { CommentModel } from '../lib/commentModel';
 
@@ -12,6 +13,7 @@ export type UseComments = {
   loadingMore: boolean;
   failed: boolean;
   loadMore: () => void;
+  submit: (body: string) => Promise<CommentCreateResult>;
 };
 
 // The last settled initial load: which post it was for, its page (null on failure), and
@@ -67,6 +69,21 @@ export function useComments(hash: string): UseComments {
     });
   }, [hash, page, loadingMore]);
 
+  // Post a new comment. On success it prepends the created row in place and bumps the public
+  // count (CommentModel.prependNew) without a reload (FR-006, SC-001); the result is returned
+  // so the form can surface validation/other errors. A failure leaves the list untouched.
+  const submit = useCallback(async (body: string): Promise<CommentCreateResult> => {
+    const result = await CommentApi.create(hash, body);
+    if (result.ok) {
+      setLoaded((current) => (
+        current === null || current.page === null
+          ? current
+          : { ...current, page: CommentModel.prependNew(current.page, result.comment) }
+      ));
+    }
+    return result;
+  }, [hash]);
+
   return {
     comments: page?.comments ?? [],
     total: page?.total ?? 0,
@@ -75,5 +92,6 @@ export function useComments(hash: string): UseComments {
     loadingMore,
     failed,
     loadMore,
+    submit,
   };
 }
