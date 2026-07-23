@@ -104,6 +104,23 @@ class CommentService {
     }
 
     /**
+     * Permanently remove the comment (hard delete — no SoftDeletes, D3). Supersedes the hidden
+     * state: a hidden comment can still be deleted. Wrapped in a transaction to mirror the other
+     * transitions; irreversible once committed (FR-013).
+     */
+    public function delete(Comment $comment): void {
+        DB::beginTransaction();
+        try {
+            $comment->delete();
+            DB::commit();
+        }
+        catch (Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
      * Drive the comment to the target hidden state inside a transaction, against the row loaded
      * FOR UPDATE: the lock serialises concurrent transitions on the same comment so the guard
      * sees a settled state and a change cannot double-apply (ModerationService's locked find +

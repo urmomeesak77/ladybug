@@ -214,4 +214,22 @@ final class CommentServiceTest extends TestCase {
 
         $this->assertNull($updated->hidden_at);
     }
+
+    public function test_delete_hard_removes_the_row(): void {
+        $comment = Comment::factory()->create();
+
+        $this->service()->delete($comment);
+
+        // No SoftDeletes tombstone — the row is gone for good (D3).
+        $this->assertDatabaseMissing('comments', ['id' => $comment->id]);
+    }
+
+    public function test_delete_removes_a_hidden_comment_too(): void {
+        // Delete supersedes the hidden state (edge case "Hide then delete").
+        $comment = Comment::factory()->hidden()->create();
+
+        $this->service()->delete($comment);
+
+        $this->assertDatabaseMissing('comments', ['id' => $comment->id]);
+    }
 }

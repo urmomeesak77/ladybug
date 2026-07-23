@@ -9,7 +9,7 @@ import { useComments } from '../../hooks/useComments';
 // US4). Themed, responsive, and labelled as its own region for assistive tech (FR-016, FR-018).
 function CommentSection({ hash }: { hash: string }) {
   const { role } = useAuth();
-  const { comments, total, hasMore, loading, loadingMore, failed, loadMore, submit, hide, unhide } = useComments(hash);
+  const { comments, total, hasMore, loading, loadingMore, failed, loadMore, submit, hide, unhide, remove } = useComments(hash);
 
   return (
     <section className="comments" aria-label="Comments">
@@ -33,6 +33,7 @@ function CommentSection({ hash }: { hash: string }) {
             viewerRole={role}
             onHide={hide}
             onUnhide={unhide}
+            onDelete={remove}
           />
         </>
       ) : null}

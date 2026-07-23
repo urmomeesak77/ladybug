@@ -16,6 +16,7 @@ export type UseComments = {
   submit: (body: string) => Promise<CommentCreateResult>;
   hide: (hash: string) => Promise<void>;
   unhide: (hash: string) => Promise<void>;
+  remove: (hash: string) => Promise<void>;
 };
 
 // The last settled initial load: which post it was for, its page (null on failure), and
@@ -113,6 +114,20 @@ export function useComments(hash: string): UseComments {
     }
   }, []);
 
+  // Permanently delete a comment: on a 204 drop the row. CommentModel.dropRow decrements the
+  // public count only when the removed row was visible — a hidden comment was never counted, so
+  // removing it leaves the count unchanged (FR-014). Any non-2xx leaves the row (fail-safe).
+  const remove = useCallback(async (hash: string): Promise<void> => {
+    const result = await CommentApi.remove(hash);
+    if (result.ok) {
+      setLoaded((current) => (
+        current === null || current.page === null
+          ? current
+          : { ...current, page: CommentModel.dropRow(current.page, hash) }
+      ));
+    }
+  }, []);
+
   return {
     comments: page?.comments ?? [],
     total: page?.total ?? 0,
@@ -124,5 +139,6 @@ export function useComments(hash: string): UseComments {
     submit,
     hide,
     unhide,
+    remove,
   };
 }

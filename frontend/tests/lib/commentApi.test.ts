@@ -206,3 +206,39 @@ describe('CommentApi.hide / unhide', () => {
     expect((await CommentApi.hide('missing000')).ok).toBe(false);
   });
 });
+
+describe('CommentApi.remove', () => {
+  beforeEach(() => {
+    document.cookie = 'XSRF-TOKEN=test-token';
+  });
+
+  afterEach(() => {
+    document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  });
+
+  it('DELETEs the comment with the CSRF header and reports ok on 204', async () => {
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 204 }));
+
+    const result = await CommentApi.remove('Ab3-xY9_q2');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/comments\/Ab3-xY9_q2$/),
+      expect.objectContaining({
+        method: 'DELETE',
+        credentials: 'include',
+        headers: expect.objectContaining({ 'X-XSRF-TOKEN': expect.anything() }),
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('reports failure on a non-2xx response and on a rejected fetch', async () => {
+    stubFetch(async () => ({ ok: false, status: 404 }));
+    expect((await CommentApi.remove('missing000')).ok).toBe(false);
+
+    stubFetch(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    expect((await CommentApi.remove('Ab3-xY9_q2')).ok).toBe(false);
+  });
+});

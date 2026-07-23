@@ -80,6 +80,8 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     // The destroy route (US4) lands alongside.
     Route::post('/comments/{hash}/hide', [CommentModerationController::class, 'hide'])->name('api.admin.comments.hide');
     Route::post('/comments/{hash}/unhide', [CommentModerationController::class, 'unhide'])->name('api.admin.comments.unhide');
+    // Permanent (hard) comment deletion (US4): irreversible, supersedes hidden (contracts).
+    Route::delete('/comments/{hash}', [CommentModerationController::class, 'destroy'])->name('api.admin.comments.destroy');
 });
 
 // Email verification (008). {hash} is sha1 of the recipient's email — never a DB

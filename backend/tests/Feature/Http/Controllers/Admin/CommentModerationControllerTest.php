@@ -86,4 +86,46 @@ final class CommentModerationControllerTest extends TestCase {
             ->postJson('/api/admin/comments/Nonexist99/unhide')
             ->assertNotFound();
     }
+
+    public function test_destroy_refuses_a_guest_with_401(): void {
+        $comment = Comment::factory()->create();
+
+        $this->deleteJson("/api/admin/comments/{$comment->hash}")->assertUnauthorized();
+        $this->assertDatabaseHas('comments', ['id' => $comment->id]);
+    }
+
+    public function test_destroy_refuses_a_member_with_403(): void {
+        $comment = Comment::factory()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->deleteJson("/api/admin/comments/{$comment->hash}")
+            ->assertForbidden();
+        $this->assertDatabaseHas('comments', ['id' => $comment->id]);
+    }
+
+    public function test_destroy_hard_deletes_and_returns_204(): void {
+        $comment = Comment::factory()->create();
+
+        $this->actingAs($this->admin())
+            ->deleteJson("/api/admin/comments/{$comment->hash}")
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('comments', ['id' => $comment->id]);
+    }
+
+    public function test_destroy_works_on_a_hidden_comment(): void {
+        $comment = Comment::factory()->hidden()->create();
+
+        $this->actingAs($this->admin())
+            ->deleteJson("/api/admin/comments/{$comment->hash}")
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('comments', ['id' => $comment->id]);
+    }
+
+    public function test_destroy_on_an_unknown_hash_is_404(): void {
+        $this->actingAs($this->admin())
+            ->deleteJson('/api/admin/comments/Nonexist99')
+            ->assertNotFound();
+    }
 }

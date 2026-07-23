@@ -1,10 +1,17 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import CommentItem from '../../../src/components/comments/CommentItem';
+import NoticeProvider from '../../../src/components/NoticeProvider';
 import type { Comment } from '../../../src/lib/commentModel';
 import type { RoleName } from '../../../src/lib/role';
+
+if (!HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.open = true;
+  };
+}
 
 afterEach(cleanup);
 
@@ -29,13 +36,15 @@ function renderAsAdmin(
   role: RoleName = 'admin',
 ) {
   return render(
-    <CommentItem
-      comment={comment(overrides)}
-      viewerRole={role}
-      onHide={handlers.onHide ?? vi.fn()}
-      onUnhide={handlers.onUnhide ?? vi.fn()}
-      onDelete={handlers.onDelete ?? vi.fn()}
-    />,
+    <NoticeProvider>
+      <CommentItem
+        comment={comment(overrides)}
+        viewerRole={role}
+        onHide={handlers.onHide ?? vi.fn()}
+        onUnhide={handlers.onUnhide ?? vi.fn()}
+        onDelete={handlers.onDelete ?? vi.fn()}
+      />
+    </NoticeProvider>,
   );
 }
 
@@ -99,5 +108,31 @@ describe('CommentItem admin controls', () => {
     fireEvent.click(screen.getByRole('button'));
     fireEvent.click(screen.getByRole('menuitem', { name: /^unhide$/i }));
     expect(onUnhide).toHaveBeenCalledWith('Ab3-xY9_q2');
+  });
+
+  it('opens a confirm before deleting and deletes only on confirm', async () => {
+    const onDelete = vi.fn();
+    renderAsAdmin({ hidden: false }, { onDelete });
+    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^delete$/i }));
+
+    // The confirm appears; the delete has NOT fired yet.
+    expect(screen.getByRole('heading', { name: 'Delete comment?' })).toBeTruthy();
+    expect(onDelete).not.toHaveBeenCalled();
+
+    const dialog = document.querySelector('dialog') as HTMLDialogElement;
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete permanently' }));
+    expect(onDelete).toHaveBeenCalledWith('Ab3-xY9_q2');
+  });
+
+  it('leaves the comment when the delete confirm is cancelled', () => {
+    const onDelete = vi.fn();
+    renderAsAdmin({ hidden: false }, { onDelete });
+    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^delete$/i }));
+
+    const dialog = document.querySelector('dialog') as HTMLDialogElement;
+    fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
+    expect(onDelete).not.toHaveBeenCalled();
   });
 });

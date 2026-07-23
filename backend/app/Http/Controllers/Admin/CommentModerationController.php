@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CommentResource;
 use App\Models\Comment;
 use App\Services\CommentService;
+use Illuminate\Http\Response;
 
 /**
  * Admin comment moderation, keyed by the comment's public hash (never a DB id, Principle V).
@@ -32,6 +33,16 @@ class CommentModerationController extends Controller {
      */
     public function unhide(string $hash): CommentResource {
         return new CommentResource($this->comments->unhide($this->find($hash)));
+    }
+
+    /**
+     * DELETE /api/admin/comments/{hash} — permanently remove the comment (hard delete).
+     * Supersedes hidden; irreversible. Returns 204 with no body (contracts).
+     */
+    public function destroy(string $hash): Response {
+        $this->comments->delete($this->find($hash));
+
+        return response()->noContent();
     }
 
     /**

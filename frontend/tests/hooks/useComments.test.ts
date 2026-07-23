@@ -183,3 +183,57 @@ describe('useComments hide / unhide', () => {
     expect(result.current.total).toBe(1);
   });
 });
+
+describe('useComments remove', () => {
+  function row(hash: string, hidden: boolean) {
+    return { hash, body: 'x', author: 'alice', hidden, createdAt: null };
+  }
+
+  it('drops the row and decrements the count when the deleted row was visible', async () => {
+    const first = page({ comments: [row('Row0000001', false), row('Row0000002', false)], total: 2, cursor: null, hasMore: false });
+    vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: true, page: first });
+    vi.spyOn(CommentApi, 'remove').mockResolvedValue({ ok: true });
+
+    const { result } = renderHook(() => useComments('Post000001'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.remove('Row0000001');
+    });
+
+    expect(result.current.comments.map((c) => c.hash)).toEqual(['Row0000002']);
+    expect(result.current.total).toBe(1);
+  });
+
+  it('drops the row but leaves the count when the deleted row was hidden', async () => {
+    const first = page({ comments: [row('Row0000001', true), row('Row0000002', false)], total: 1, cursor: null, hasMore: false });
+    vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: true, page: first });
+    vi.spyOn(CommentApi, 'remove').mockResolvedValue({ ok: true });
+
+    const { result } = renderHook(() => useComments('Post000001'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.remove('Row0000001');
+    });
+
+    expect(result.current.comments.map((c) => c.hash)).toEqual(['Row0000002']);
+    expect(result.current.total).toBe(1);
+  });
+
+  it('leaves the list untouched when the delete fails', async () => {
+    const first = page({ comments: [row('Row0000001', false)], total: 1, cursor: null, hasMore: false });
+    vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: true, page: first });
+    vi.spyOn(CommentApi, 'remove').mockResolvedValue({ ok: false });
+
+    const { result } = renderHook(() => useComments('Post000001'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.remove('Row0000001');
+    });
+
+    expect(result.current.comments.map((c) => c.hash)).toEqual(['Row0000001']);
+    expect(result.current.total).toBe(1);
+  });
+});

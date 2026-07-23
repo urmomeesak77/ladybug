@@ -141,4 +141,37 @@ test.describe('Comments — moderate', () => {
     await expect(guestSection.getByText('E2E seed comment 03')).toHaveCount(0);
     await guest.close();
   });
+
+  test('an admin confirms a delete and the comment is gone for everyone', async ({ page, browser }) => {
+    test.setTimeout(90_000);
+    const email = uniqueEmail();
+    await register(page, email);
+    AdminSetup.promoteToSuperuser(email);
+    await page.goto('/');
+    await page.reload();
+
+    await openNewestPost(page);
+    const postUrl = page.url();
+    const section = page.getByRole('region', { name: 'Comments' });
+    const topRow = section.locator('.comment-list > li').first();
+    await expect(topRow.locator('.comment__body')).toHaveText('E2E seed comment 03');
+
+    // Delete requires an explicit confirmation before it fires (FR-013).
+    await topRow.locator('.action-menu__trigger').click();
+    await topRow.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+    const dialog = page.locator('dialog[open]');
+    await dialog.getByRole('button', { name: 'Delete permanently' }).click();
+
+    // Gone for the admin in place (count 3 → 2), and gone for a fresh guest too.
+    await expect(section.getByText('E2E seed comment 03')).toHaveCount(0);
+    await expect(section.getByText('2 comments')).toBeVisible();
+
+    const guest = await browser.newContext();
+    const guestPage = await guest.newPage();
+    await guestPage.goto(postUrl);
+    const guestSection = guestPage.getByRole('region', { name: 'Comments' });
+    await expect(guestSection.getByText('2 comments')).toBeVisible();
+    await expect(guestSection.getByText('E2E seed comment 03')).toHaveCount(0);
+    await guest.close();
+  });
 });

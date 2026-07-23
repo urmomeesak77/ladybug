@@ -269,39 +269,39 @@ comment can still be deleted; purging the parent post cascade-deletes its commen
 
 ### Tests for User Story 4 ⚠️ (write first, must FAIL before implementation)
 
-- [ ] T051 [P] [US4] Extend `backend/tests/Unit/Services/CommentServiceTest.php` — `delete`
+- [x] T051 [P] [US4] Extend `backend/tests/Unit/Services/CommentServiceTest.php` — `delete`
   hard-removes the row (no SoftDeletes tombstone); a hidden comment can be deleted (D3).
-- [ ] T052 [P] [US4] Extend
+- [x] T052 [P] [US4] Extend
   `backend/tests/Feature/Http/Controllers/Admin/CommentModerationControllerTest.php` —
   `DELETE /api/admin/comments/{hash}`: guest → 401, member → 403, admin → 204 and row gone;
   unknown hash → 404 (contracts).
-- [ ] T053 [P] [US4] Add a cascade test in a dedicated
+- [x] T053 [P] [US4] Add a cascade test in a dedicated
   `backend/tests/Feature/CommentCascadeTest.php` — purging a trashpost (`ModerationService::
   purge` → hard delete) removes its comments via the FK; soft-delete/hide does NOT (FR-020, D4).
-- [ ] T054 [P] [US4] Extend `frontend/tests/lib/commentApi.test.ts` and
+- [x] T054 [P] [US4] Extend `frontend/tests/lib/commentApi.test.ts` and
   `useComments.test.ts` — `CommentApi.delete` hits the DELETE URL; hook drops the row and
   decrements the count only if the deleted row was public (contracts).
-- [ ] T055 [P] [US4] Extend `frontend/tests/components/comments/CommentItem.test.tsx` — admin
+- [x] T055 [P] [US4] Extend `frontend/tests/components/comments/CommentItem.test.tsx` — admin
   Delete item triggers the `useNotice` confirm; cancel leaves the row (FR-013).
-- [ ] T056 [P] [US4] Extend `frontend/tests/e2e/comments.spec.ts` — admin confirms delete;
+- [x] T056 [P] [US4] Extend `frontend/tests/e2e/comments.spec.ts` — admin confirms delete;
   the comment is removed for all viewers.
 
 ### Implementation for User Story 4
 
-- [ ] T057 [US4] Add `delete(Comment $comment): void` to
+- [x] T057 [US4] Add `delete(Comment $comment): void` to
   `backend/app/Services/CommentService.php` — hard `delete()` inside a transaction (no
   SoftDeletes; supersedes hidden) (D3).
-- [ ] T058 [US4] Add `destroy` to
+- [x] T058 [US4] Add `destroy` to
   `backend/app/Http/Controllers/Admin/CommentModerationController.php` — resolve by hash
   (404), delete, return `204` (contracts).
-- [ ] T059 [US4] Add `DELETE /api/admin/comments/{hash}` →
+- [x] T059 [US4] Add `DELETE /api/admin/comments/{hash}` →
   `CommentModerationController@destroy` inside the admin group in `backend/routes/api.php`.
-- [ ] T060 [P] [US4] Add `CommentApi.delete(hash)` (with `Csrf.ensure()`) to
+- [x] T060 [P] [US4] Add `CommentApi.delete(hash)` (with `Csrf.ensure()`) to
   `frontend/src/lib/commentApi.ts`.
-- [ ] T061 [US4] Extend `frontend/src/hooks/useComments.ts` — drop the row on `204`; decrement
+- [x] T061 [US4] Extend `frontend/src/hooks/useComments.ts` — drop the row on `204`; decrement
   the public count only when the deleted row was visible; leave the row on any non-2xx
   (fail-safe) (contracts, FR-014).
-- [ ] T062 [US4] Extend `frontend/src/components/comments/CommentItem.tsx` — add the Delete
+- [x] T062 [US4] Extend `frontend/src/components/comments/CommentItem.tsx` — add the Delete
   `ActionMenu` item (destructive emphasis) guarded by `useNotice().ask` confirm before calling
   delete (D9, FR-013).
 

@@ -82,6 +82,23 @@ export class CommentApi {
     return CommentApi.act(`/api/admin/comments/${encodeURIComponent(hash)}/unhide`);
   }
 
+  // DELETE /api/admin/comments/{hash} — permanent hard delete. 204 carries no body, so success
+  // is just `ok`; the caller drops the row. Any non-2xx or network failure is `ok: false`, so
+  // the row is left untouched (fail-safe).
+  static async remove(hash: string): Promise<{ ok: boolean }> {
+    try {
+      const token = await Csrf.ensure();
+      const response = await fetch(`${Api.base()}/api/admin/comments/${encodeURIComponent(hash)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+      });
+      return { ok: response.ok };
+    } catch {
+      return { ok: false };
+    }
+  }
+
   // Shared moderation plumbing: POST the unsafe action with the CSRF header and, on a 2xx,
   // map the single updated row. Any non-2xx or network failure is `ok: false`, so the caller
   // leaves the row as it was (fail-safe, like ModerationApi).
