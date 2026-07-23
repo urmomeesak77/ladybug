@@ -26,6 +26,8 @@ class TrashpostResource extends JsonResource {
     public function toArray(Request $request): array {
         $image = app(TrashpostImageService::class)->imageData($this->resource);
 
+        // The public (non-hidden) comment total, loaded via withCount at the query layer. The
+        // `?? 0` covers the freshly-created post from store(), which is serialized without withCount.
         return [
             'hash' => $this->hash,
             'title' => $this->title,
@@ -36,6 +38,7 @@ class TrashpostResource extends JsonResource {
             'metadata' => $this->metadata,
             'created_at' => $this->created_at,
             'activated_at' => $this->activated_at,
+            'comment_count' => (int) ($this->comment_count ?? 0),
             'hidden' => $this->hiddenStatus(),
             'url' => "/posts/{$this->hash}",
             'url_api' => route('api.posts.show', ['hash' => $this->hash]),

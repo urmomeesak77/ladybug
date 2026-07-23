@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Controllers;
 
+use App\Models\Comment;
 use App\Models\Trashpost;
 use App\Models\User;
 use App\Support\MediaPath;
@@ -34,7 +35,7 @@ final class TrashpostsApiControllerTest extends TestCase {
             'data' => [[
                 'hash', 'title', 'type', 'file', 'youtube',
                 'username', 'metadata',
-                'created_at', 'activated_at',
+                'created_at', 'activated_at', 'comment_count',
                 'url', 'url_api', 'original', 'default', 'sizes',
             ]],
         ]);
@@ -292,5 +293,40 @@ final class TrashpostsApiControllerTest extends TestCase {
         ]);
 
         $this->getJson("/api/posts/{$post->hash}")->assertJsonPath('data.username', 'Live Name');
+    }
+
+    public function test_feed_item_exposes_the_public_comment_count(): void {
+        $post = Trashpost::factory()->visible()->create();
+        Comment::factory()->count(3)->create(['trashpost_id' => $post->id]);
+        Comment::factory()->hidden()->count(2)->create(['trashpost_id' => $post->id]);
+
+        // Only the 3 visible comments count; the 2 hidden ones are excluded (design "Definition of the count").
+        $this->getJson('/api/posts')->assertJsonPath('data.0.comment_count', 3);
+    }
+
+    public function test_feed_item_reports_zero_comments_for_a_post_without_any(): void {
+        Trashpost::factory()->visible()->create();
+
+        $this->getJson('/api/posts')->assertJsonPath('data.0.comment_count', 0);
+    }
+
+    public function test_single_post_exposes_the_public_comment_count(): void {
+        $post = Trashpost::factory()->visible()->create();
+        Comment::factory()->count(4)->create(['trashpost_id' => $post->id]);
+        Comment::factory()->hidden()->create(['trashpost_id' => $post->id]);
+
+        $this->getJson("/api/posts/{$post->hash}")->assertJsonPath('data.comment_count', 4);
+    }
+
+    public function test_comment_count_is_the_public_total_even_for_an_admin_viewer(): void {
+        $post = Trashpost::factory()->visible()->create();
+        Comment::factory()->count(2)->create(['trashpost_id' => $post->id]);
+        Comment::factory()->hidden()->count(3)->create(['trashpost_id' => $post->id]);
+        $admin = User::factory()->create(['role' => \App\Enums\Role::Admin]);
+
+        // An admin can see hidden comments in the list, but the byline count stays the public total (design).
+        $this->actingAs($admin)
+            ->getJson("/api/posts/{$post->hash}")
+            ->assertJsonPath('data.comment_count', 2);
     }
 }

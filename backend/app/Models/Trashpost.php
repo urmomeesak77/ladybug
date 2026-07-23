@@ -52,6 +52,14 @@ class Trashpost extends Model {
     }
 
     /**
+     * The public (non-hidden) comments only — the same set CommentService counts as the public
+     * `total`. Kept as its own relation so the feed can aggregate it with withCount and no closure.
+     */
+    public function publicComments(): HasMany {
+        return $this->comments()->whereNull('hidden_at');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
