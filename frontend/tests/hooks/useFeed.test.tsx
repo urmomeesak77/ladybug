@@ -52,7 +52,7 @@ describe('useFeed', () => {
     expect(snapshot?.cursor).toBe('a0000009');
   });
 
-  it('hydrates from an existing snapshot instead of refetching', () => {
+  it('hydrates from an existing snapshot without refetching the loaded pages', () => {
     FeedCache.writeSnapshot(sessionStorage, CACHE_KEY, {
       posts: posts(3, 'a'),
       cursor: 'a0000002',
@@ -60,13 +60,59 @@ describe('useFeed', () => {
       anchorHash: null,
       anchorOffset: 0,
     });
-    const fetchFeed = vi.spyOn(Api, 'fetchFeed');
+    // Background revalidation returns the same head, so nothing is dropped.
+    const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(3, 'a') });
 
     const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
 
+    // The snapshot renders synchronously — no page reload, no list shift.
     expect(result.current.state.status).toBe('end');
     expect(result.current.state.posts).toHaveLength(3);
-    expect(fetchFeed).not.toHaveBeenCalled();
+    // The only call is the single background head revalidation (start unset), never a
+    // re-walk of the cursor pages.
+    expect(fetchFeed).toHaveBeenCalledTimes(1);
+    expect(fetchFeed).toHaveBeenCalledWith({ limit: 10, start: undefined });
+  });
+
+  it('drops a post deleted server-side from a restored snapshot (background revalidation)', async () => {
+    // The snapshot still carries a purged newest post ("daa"); the live head no longer does.
+    const stale = [post('daa'), ...posts(9, 'a')];
+    FeedCache.writeSnapshot(sessionStorage, CACHE_KEY, {
+      posts: stale,
+      cursor: 'a0000008',
+      status: 'loaded',
+      anchorHash: null,
+      anchorOffset: 0,
+    });
+    vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(9, 'a') });
+
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
+
+    // Renders the stale snapshot first (Back/refresh restores state), then reconciles.
+    expect(result.current.state.posts[0].hash).toBe('daa');
+    await waitFor(() => expect(result.current.state.posts.some((p) => p.hash === 'daa')).toBe(false));
+    expect(result.current.state.posts).toHaveLength(9);
+    // The shortened list is persisted, so a further refresh cannot resurrect the post.
+    const snapshot = FeedCache.readSnapshot(sessionStorage, CACHE_KEY);
+    expect(snapshot?.posts.some((p) => p.hash === 'daa')).toBe(false);
+  });
+
+  it('does not revalidate a fresh (link) navigation — it already reloaded page 1', async () => {
+    FeedCache.writeSnapshot(sessionStorage, CACHE_KEY, {
+      posts: posts(3, 'a'),
+      cursor: 'a0000002',
+      status: 'end',
+      anchorHash: null,
+      anchorOffset: 0,
+    });
+    const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(10, 'b') });
+
+    const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, true));
+
+    await waitFor(() => expect(result.current.state.status).toBe('loaded'));
+    // Exactly one fetch: the fresh page-1 load. No extra revalidation pass on top.
+    expect(fetchFeed).toHaveBeenCalledTimes(1);
+    expect(fetchFeed).toHaveBeenCalledWith({ limit: 10, start: undefined });
   });
 
   it('requests the first batch after the URL cursor', async () => {

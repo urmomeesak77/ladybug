@@ -18,7 +18,8 @@ export type FeedAction =
   | { type: 'loadStart' }
   | { type: 'loadSuccess'; posts: FeedPost[]; limit: number }
   | { type: 'loadError' }
-  | { type: 'removePost'; hash: string };
+  | { type: 'removePost'; hash: string }
+  | { type: 'removePosts'; hashes: string[] };
 
 // Keyset pagination math plus the feed-load reducer, converged onto one class.
 export class Pagination {
@@ -70,9 +71,41 @@ export class Pagination {
         // Drop a meme an admin just hid/removed in place; the persisted snapshot follows
         // the shortened list, so Back/refresh does not resurrect it.
         return { ...state, posts: state.posts.filter((post) => post.hash !== action.hash) };
+      case 'removePosts': {
+        // Drop, in one pass, the restored posts a background revalidation found deleted
+        // server-side (see staleHashes); one dispatch avoids an intermediate render.
+        const drop = new Set(action.hashes);
+        return { ...state, posts: state.posts.filter((post) => !drop.has(post.hash)) };
+      }
       default:
         return state;
     }
+  }
+
+  // The restored posts a background head revalidation proves were deleted server-side.
+  //
+  // A restored snapshot renders instantly (Back/refresh must keep scroll + loaded pages),
+  // so we re-fetch only the newest batch and reconcile it against the loaded list. The
+  // newest loaded post the server still returns is the boundary: anything ABOVE it the
+  // server dropped was deleted; anything below is older than the re-fetched window and its
+  // absence is unproven, so it is kept. When no loaded post appears in the head there is no
+  // safe boundary (e.g. an all-new head), so nothing is dropped. New head-only posts are
+  // never inserted — this reconciliation removes, it does not grow the list.
+  static staleHashes(loaded: { hash: string }[], head: string[]): string[] {
+    const present = new Set(head);
+    let boundary = -1;
+    for (let i = 0; i < loaded.length; i++) {
+      if (present.has(loaded[i].hash)) {
+        boundary = i;
+      }
+    }
+    const stale: string[] = [];
+    for (let i = 0; i < boundary; i++) {
+      if (!present.has(loaded[i].hash)) {
+        stale.push(loaded[i].hash);
+      }
+    }
+    return stale;
   }
 
   private static isInFlight(status: FeedStatus): boolean {

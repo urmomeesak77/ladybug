@@ -46,6 +46,40 @@ function usePersistSnapshot(state: FeedState, cacheKey: string, cursor: () => st
   }, [state.posts, state.status, cacheKey]);
 }
 
+// Revalidate a restored snapshot in the background: a Back/Forward/refresh (POP) renders
+// the saved posts instantly to keep scroll + loaded pages, but those posts can be stale —
+// a meme purged/hidden server-side since is still in the snapshot. Once, on such a mount,
+// re-fetch the newest batch and drop any restored post the live head proves is gone
+// (Pagination.staleHashes). Skipped on a fresh mount (it already reloaded page 1) and when
+// nothing was hydrated (useInitialLoad fetches page 1 there). Runs once — its own hook so
+// useFeed stays within the 50-line budget (Principle II).
+function useRevalidateOnRestore(
+  active: boolean,
+  postsRef: MutableRefObject<{ hash: string }[]>,
+  removePosts: (hashes: string[]) => void,
+): void {
+  useEffect(() => {
+    if (!active || postsRef.current.length === 0) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const result = await Api.fetchFeed({ limit: BATCH_SIZE });
+      if (cancelled || !result.ok) {
+        return;
+      }
+      const stale = Pagination.staleHashes(postsRef.current, result.posts.map((p) => p.hash));
+      if (stale.length > 0) {
+        removePosts(stale);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
 // Seed the cursor (snapshot cursor, else the URL cursor) and auto-load the first batch
 // only when nothing was hydrated from the snapshot. A fresh mount drops the stored
 // snapshot first so the stale anchor/cursor cannot resurface (updateSnapshot no-ops
@@ -79,6 +113,14 @@ export function useFeed(after: string | undefined, cacheKey: string, fresh: bool
   // Seeded by useInitialLoad below — an inline useRef(readSnapshot(...)) argument
   // would re-parse sessionStorage on every render (initializer args are not lazy).
   const cursorRef = useRef<string | undefined>(undefined);
+  // Tracks the current posts so the background revalidation reads the up-to-date list
+  // (the hydrated snapshot at mount, plus any in-feed removal that lands first), not a
+  // value captured when its effect was created. Initialized with the hydrated posts so it
+  // is already correct at mount; kept in sync from an effect (never written during render).
+  const postsRef = useRef(state.posts);
+  useEffect(() => {
+    postsRef.current = state.posts;
+  }, [state.posts]);
 
   const load = useCallback(async () => {
     if (isLoadingRef.current) {
@@ -106,6 +148,15 @@ export function useFeed(after: string | undefined, cacheKey: string, fresh: bool
   }
 
   usePersistSnapshot(state, cacheKey, readCursor);
+
+  // Drop, in one settled render, the restored posts a background revalidation found deleted
+  // server-side. The stale hashes are always above the keyset cursor (the last loaded post,
+  // which the head still returns is the boundary), so the cursor never needs reseating here.
+  const removePosts = useCallback((hashes: string[]) => {
+    dispatch({ type: 'removePosts', hashes });
+  }, []);
+
+  useRevalidateOnRestore(!fresh, postsRef, removePosts);
 
   // Drop a meme an admin hid/removed in place (in-feed moderation). When the dropped post is
   // the keyset cursor (the last loaded one), reseat the cursor onto the prior post first: the

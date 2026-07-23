@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -110,7 +110,11 @@ describe('HomePage', () => {
       anchorHash: null,
       anchorOffset: 0,
     }));
-    const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(3, 'b') });
+    const fetchFeed = vi.spyOn(Api, 'fetchFeed')
+      // Background revalidation on the POP mount returns the same head, so nothing is dropped.
+      .mockResolvedValueOnce({ ok: true, posts: posts(3, 'a') })
+      // The later fresh (link) navigation reloads page 1 with different posts.
+      .mockResolvedValue({ ok: true, posts: posts(3, 'b') });
 
     render(
       <AuthContext.Provider value={auth('guest')}>
@@ -123,9 +127,10 @@ describe('HomePage', () => {
       </AuthContext.Provider>,
     );
 
-    // The initial mount is a POP navigation: it hydrates the snapshot without fetching.
+    // The initial mount is a POP navigation: it hydrates the snapshot synchronously and
+    // fires a single background revalidation (no page re-walk, and here nothing drops).
     expect(await screen.findByText('Post a0000000')).toBeTruthy();
-    expect(fetchFeed).not.toHaveBeenCalled();
+    await waitFor(() => expect(fetchFeed).toHaveBeenCalledWith({ limit: 10 }));
 
     fireEvent.click(screen.getByRole('link', { name: 'Home' }));
 
