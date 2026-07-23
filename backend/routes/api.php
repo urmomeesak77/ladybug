@@ -32,6 +32,14 @@ if (app()->environment('e2e')) {
             '--seeder' => E2eSeeder::class,
         ]);
 
+        // migrate:fresh restarts the users AUTO_INCREMENT, so tests reuse low ids; the
+        // rate-limiter counters live in the (file) cache, which migrate:fresh leaves
+        // untouched. Without this, an inline throttle keyed by user id (sha1(id), no route
+        // component — e.g. the verify/resend routes) carries hits across tests that reuse an
+        // id, and a fast run trips "Too many attempts". Flush the cache so throttle state
+        // resets with the data.
+        Artisan::call('cache:clear');
+
         return response()->noContent();
     })->name('api.testing.reset');
 }
