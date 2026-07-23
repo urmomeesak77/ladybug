@@ -13,6 +13,7 @@ function posts(n: number): FeedPost[] {
     hidden: null,
     author: 'alice',
     createdAt: '2026-07-22T12:00:00Z',
+    commentCount: 0,
   }));
 }
 
@@ -110,7 +111,7 @@ describe('feedReducer', () => {
 describe('Pagination.reducer removePost', () => {
   const p = (hash: string): FeedPost => ({
     hash, title: null, permalink: `/posts/${hash}`,
-    media: { kind: 'none' }, hidden: null, author: null, createdAt: null,
+    media: { kind: 'none' }, hidden: null, author: null, createdAt: null, commentCount: 0,
   });
 
   it('drops the named post and keeps the status', () => {
@@ -124,5 +125,61 @@ describe('Pagination.reducer removePost', () => {
     const state = { status: 'end' as const, posts: [p('aaa')] };
     const next = Pagination.reducer(state, { type: 'removePost', hash: 'zzz' });
     expect(next.posts.map((x) => x.hash)).toEqual(['aaa']);
+  });
+});
+
+describe('Pagination.reducer removePosts', () => {
+  const p = (hash: string): FeedPost => ({
+    hash, title: null, permalink: `/posts/${hash}`,
+    media: { kind: 'none' }, hidden: null, author: null, createdAt: null, commentCount: 0,
+  });
+
+  it('drops every named post in one pass and keeps the status', () => {
+    const state = { status: 'loaded' as const, posts: [p('aaa'), p('bbb'), p('ccc'), p('ddd')] };
+    const next = Pagination.reducer(state, { type: 'removePosts', hashes: ['bbb', 'ddd'] });
+    expect(next.posts.map((x) => x.hash)).toEqual(['aaa', 'ccc']);
+    expect(next.status).toBe('loaded');
+  });
+
+  it('is a no-op for an empty hash list', () => {
+    const state = { status: 'end' as const, posts: [p('aaa')] };
+    const next = Pagination.reducer(state, { type: 'removePosts', hashes: [] });
+    expect(next.posts.map((x) => x.hash)).toEqual(['aaa']);
+  });
+});
+
+describe('Pagination.staleHashes', () => {
+  const list = (...hashes: string[]) => hashes.map((hash) => ({ hash }));
+
+  it('flags a deleted newest post the server no longer returns', () => {
+    // Loaded snapshot still has "daa" on top; the revalidated head dropped it.
+    const stale = Pagination.staleHashes(list('daa', 'bbb', 'ccc'), ['bbb', 'ccc']);
+    expect(stale).toEqual(['daa']);
+  });
+
+  it('flags a deleted post sandwiched between still-present posts', () => {
+    const stale = Pagination.staleHashes(list('aaa', 'bbb', 'ccc'), ['aaa', 'ccc']);
+    expect(stale).toEqual(['bbb']);
+  });
+
+  it('returns nothing when every loaded post is still present', () => {
+    expect(Pagination.staleHashes(list('aaa', 'bbb'), ['aaa', 'bbb'])).toEqual([]);
+  });
+
+  it('never drops posts older than the revalidated window', () => {
+    // "ddd" sits past the head the server returned, so its absence is unproven — keep it.
+    const stale = Pagination.staleHashes(list('aaa', 'bbb', 'ccc', 'ddd'), ['aaa', 'ccc']);
+    expect(stale).toEqual(['bbb']);
+  });
+
+  it('drops nothing when no loaded post appears in the head (no safe boundary)', () => {
+    // A wholly different head (e.g. all-new posts) gives no anchor, so stay conservative.
+    expect(Pagination.staleHashes(list('aaa', 'bbb'), ['xxx', 'yyy'])).toEqual([]);
+    expect(Pagination.staleHashes(list('aaa', 'bbb'), [])).toEqual([]);
+  });
+
+  it('does not insert newly-appeared head posts, only removes deleted ones', () => {
+    const stale = Pagination.staleHashes(list('daa', 'bbb', 'ccc'), ['new', 'bbb', 'ccc']);
+    expect(stale).toEqual(['daa']);
   });
 });

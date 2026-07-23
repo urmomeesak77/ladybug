@@ -22,6 +22,7 @@ function post(overrides: Partial<FeedPost> = {}): FeedPost {
     hidden: null,
     author: 'alice',
     createdAt: '2026-07-22T12:00:00Z',
+    commentCount: 0,
     ...overrides,
   };
 }

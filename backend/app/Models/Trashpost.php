@@ -8,6 +8,7 @@ use Database\Factories\TrashpostFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Trashpost extends Model {
@@ -40,6 +41,22 @@ class Trashpost extends Model {
      */
     public function user(): BelongsTo {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the comments posted on this trashpost. Removed by the FK cascade when the post
+     * is purged (hard-deleted), retained across a soft delete (data-model D4).
+     */
+    public function comments(): HasMany {
+        return $this->hasMany(Comment::class);
+    }
+
+    /**
+     * The public (non-hidden) comments only — the same set CommentService counts as the public
+     * `total`. Kept as its own relation so the feed can aggregate it with withCount and no closure.
+     */
+    public function publicComments(): HasMany {
+        return $this->comments()->whereNull('hidden_at');
     }
 
     /**

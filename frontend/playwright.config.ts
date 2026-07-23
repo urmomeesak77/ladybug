@@ -17,6 +17,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: 'list',
+  // Each test resets the shared e2e DB to the seed first (helpers/e2eReset), a migrate:fresh
+  // + seed that adds a few seconds before the test body — so the per-test budget is generous.
+  timeout: 60_000,
   expect: { timeout: 15000 },
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',

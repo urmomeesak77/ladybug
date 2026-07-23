@@ -2,16 +2,47 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\CommentModerationController;
 use App\Http\Controllers\Admin\ModerationController;
 use App\Http\Controllers\Admin\UserAdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\TrashpostsApiController;
+use Database\Seeders\E2eSeeder;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 // Liveness probe for the dev environment and CI. Intentionally has no database
 // dependency so it answers before any migrations exist. See contracts/health.md.
 Route::get('/health', static fn () => response()->json(['status' => 'ok']));
+
+// Test-only: reset the disposable e2e database to the pristine seed. The Playwright suite
+// runs every spec serially against one shared stack, and each spec's assertions assume the
+// baseline corpus (20 posts, the newest carrying 3 comments); destructive specs (deactivating
+// a meme, adding a comment) would otherwise leak state into later specs. The e2e harness calls
+// this before each test so every test starts identical and order-independent. Gated to the
+// `e2e` environment, so the route does NOT exist in dev ('local') or production — it is never
+// registered off the isolated docker-compose.e2e.yml stack (backend/.env.e2e sets APP_ENV=e2e).
+if (app()->environment('e2e')) {
+    Route::post('/testing/reset', static function () {
+        Artisan::call('migrate:fresh', [
+            '--force' => true,
+            '--seed' => true,
+            '--seeder' => E2eSeeder::class,
+        ]);
+
+        // migrate:fresh restarts the users AUTO_INCREMENT, so tests reuse low ids; the
+        // rate-limiter counters live in the (file) cache, which migrate:fresh leaves
+        // untouched. Without this, an inline throttle keyed by user id (sha1(id), no route
+        // component — e.g. the verify/resend routes) carries hits across tests that reuse an
+        // id, and a fast run trips "Too many attempts". Flush the cache so throttle state
+        // resets with the data.
+        Artisan::call('cache:clear');
+
+        return response()->noContent();
+    })->name('api.testing.reset');
+}
 
 // Read-side feed API (public, read-only). The show route is registered here so
 // `url_api` resolves now; its controller method lands in US2 (contracts/feed-api.md).
@@ -25,6 +56,15 @@ Route::get('/posts/{hash}', [TrashpostsApiController::class, 'show'])->name('api
 Route::post('/posts', [TrashpostsApiController::class, 'store'])
     ->middleware(['auth:sanctum', 'verified', 'throttle:uploads'])
     ->name('api.posts.store');
+
+// Comments on a post, addressed by the post's public hash (015). Reading is public and
+// viewer-aware (a non-public post is 404, an admin also sees hidden rows). Creating is gated
+// exactly like uploads — signed in AND verified — and throttled per user (contracts, D8). The
+// create controller method lands in US2.
+Route::get('/posts/{hash}/comments', [CommentController::class, 'index'])->name('api.posts.comments.index');
+Route::post('/posts/{hash}/comments', [CommentController::class, 'store'])
+    ->middleware(['auth:sanctum', 'verified', 'throttle:comments'])
+    ->name('api.posts.comments.store');
 
 // Auth (Sanctum SPA cookie-session). Register/login establish the session; the
 // stateful middleware (bootstrap/app.php) starts it for requests from the SPA.
@@ -63,6 +103,14 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     // account's memes orphan and any account it disabled loses only the actor name, via the
     // existing nullOnDelete FKs (contracts/admin-user-delete-api.md). {hash} is the public handle.
     Route::delete('/users/{hash}', [UserAdminController::class, 'destroy'])->name('api.admin.users.destroy');
+
+    // Comment moderation (015), keyed by the comment's public hash. Reversible hide/unhide and
+    // a hard delete; same admin+ boundary as the posts/users routes (contracts/admin-comments-api.md).
+    // The destroy route (US4) lands alongside.
+    Route::post('/comments/{hash}/hide', [CommentModerationController::class, 'hide'])->name('api.admin.comments.hide');
+    Route::post('/comments/{hash}/unhide', [CommentModerationController::class, 'unhide'])->name('api.admin.comments.unhide');
+    // Permanent (hard) comment deletion (US4): irreversible, supersedes hidden (contracts).
+    Route::delete('/comments/{hash}', [CommentModerationController::class, 'destroy'])->name('api.admin.comments.destroy');
 });
 
 // Email verification (008). {hash} is sha1 of the recipient's email — never a DB

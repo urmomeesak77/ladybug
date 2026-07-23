@@ -38,6 +38,7 @@ function post(hash: string): FeedPost {
     hidden: null,
     author: 'alice',
     createdAt: '2026-07-22T12:00:00Z',
+    commentCount: 0,
   };
 }
 
@@ -151,14 +152,17 @@ describe('Feed', () => {
       anchorHash: null,
       anchorOffset: 0,
     }));
-    const fetchFeed = vi.spyOn(Api, 'fetchFeed');
+    // The background revalidation re-fetches the head; returning the same first 10 posts
+    // keeps every restored post (nothing is stale), so the full page break still holds.
+    const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: fullPage.slice(0, 10) });
 
     renderFeed();
 
     const loadMore = await screen.findByRole('link', { name: 'Load more' });
     expect(loadMore.getAttribute('href')).toBe('/?after=a0000199');
-    // At the page break there is no sentinel and no auto-fetch.
-    expect(fetchFeed).not.toHaveBeenCalled();
+    // At the page break there is no sentinel and no auto-fetch: the only call is the single
+    // background head revalidation (start unset), never an auto-load of the next page.
+    await waitFor(() => expect(fetchFeed).toHaveBeenCalledWith({ limit: 10 }));
     expect(MockIntersectionObserver.instances).toHaveLength(0);
   });
 });

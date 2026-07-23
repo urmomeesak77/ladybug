@@ -54,7 +54,8 @@ jobs:
       # WebP read/write (App\Support\ImageFile) needs GD built with WebP; the
       # setup-php GD normally includes it — fail loudly here if it ever does not.
       - name: Assert GD WebP support
-        run: php -r 'exit(function_exists("imagecreatefromwebp") ? 0 : 1);'
+        run: |
+          php -r 'exit(function_exists("imagecreatefromwebp") ? 0 : 1);'
 
       - name: Prepare environment
         run: |

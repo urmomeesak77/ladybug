@@ -29,6 +29,7 @@ class AppServiceProvider extends ServiceProvider {
         // them — its specs register several real users per run and must not 429.
         RateLimiter::for('auth', $this->authLimit(...));
         RateLimiter::for('uploads', $this->uploadLimit(...));
+        RateLimiter::for('comments', $this->commentLimit(...));
         VerifyEmail::createUrlUsing(self::verificationLinkFor(...));
     }
 
@@ -67,5 +68,15 @@ class AppServiceProvider extends ServiceProvider {
         $key = $request->user()?->getAuthIdentifier() ?? $request->ip();
 
         return Limit::perMinute((int) config('app.upload_throttle'))->by((string) $key);
+    }
+
+    /**
+     * Per-user comment cap: comment creation is auth-gated, so key by the authenticated
+     * user (falling back to IP before auth resolves) to bound comment spam (Principle VI, D8).
+     */
+    private function commentLimit(Request $request): Limit {
+        $key = $request->user()?->getAuthIdentifier() ?? $request->ip();
+
+        return Limit::perMinute((int) config('app.comment_throttle'))->by((string) $key);
     }
 }

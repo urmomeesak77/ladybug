@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/e2eReset';
 import type { Page } from '@playwright/test';
 
 // Cross-site parity: the Home header logo must sit in the same position and render at the

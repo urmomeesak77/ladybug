@@ -12,6 +12,7 @@ const post: FeedPost = {
   hidden: null,
   author: 'alice',
   createdAt: '2026-07-22T12:00:00Z',
+  commentCount: 0,
 };
 
 const otherPost: FeedPost = {
@@ -22,6 +23,7 @@ const otherPost: FeedPost = {
   hidden: null,
   author: 'bob',
   createdAt: '2026-07-21T08:30:00Z',
+  commentCount: 0,
 };
 
 const loadStart: PostPageAction = { type: 'loadStart' };

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import AdminPostActions from '../components/moderation/AdminPostActions';
+import CommentSection from '../components/comments/CommentSection';
 import MemeMedia from '../components/MemeMedia';
 import PostByline from '../components/PostByline';
 import ErrorState from '../components/states/ErrorState';
@@ -63,7 +64,8 @@ function PostPage() {
             )}
           </div>
           <MemeMedia media={state.post.media} />
-          <PostByline author={state.post.author} createdAt={state.post.createdAt} />
+          <PostByline author={state.post.author} createdAt={state.post.createdAt} commentCount={state.post.commentCount} />
+          <CommentSection hash={state.post.hash} />
         </article>
       )}
     </div>

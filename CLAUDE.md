@@ -9,10 +9,10 @@ and YouTube links and browse an endless feed of entries. The stack is a **React 
 + Vite (TypeScript)** frontend talking to a **Laravel 12 (PHP 8.2+) + Sanctum**
 backend over a JSON API, backed by **MySQL** via Eloquent.
 
-## Current State (as of 2026-07-21)
+## Current State (as of 2026-07-23)
 
 The project is **past planning**: both `backend/` (Laravel 12) and `frontend/`
-(React 18 + Vite + TypeScript) are scaffolded and thirteen features are implemented.
+(React 18 + Vite + TypeScript) are scaffolded and fifteen features are implemented.
 Features follow the Spec Kit flow (specify → plan → tasks → implement) under `specs/`:
 
 - **001-infra-scaffold** — `backend/` + `frontend/` skeletons, lint/test tooling,
@@ -97,8 +97,28 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
   / `UserAdminModel.dropRow`) after a `204`; any non-2xx leaves the row untouched. The moderation
   console change (US2) is **presentation-only**: `ModerationActions` renders its existing
   state-dependent action set and confirmations through the same `ActionMenu`, unchanged.
+- **014-upload-page-polish** — presentation-only pass over the upload slice (008): the page is
+  retitled **Upload**, the form restyled to match the auth (login/register) forms, the
+  image/YouTube chooser reworked from checkboxes into an accessible **tablist** (only the active
+  tab's input is ever in the DOM), a **required title** enforced client- and server-side, and the
+  upload allow-list widened to **WebP** (static + animated, same GD/gifsicle variant pipeline).
+- **015-comments-on-trashposts** — flat, plain-text comments on a trashpost's own page. New
+  `comments` table (own 10-char `hash`, `trashpost_id` FK **cascadeOnDelete** — fires only on a
+  real purge, not a soft delete — nullable `user_id` **nullOnDelete**, `username` snapshot, `body`,
+  nullable `hidden_at`; `$fillable` is `body` only). `CommentService` carries the query + the
+  create/hide/unhide/delete transitions (newest-first keyset batches of 10 over the comment-hash
+  cursor, viewer-aware visibility, a public non-hidden `total` regardless of viewer; hide/unhide are
+  set-to-target under `lockForUpdate`; delete is a hard delete). Public nested `CommentController`
+  (`GET`/`POST /api/posts/{hash}/comments` — read is viewer-aware/404 like the post show; create is
+  behind `auth:sanctum` + `verified` + `throttle:comments`) and admin `Admin\CommentModerationController`
+  (`POST .../comments/{hash}/hide|unhide`, `DELETE .../comments/{hash}`) in the existing admin group.
+  Frontend `CommentSection` on `PostPage` (composer gated guest→sign-in / unverified→verify /
+  verified→form, count, newest-first list, load-more, empty state) over the `useComments` hook +
+  `CommentApi`/`CommentModel`; admin+ get the shared `ActionMenu` per row (Hide/Unhide + a text
+  "Hidden" badge, confirmed Delete) with counts adjusted only on a real state transition. Bodies are
+  rendered as plain-text React children (never `dangerouslySetInnerHTML`). No new dependency.
 
-Not built yet: comments and password reset.
+Not built yet: password reset.
 
 Supporting files:
 
