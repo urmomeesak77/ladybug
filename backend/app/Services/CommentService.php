@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Utils\Str;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * The comment query layer plus the create/hide/unhide/delete transitions. Reads are
@@ -81,6 +83,48 @@ class CommentService {
                     throw $e;
                 }
             }
+        }
+    }
+
+    /**
+     * Hide a comment from public view (retained, still visible to admins). Set-to-target, not
+     * toggle: an already-hidden comment keeps its original `hidden_at`, so repeated/concurrent
+     * hides converge to a single settled state (contracts concurrency, mirrors ModerationService).
+     */
+    public function hide(Comment $comment): Comment {
+        return $this->setHidden($comment, true);
+    }
+
+    /**
+     * Restore a hidden comment to public view. Idempotent: an already-visible comment stays
+     * visible (reversible with no residual effect, FR-012).
+     */
+    public function unhide(Comment $comment): Comment {
+        return $this->setHidden($comment, false);
+    }
+
+    /**
+     * Drive the comment to the target hidden state inside a transaction, against the row loaded
+     * FOR UPDATE: the lock serialises concurrent transitions on the same comment so the guard
+     * sees a settled state and a change cannot double-apply (ModerationService's locked find +
+     * state-guard pattern). The write happens only on a real state change, so a repeat keeps the
+     * original `hidden_at` timestamp.
+     */
+    private function setHidden(Comment $comment, bool $hidden): Comment {
+        DB::beginTransaction();
+        try {
+            $locked = Comment::where('id', $comment->id)->lockForUpdate()->firstOrFail();
+            if ($locked->isHidden() !== $hidden) {
+                $locked->hidden_at = $hidden ? now() : null;
+                $locked->save();
+            }
+            DB::commit();
+
+            return $locked;
+        }
+        catch (Throwable $e) {
+            DB::rollBack();
+            throw $e;
         }
     }
 

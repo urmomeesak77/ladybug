@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 
+import { AdminSetup } from './helpers/adminSetup';
 import { MailLog } from './helpers/mailLog';
 
 // End-to-end coverage of the comment section (015) against the ISOLATED e2e stack
@@ -106,5 +107,38 @@ test.describe('Comments — add', () => {
     await expect(section.locator('.comment-list > li .comment__body').first()).toHaveText(body);
     await expect(section.getByText('4 comments')).toBeVisible();
     expect(page.url()).toBe(url);
+  });
+});
+
+test.describe('Comments — moderate', () => {
+  test('an admin hides a comment and a guest no longer sees it', async ({ page, browser }) => {
+    test.setTimeout(90_000);
+    const email = uniqueEmail();
+    await register(page, email);
+    AdminSetup.promoteToSuperuser(email);
+    await page.goto('/');
+    await page.reload();
+
+    await openNewestPost(page);
+    const postUrl = page.url();
+    const section = page.getByRole('region', { name: 'Comments' });
+    // The newest seed comment is on top; hide it via its row kebab menu.
+    const topRow = section.locator('.comment-list > li').first();
+    await expect(topRow.locator('.comment__body')).toHaveText('E2E seed comment 03');
+    await topRow.locator('.action-menu__trigger').click();
+    await topRow.getByRole('menuitem', { name: 'Hide', exact: true }).click();
+
+    // The admin still sees it, now flagged Hidden, and the public count drops to 2.
+    await expect(topRow.getByText(/hidden/i)).toBeVisible();
+    await expect(section.getByText('2 comments')).toBeVisible();
+
+    // A separate guest context no longer sees the hidden comment.
+    const guest = await browser.newContext();
+    const guestPage = await guest.newPage();
+    await guestPage.goto(postUrl);
+    const guestSection = guestPage.getByRole('region', { name: 'Comments' });
+    await expect(guestSection.getByText('2 comments')).toBeVisible();
+    await expect(guestSection.getByText('E2E seed comment 03')).toHaveCount(0);
+    await guest.close();
   });
 });

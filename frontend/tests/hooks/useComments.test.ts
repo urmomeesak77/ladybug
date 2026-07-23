@@ -113,3 +113,73 @@ describe('useComments submit', () => {
     expect(result.current.total).toBe(1);
   });
 });
+
+describe('useComments hide / unhide', () => {
+  function visible(hash: string) {
+    return { hash, body: 'x', author: 'alice', hidden: false, createdAt: null };
+  }
+
+  it('replaces the row hidden and decrements the count on a visible → hidden transition', async () => {
+    const first = page({ comments: [visible('Row0000001')], total: 1, cursor: null, hasMore: false });
+    vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: true, page: first });
+    vi.spyOn(CommentApi, 'hide').mockResolvedValue({ ok: true, comment: { ...visible('Row0000001'), hidden: true } });
+
+    const { result } = renderHook(() => useComments('Post000001'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.hide('Row0000001');
+    });
+
+    expect(result.current.comments[0].hidden).toBe(true);
+    expect(result.current.total).toBe(0);
+  });
+
+  it('replaces the row visible and increments the count on a hidden → visible transition', async () => {
+    const first = page({ comments: [{ ...visible('Row0000001'), hidden: true }], total: 0, cursor: null, hasMore: false });
+    vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: true, page: first });
+    vi.spyOn(CommentApi, 'unhide').mockResolvedValue({ ok: true, comment: visible('Row0000001') });
+
+    const { result } = renderHook(() => useComments('Post000001'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.unhide('Row0000001');
+    });
+
+    expect(result.current.comments[0].hidden).toBe(false);
+    expect(result.current.total).toBe(1);
+  });
+
+  it('leaves the count unchanged for an idempotent hide of an already-hidden row', async () => {
+    const first = page({ comments: [{ ...visible('Row0000001'), hidden: true }], total: 0, cursor: null, hasMore: false });
+    vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: true, page: first });
+    vi.spyOn(CommentApi, 'hide').mockResolvedValue({ ok: true, comment: { ...visible('Row0000001'), hidden: true } });
+
+    const { result } = renderHook(() => useComments('Post000001'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.hide('Row0000001');
+    });
+
+    // No double decrement: the row was already hidden and stays hidden (edge case "Concurrent moderation").
+    expect(result.current.total).toBe(0);
+  });
+
+  it('leaves the list unchanged on a failed moderation call', async () => {
+    const first = page({ comments: [visible('Row0000001')], total: 1, cursor: null, hasMore: false });
+    vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: true, page: first });
+    vi.spyOn(CommentApi, 'hide').mockResolvedValue({ ok: false });
+
+    const { result } = renderHook(() => useComments('Post000001'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.hide('Row0000001');
+    });
+
+    expect(result.current.comments[0].hidden).toBe(false);
+    expect(result.current.total).toBe(1);
+  });
+});

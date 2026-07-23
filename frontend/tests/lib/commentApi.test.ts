@@ -148,3 +148,61 @@ describe('CommentApi.create', () => {
     }
   });
 });
+
+describe('CommentApi.hide / unhide', () => {
+  beforeEach(() => {
+    document.cookie = 'XSRF-TOKEN=test-token';
+  });
+
+  afterEach(() => {
+    document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  });
+
+  const row = {
+    hash: 'Ab3-xY9_q2',
+    body: 'x',
+    username: 'alice',
+    hidden: true,
+    created_at: '2026-07-23T10:15:00.000000Z',
+  };
+
+  it('POSTs to the hide endpoint with the CSRF header and maps the updated row', async () => {
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: row }) }));
+
+    const result = await CommentApi.hide('Ab3-xY9_q2');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/comments\/Ab3-xY9_q2\/hide$/),
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        headers: expect.objectContaining({ 'X-XSRF-TOKEN': expect.anything() }),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.comment.hidden).toBe(true);
+    }
+  });
+
+  it('POSTs to the unhide endpoint and maps the updated row', async () => {
+    const fetchMock = stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ data: { ...row, hidden: false } }) }));
+
+    const result = await CommentApi.unhide('Ab3-xY9_q2');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/admin\/comments\/Ab3-xY9_q2\/unhide$/),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.comment.hidden).toBe(false);
+    }
+  });
+
+  it('reports failure on a non-2xx response (e.g. 404 unknown hash)', async () => {
+    stubFetch(async () => ({ ok: false, status: 404, json: async () => ({}) }));
+
+    expect((await CommentApi.hide('missing000')).ok).toBe(false);
+  });
+});

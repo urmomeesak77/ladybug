@@ -1,13 +1,15 @@
 import CommentForm from './CommentForm';
 import CommentList from './CommentList';
+import { useAuth } from '../../hooks/useAuth';
 import { useComments } from '../../hooks/useComments';
 
 // The comment section rendered on a post page: the composer (auth/verify-gated), the public
 // comment count, the newest-first list with its "load more" control, and an explicit empty
-// state. Admin moderation controls layer on in US3/US4. Themed, responsive, and labelled as
-// its own region for assistive tech (FR-016, FR-018).
+// state. Admin+ viewers additionally get per-row moderation controls (hide/unhide; delete in
+// US4). Themed, responsive, and labelled as its own region for assistive tech (FR-016, FR-018).
 function CommentSection({ hash }: { hash: string }) {
-  const { comments, total, hasMore, loading, loadingMore, failed, loadMore, submit } = useComments(hash);
+  const { role } = useAuth();
+  const { comments, total, hasMore, loading, loadingMore, failed, loadMore, submit, hide, unhide } = useComments(hash);
 
   return (
     <section className="comments" aria-label="Comments">
@@ -28,6 +30,9 @@ function CommentSection({ hash }: { hash: string }) {
             hasMore={hasMore}
             loadingMore={loadingMore}
             onLoadMore={loadMore}
+            viewerRole={role}
+            onHide={hide}
+            onUnhide={unhide}
           />
         </>
       ) : null}

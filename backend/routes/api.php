@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\CommentModerationController;
 use App\Http\Controllers\Admin\ModerationController;
 use App\Http\Controllers\Admin\UserAdminController;
 use App\Http\Controllers\AuthController;
@@ -73,6 +74,12 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     // account's memes orphan and any account it disabled loses only the actor name, via the
     // existing nullOnDelete FKs (contracts/admin-user-delete-api.md). {hash} is the public handle.
     Route::delete('/users/{hash}', [UserAdminController::class, 'destroy'])->name('api.admin.users.destroy');
+
+    // Comment moderation (015), keyed by the comment's public hash. Reversible hide/unhide and
+    // a hard delete; same admin+ boundary as the posts/users routes (contracts/admin-comments-api.md).
+    // The destroy route (US4) lands alongside.
+    Route::post('/comments/{hash}/hide', [CommentModerationController::class, 'hide'])->name('api.admin.comments.hide');
+    Route::post('/comments/{hash}/unhide', [CommentModerationController::class, 'unhide'])->name('api.admin.comments.unhide');
 });
 
 // Email verification (008). {hash} is sha1 of the recipient's email — never a DB

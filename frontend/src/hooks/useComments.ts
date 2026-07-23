@@ -14,6 +14,8 @@ export type UseComments = {
   failed: boolean;
   loadMore: () => void;
   submit: (body: string) => Promise<CommentCreateResult>;
+  hide: (hash: string) => Promise<void>;
+  unhide: (hash: string) => Promise<void>;
 };
 
 // The last settled initial load: which post it was for, its page (null on failure), and
@@ -84,6 +86,33 @@ export function useComments(hash: string): UseComments {
     return result;
   }, [hash]);
 
+  // Hide a comment: on success replace the row in place. CommentModel.replaceRow adjusts the
+  // public count ONLY on a real visible↔hidden transition (comparing the prior local row to the
+  // server response), so an idempotent/concurrent repeat never double-counts (FR-014, FR-015).
+  const hide = useCallback(async (hash: string): Promise<void> => {
+    const result = await CommentApi.hide(hash);
+    if (result.ok) {
+      setLoaded((current) => (
+        current === null || current.page === null
+          ? current
+          : { ...current, page: CommentModel.replaceRow(current.page, result.comment) }
+      ));
+    }
+  }, []);
+
+  // Unhide a comment: symmetric with hide — replace in place, count adjusted only on a real
+  // hidden→visible transition.
+  const unhide = useCallback(async (hash: string): Promise<void> => {
+    const result = await CommentApi.unhide(hash);
+    if (result.ok) {
+      setLoaded((current) => (
+        current === null || current.page === null
+          ? current
+          : { ...current, page: CommentModel.replaceRow(current.page, result.comment) }
+      ));
+    }
+  }, []);
+
   return {
     comments: page?.comments ?? [],
     total: page?.total ?? 0,
@@ -93,5 +122,7 @@ export function useComments(hash: string): UseComments {
     failed,
     loadMore,
     submit,
+    hide,
+    unhide,
   };
 }

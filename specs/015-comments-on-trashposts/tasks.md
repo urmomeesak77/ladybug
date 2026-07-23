@@ -213,43 +213,43 @@ appear; unhide → visible to all again, count restored.
 
 ### Tests for User Story 3 ⚠️ (write first, must FAIL before implementation)
 
-- [ ] T040 [P] [US3] Extend `backend/tests/Unit/Services/CommentServiceTest.php` — `hide`
+- [x] T040 [P] [US3] Extend `backend/tests/Unit/Services/CommentServiceTest.php` — `hide`
   sets `hidden_at=now()` (idempotent, keeps original timestamp on repeat), `unhide` sets null;
   `lockForUpdate` state-guard so concurrent actions converge (D2, contracts concurrency).
-- [ ] T041 [P] [US3] Create
+- [x] T041 [P] [US3] Create
   `backend/tests/Feature/Http/Controllers/Admin/CommentModerationControllerTest.php` — `hide`
   and `unhide`: guest → 401, member → 403, admin → 200 updated row; unknown hash → 404;
   idempotent repeat (contracts).
-- [ ] T042 [P] [US3] Extend `frontend/tests/lib/commentApi.test.ts` and
+- [x] T042 [P] [US3] Extend `frontend/tests/lib/commentApi.test.ts` and
   `useComments.test.ts` — `CommentApi.hide`/`unhide` hit the admin URLs; hook replaces the row
   and adjusts the public count on an actual transition, and — for an idempotent/concurrent
   repeat that returns the same `hidden` state — leaves the count unchanged (no double
   decrement/increment) (FR-014, FR-015).
-- [ ] T043 [P] [US3] Extend `frontend/tests/components/comments/CommentItem.test.tsx` — admin
+- [x] T043 [P] [US3] Extend `frontend/tests/components/comments/CommentItem.test.tsx` — admin
   viewer sees an `ActionMenu` with Hide (visible) / Unhide (hidden) and a hidden badge (marked
   by more than color); member viewer sees no menu (FR-010, FR-011).
-- [ ] T044 [P] [US3] Extend `frontend/tests/e2e/comments.spec.ts` — admin hides a comment; a
+- [x] T044 [P] [US3] Extend `frontend/tests/e2e/comments.spec.ts` — admin hides a comment; a
   guest view no longer shows it.
 
 ### Implementation for User Story 3
 
-- [ ] T045 [US3] Add `hide(Comment $comment)` and `unhide(Comment $comment)` to
+- [x] T045 [US3] Add `hide(Comment $comment)` and `unhide(Comment $comment)` to
   `backend/app/Services/CommentService.php` — each in a transaction with `lockForUpdate` and a
   current-`hidden_at` state guard (set-to-target, idempotent, converges) (D2, contracts).
-- [ ] T046 [US3] Create
+- [x] T046 [US3] Create
   `backend/app/Http/Controllers/Admin/CommentModerationController.php` with `hide` + `unhide`
   — resolve comment by hash (404), call the service, return the updated `CommentResource`.
-- [ ] T047 [US3] Add `POST /api/admin/comments/{hash}/hide` and `.../unhide` inside the
+- [x] T047 [US3] Add `POST /api/admin/comments/{hash}/hide` and `.../unhide` inside the
   existing admin group (`auth:sanctum` + `role:admin`) in `backend/routes/api.php` (contracts).
-- [ ] T048 [P] [US3] Add `CommentApi.hide(hash)` / `CommentApi.unhide(hash)` (with
+- [x] T048 [P] [US3] Add `CommentApi.hide(hash)` / `CommentApi.unhide(hash)` (with
   `Csrf.ensure()`) to `frontend/src/lib/commentApi.ts`.
-- [ ] T049 [US3] Extend `frontend/src/hooks/useComments.ts` — moderate sequencing: replace the
+- [x] T049 [US3] Extend `frontend/src/hooks/useComments.ts` — moderate sequencing: replace the
   row in place and adjust the public count **only on an actual `hidden` state transition**
   (compare the prior local row state to the server response): visible → hidden decrements,
   hidden → visible increments, a no-op idempotent/concurrent repeat leaves the count unchanged
   — never adjust unconditionally (FR-014, FR-015, edge case "Concurrent moderation"; symmetric
   with T061's conditional delete decrement).
-- [ ] T050 [US3] Extend `frontend/src/components/comments/CommentItem.tsx` — for admin viewers
+- [x] T050 [US3] Extend `frontend/src/components/comments/CommentItem.tsx` — for admin viewers
   render the shared `ActionMenu` (013) with Hide/Unhide (state-driven) and a hidden badge
   (text/badge, not color alone); no menu for guests/members (FR-010, FR-011, D9).
 

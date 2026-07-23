@@ -176,4 +176,42 @@ final class CommentServiceTest extends TestCase {
         $this->assertNull($comment->hidden_at);
         $this->assertFalse($comment->isHidden());
     }
+
+    public function test_hide_marks_a_visible_comment_hidden(): void {
+        $comment = Comment::factory()->create();
+
+        $updated = $this->service()->hide($comment);
+
+        $this->assertNotNull($updated->hidden_at);
+        $this->assertTrue($updated->isHidden());
+        $this->assertNotNull($comment->fresh()->hidden_at);
+    }
+
+    public function test_hide_is_idempotent_and_keeps_the_original_timestamp(): void {
+        $comment = Comment::factory()->hidden()->create(['hidden_at' => now()->subDay()]);
+        $original = $comment->hidden_at;
+
+        $updated = $this->service()->hide($comment);
+
+        // Set-to-target, not toggle: an already-hidden comment keeps its original hidden_at.
+        $this->assertTrue($original->equalTo($updated->hidden_at));
+    }
+
+    public function test_unhide_restores_a_hidden_comment(): void {
+        $comment = Comment::factory()->hidden()->create();
+
+        $updated = $this->service()->unhide($comment);
+
+        $this->assertNull($updated->hidden_at);
+        $this->assertFalse($updated->isHidden());
+        $this->assertNull($comment->fresh()->hidden_at);
+    }
+
+    public function test_unhide_is_idempotent_on_an_already_visible_comment(): void {
+        $comment = Comment::factory()->create();
+
+        $updated = $this->service()->unhide($comment);
+
+        $this->assertNull($updated->hidden_at);
+    }
 }

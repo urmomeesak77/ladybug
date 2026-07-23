@@ -8,6 +8,12 @@ export type CommentPageResult =
   | { ok: true; page: CommentPage }
   | { ok: false };
 
+// A single moderation action (hide/unhide). Success carries the server's updated row so the
+// caller refreshes it in place; any non-2xx or network failure is `ok: false` (leave the row).
+export type CommentActionResult =
+  | { ok: true; comment: Comment }
+  | { ok: false };
+
 // The create outcome. `validation` carries the server's field errors for the composer to show;
 // auth/unverified/notFound/rateLimited map the status codes the create route can return; a
 // rejected fetch or any other status is `network` (contracts, D8).
@@ -63,6 +69,37 @@ export class CommentApi {
       return await CommentApi.interpretCreate(response);
     } catch {
       return { ok: false, kind: 'network' };
+    }
+  }
+
+  // POST /api/admin/comments/{hash}/hide — remove the comment from public view.
+  static hide(hash: string): Promise<CommentActionResult> {
+    return CommentApi.act(`/api/admin/comments/${encodeURIComponent(hash)}/hide`);
+  }
+
+  // POST /api/admin/comments/{hash}/unhide — restore a hidden comment to public view.
+  static unhide(hash: string): Promise<CommentActionResult> {
+    return CommentApi.act(`/api/admin/comments/${encodeURIComponent(hash)}/unhide`);
+  }
+
+  // Shared moderation plumbing: POST the unsafe action with the CSRF header and, on a 2xx,
+  // map the single updated row. Any non-2xx or network failure is `ok: false`, so the caller
+  // leaves the row as it was (fail-safe, like ModerationApi).
+  private static async act(path: string): Promise<CommentActionResult> {
+    try {
+      const token = await Csrf.ensure();
+      const response = await fetch(`${Api.base()}${path}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': token },
+      });
+      if (!response.ok) {
+        return { ok: false };
+      }
+      const body = (await response.json()) as { data: RawComment };
+      return { ok: true, comment: CommentModel.mapComment(body.data) };
+    } catch {
+      return { ok: false };
     }
   }
 
