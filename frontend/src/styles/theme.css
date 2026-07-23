@@ -269,11 +269,33 @@ main {
   text-decoration: underline;
 }
 
+.feed-item__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md) var(--space-md);
+}
+
 .feed-item__byline {
   margin: 0;
-  padding: var(--space-sm) var(--space-md) var(--space-md);
   font-size: 0.8125rem;
   color: var(--color-text-muted);
+}
+
+.feed-item__comment-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.feed-item__comment-icon {
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
 }
 
 /* The permalink wrapper must be block so the inline <a> adds no line-height gap below the image. */

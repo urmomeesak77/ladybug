@@ -46,7 +46,7 @@ function FeedItem({ post, canModerate = false, onRemove }: FeedItemProps) {
         )}
       </div>
       <MemeMedia media={post.media} linkTo={post.permalink} />
-      <PostByline author={post.author} createdAt={post.createdAt} />
+      <PostByline author={post.author} createdAt={post.createdAt} commentCount={post.commentCount} />
     </article>
   );
 }

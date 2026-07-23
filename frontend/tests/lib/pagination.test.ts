@@ -13,6 +13,7 @@ function posts(n: number): FeedPost[] {
     hidden: null,
     author: 'alice',
     createdAt: '2026-07-22T12:00:00Z',
+    commentCount: 0,
   }));
 }
 
@@ -110,7 +111,7 @@ describe('feedReducer', () => {
 describe('Pagination.reducer removePost', () => {
   const p = (hash: string): FeedPost => ({
     hash, title: null, permalink: `/posts/${hash}`,
-    media: { kind: 'none' }, hidden: null, author: null, createdAt: null,
+    media: { kind: 'none' }, hidden: null, author: null, createdAt: null, commentCount: 0,
   });
 
   it('drops the named post and keeps the status', () => {
@@ -130,7 +131,7 @@ describe('Pagination.reducer removePost', () => {
 describe('Pagination.reducer removePosts', () => {
   const p = (hash: string): FeedPost => ({
     hash, title: null, permalink: `/posts/${hash}`,
-    media: { kind: 'none' }, hidden: null, author: null, createdAt: null,
+    media: { kind: 'none' }, hidden: null, author: null, createdAt: null, commentCount: 0,
   });
 
   it('drops every named post in one pass and keeps the status', () => {

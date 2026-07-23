@@ -20,6 +20,7 @@ function makeRaw(overrides: Partial<RawPost> = {}): RawPost {
     hidden: null,
     username: 'alice',
     created_at: '2026-07-22T14:30:00Z',
+    comment_count: 5,
     ...overrides,
   };
 }
@@ -171,5 +172,10 @@ describe('mapPost author and date', () => {
 
     expect(post.author).toBeNull();
     expect(post.createdAt).toBeNull();
+  });
+
+  it('maps the comment count, defaulting to zero when absent', () => {
+    expect(FeedModel.mapPost(makeRaw({ comment_count: 7 })).commentCount).toBe(7);
+    expect(FeedModel.mapPost(makeRaw({ comment_count: undefined as unknown as number })).commentCount).toBe(0);
   });
 });

@@ -64,7 +64,7 @@ function PostPage() {
             )}
           </div>
           <MemeMedia media={state.post.media} />
-          <PostByline author={state.post.author} createdAt={state.post.createdAt} />
+          <PostByline author={state.post.author} createdAt={state.post.createdAt} commentCount={state.post.commentCount} />
           <CommentSection hash={state.post.hash} />
         </article>
       )}
