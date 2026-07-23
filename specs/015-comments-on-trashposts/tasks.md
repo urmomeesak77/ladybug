@@ -31,10 +31,10 @@ on top.
 
 **Purpose**: One-time config the whole feature relies on. Both apps are already scaffolded.
 
-- [ ] T001 [P] Add a `comment_throttle` default (e.g. `env('COMMENT_THROTTLE', 10)`) under a
+- [x] T001 [P] Add a `comment_throttle` default (e.g. `env('COMMENT_THROTTLE', 10)`) under a
   `ladybug`/rate-limit config key in `backend/config/app.php`, and document
   `COMMENT_THROTTLE` in `backend/.env.example` (Principle I — app config, not a dependency).
-- [ ] T002 [P] Create the `frontend/src/components/comments/` folder and the mirrored
+- [x] T002 [P] Create the `frontend/src/components/comments/` folder and the mirrored
   `frontend/tests/components/comments/` folder so later component/test tasks have their home.
 
 ---
@@ -46,33 +46,33 @@ frontend model that EVERY user story depends on.
 
 **⚠️ CRITICAL**: No user-story work can begin until this phase is complete.
 
-- [ ] T003 [P] Create migration
+- [x] T003 [P] Create migration
   `backend/database/migrations/2026_07_23_000000_create_comments_table.php`: `id`, unique
   `hash(10)` (`utf8mb4_bin` on MySQL), `trashpost_id` FK `cascadeOnDelete()`, nullable
   `user_id` FK `nullOnDelete()`, nullable `username`, `body` text, nullable `hidden_at`,
   timestamps (`useCurrent()`, `useCurrentOnUpdate()` on MySQL), and composite index
   `(trashpost_id, created_at, id)`. Follow the MySQL/SQLite driver split of
   `2026_06_08_000000_create_trashposts_table.php` (data-model.md).
-- [ ] T004 [P] Create `backend/app/Models/Comment.php`: `HasFactory`, `$table='comments'`,
+- [x] T004 [P] Create `backend/app/Models/Comment.php`: `HasFactory`, `$table='comments'`,
   `$fillable=['body']` only; `trashpost()` and `user()` `BelongsTo`; `isHidden(): bool`
   (`hidden_at !== null`); datetime casts on `created_at`/`updated_at`/`hidden_at`
   (data-model.md — hash/trashpost_id/user_id/username/hidden_at stay off `$fillable`).
-- [ ] T005 [P] Create `backend/database/factories/CommentFactory.php` producing a valid
+- [x] T005 [P] Create `backend/database/factories/CommentFactory.php` producing a valid
   comment (generated `hash`, `body`, associated `trashpost_id`/`user_id`/`username`, visible
   by default) with a `hidden()` state helper for hidden rows.
-- [ ] T006 [P] Add `comments(): HasMany` → `Comment` to `backend/app/Models/Trashpost.php`.
-- [ ] T007 [P] Add `comments(): HasMany` → `Comment` to `backend/app/Models/User.php`.
-- [ ] T008 Register a per-user `RateLimiter::for('comments', …)` (keyed by user id, cap from
+- [x] T006 [P] Add `comments(): HasMany` → `Comment` to `backend/app/Models/Trashpost.php`.
+- [x] T007 [P] Add `comments(): HasMany` → `Comment` to `backend/app/Models/User.php`.
+- [x] T008 Register a per-user `RateLimiter::for('comments', …)` (keyed by user id, cap from
   `config` T001) in `backend/app/Providers/AppServiceProvider.php` (research D8).
-- [ ] T009 [P] Create `backend/app/Http/Resources/CommentResource.php`: expose `hash`,
+- [x] T009 [P] Create `backend/app/Http/Resources/CommentResource.php`: expose `hash`,
   `body`, `username` (author display = `user?->name ?? username`), viewer-aware `hidden`
   (`isHidden()`), `created_at`; omit `id`/`trashpost_id`/`user_id`/`hidden_at`/`updated_at`
   (contracts + data-model D5/D7).
-- [ ] T010 [P] Create `frontend/src/lib/commentModel.ts`: a class of statics with the
+- [x] T010 [P] Create `frontend/src/lib/commentModel.ts`: a class of statics with the
   `Comment`/`CommentPage`/list-state types, response→model mapping, and the list reducer
   (prepend-new, append-older, replace-row, drop-row, count adjust) shared by all stories
   (plan.md; conventions — single-responsibility `lib/` class of statics).
-- [ ] T011 [P] Create `frontend/tests/lib/commentModel.test.ts` covering the reducer
+- [x] T011 [P] Create `frontend/tests/lib/commentModel.test.ts` covering the reducer
   operations (prepend/append/replace/drop and public-count adjustments) and mapping.
 
 **Checkpoint**: Schema, model, relations, resource, limiter, and shared frontend model exist
@@ -92,51 +92,51 @@ several comments → newest-first, each with author + time, count shown; open a 
 
 ### Tests for User Story 1 ⚠️ (write first, must FAIL before implementation)
 
-- [ ] T012 [P] [US1] `backend/tests/Unit/Services/CommentServiceTest.php` — cover `list`:
+- [x] T012 [P] [US1] `backend/tests/Unit/Services/CommentServiceTest.php` — cover `list`:
   newest-first `created_at DESC, id DESC`, batch of 10, keyset `before` cursor paging,
   `meta.total` = public (non-hidden) count regardless of viewer, guest/member exclude hidden
   rows while admin includes them flagged hidden (D6/D7).
-- [ ] T013 [P] [US1] `backend/tests/Feature/Http/Controllers/CommentControllerTest.php` —
+- [x] T013 [P] [US1] `backend/tests/Feature/Http/Controllers/CommentControllerTest.php` —
   `GET /api/posts/{hash}/comments`: 200 newest-first shape, `meta.total`/`next_cursor`/
   `has_more`, empty post → `data:[]`+`total:0`, `before` pagination, unknown/non-public post
   hash → 404, admin sees hidden rows / guest does not (contracts).
-- [ ] T014 [P] [US1] `frontend/tests/lib/commentApi.test.ts` — `CommentApi.fetchPage(hash,
+- [x] T014 [P] [US1] `frontend/tests/lib/commentApi.test.ts` — `CommentApi.fetchPage(hash,
   before?)` requests the nested URL and maps the page (mock fetch).
-- [ ] T015 [P] [US1] `frontend/tests/hooks/useComments.test.ts` — initial load and
+- [x] T015 [P] [US1] `frontend/tests/hooks/useComments.test.ts` — initial load and
   append-older sequencing (loading flags, cursor advance, has-more).
-- [ ] T016 [P] [US1] Three sibling test files (intentionally grouped — one component tree,
+- [x] T016 [P] [US1] Three sibling test files (intentionally grouped — one component tree,
   authored together):
   `frontend/tests/components/comments/CommentSection.test.tsx`,
   `CommentList.test.tsx`, and `CommentItem.test.tsx` — renders count, newest-first list,
   author + timestamp per row, empty state, and the "load more older comments" control (hidden
   when `has_more` is false).
-- [ ] T017 [P] [US1] `frontend/tests/e2e/comments.spec.ts` (read slice) — a post with
+- [x] T017 [P] [US1] `frontend/tests/e2e/comments.spec.ts` (read slice) — a post with
   comments renders newest-first; a post with none shows the empty state (Playwright, isolated
   `docker-compose.e2e.yml`).
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Create `backend/app/Services/CommentService.php` with `list(Trashpost $post,
+- [x] T018 [US1] Create `backend/app/Services/CommentService.php` with `list(Trashpost $post,
   ?string $before, ?User $viewer): array` — keyset newest-first batch of 10, viewer-aware
   row visibility, and public `total` count (data-model derived values; research D6/D7).
-- [ ] T019 [US1] Create `backend/app/Http/Controllers/CommentController.php` with `index` —
+- [x] T019 [US1] Create `backend/app/Http/Controllers/CommentController.php` with `index` —
   resolve the post by hash viewer-aware (404 when the viewer may not see it, mirroring
   `TrashpostsApiController::show`), call `CommentService::list`, return
   `CommentResource::collection` + `meta` (contracts).
-- [ ] T020 [US1] Add `GET /api/posts/{hash}/comments` → `CommentController@index` (public) to
+- [x] T020 [US1] Add `GET /api/posts/{hash}/comments` → `CommentController@index` (public) to
   `backend/routes/api.php`.
-- [ ] T021 [P] [US1] Add `CommentApi.fetchPage` to `frontend/src/lib/commentApi.ts` (new
+- [x] T021 [P] [US1] Add `CommentApi.fetchPage` to `frontend/src/lib/commentApi.ts` (new
   file, class of statics over the shared `Api`/HTTP helper).
-- [ ] T022 [US1] Create `frontend/src/hooks/useComments.ts` — initial load + append-older
+- [x] T022 [US1] Create `frontend/src/hooks/useComments.ts` — initial load + append-older
   (cursor, has-more, loading state) over `CommentApi` and `CommentModel` reducer.
-- [ ] T023 [P] [US1] Create `frontend/src/components/comments/CommentItem.tsx` — author name,
+- [x] T023 [P] [US1] Create `frontend/src/components/comments/CommentItem.tsx` — author name,
   post time, and body rendered as a plain-text child (`{body}`, `white-space: pre-wrap`;
   never `dangerouslySetInnerHTML` — D10).
-- [ ] T024 [P] [US1] Create `frontend/src/components/comments/CommentList.tsx` — ordered list
+- [x] T024 [P] [US1] Create `frontend/src/components/comments/CommentList.tsx` — ordered list
   of `CommentItem` + the "load more older comments" control.
-- [ ] T025 [US1] Create `frontend/src/components/comments/CommentSection.tsx` — comment count,
+- [x] T025 [US1] Create `frontend/src/components/comments/CommentSection.tsx` — comment count,
   `CommentList`, empty "no comments yet" state; themed/responsive/accessible (FR-016, FR-018).
-- [ ] T026 [US1] Render `<CommentSection hash={hash} />` on
+- [x] T026 [US1] Render `<CommentSection hash={hash} />` on
   `frontend/src/pages/PostPage.tsx` (plan.md integration).
 
 **Checkpoint**: Reading comments works end-to-end for guests and signed-in users.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Admin\ModerationController;
 use App\Http\Controllers\Admin\UserAdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\TrashpostsApiController;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,12 @@ Route::get('/posts/{hash}', [TrashpostsApiController::class, 'show'])->name('api
 Route::post('/posts', [TrashpostsApiController::class, 'store'])
     ->middleware(['auth:sanctum', 'verified', 'throttle:uploads'])
     ->name('api.posts.store');
+
+// Comments on a post, addressed by the post's public hash (015). Reading is public and
+// viewer-aware (a non-public post is 404, an admin also sees hidden rows). Creating is gated
+// exactly like uploads — signed in AND verified — and throttled per user (contracts, D8). The
+// create controller method lands in US2.
+Route::get('/posts/{hash}/comments', [CommentController::class, 'index'])->name('api.posts.comments.index');
 
 // Auth (Sanctum SPA cookie-session). Register/login establish the session; the
 // stateful middleware (bootstrap/app.php) starts it for requests from the SPA.
