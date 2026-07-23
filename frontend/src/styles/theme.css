@@ -230,11 +230,13 @@ main {
   gap: var(--space-lg);
 }
 
+/* No `overflow: hidden` here: the media is always sandwiched between the header and byline,
+   so it never reaches the rounded corners and needs no clipping — and clipping the card would
+   cut off the action-menu dropdowns (post + comment kebabs) whenever one opens past a card edge. */
 .feed-item {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  overflow: hidden;
 }
 
 /* Header row: the entry title on the left, the admin actions kebab pinned top-right.
