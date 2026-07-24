@@ -136,6 +136,11 @@ header {
   opacity: 0.5;
 }
 
+/* Only ever shown with the drawer, below the breakpoint; the media query switches it on. */
+.nav-backdrop {
+  display: none;
+}
+
 /* Logo links home; the <picture> inside swaps art per color scheme. Sized and centered to
    match the prototype's logo exactly (250x50 box, 10px from the top, centered). The image
    covers that box so the wordmark renders at the same scale as trash.dv. */
@@ -250,6 +255,13 @@ main {
    navigation unreachable, the header toggle appears here and can bring the same menu back
    as an overlay drawer (2026-07-24 mobile nav drawer design). */
 @media (max-width: 50rem) {
+  /* The 44px toggle is in flow, so the default 1rem block padding would push the header
+     past --layout-header-height and leave the drawer tucked behind it. Tightening the
+     block padding keeps the header exactly the token's height at this breakpoint. */
+  header {
+    padding-block: var(--space-sm);
+  }
+
   .nav-toggle {
     display: block;
   }
@@ -281,6 +293,7 @@ main {
   /* Purely visual: outside-dismissal is handled by the drawer hook's pointer-down listener,
      so this carries no handler and is hidden from assistive tech. */
   .nav-backdrop {
+    display: block;
     position: fixed;
     inset: var(--layout-header-height) 0 0 0;
     background-color: rgb(0 0 0 / 50%);
