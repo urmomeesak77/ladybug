@@ -134,4 +134,27 @@ describe('PageLayout nav drawer', () => {
 
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
   });
+
+  // The load-bearing assertion for the panelRef handoff: if LeftMenu ever stops forwarding
+  // the ref to its <nav>, every pointer-down inside the open drawer counts as outside, so
+  // tapping an entry would close the drawer before the click could land.
+  it('keeps the drawer open on a pointer-down inside the panel', () => {
+    renderLayout();
+    const toggle = screen.getByRole('button', { name: 'Menu' });
+    fireEvent.click(toggle);
+
+    fireEvent.pointerDown(screen.getByRole('link', { name: 'Home' }));
+
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('closes the drawer on a pointer-down on the backdrop', () => {
+    const { container } = renderLayout();
+    const toggle = screen.getByRole('button', { name: 'Menu' });
+    fireEvent.click(toggle);
+
+    fireEvent.pointerDown(container.querySelector('.nav-backdrop')!);
+
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
 });

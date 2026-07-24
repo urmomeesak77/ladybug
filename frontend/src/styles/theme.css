@@ -24,8 +24,9 @@
 
   /* Layout tokens. */
   --layout-max-width: 80rem;
-  /* The sticky header's height. Shared so the header rule and the drawer's top offset
-     (which must clear the header) cannot drift apart. */
+  /* The sticky header's intended height, and the drawer's top offset. The header consumes it
+     as a min-height, so any in-flow header content must be kept small enough to fit inside it
+     (see the padding-block override at the drawer breakpoint) or the drawer tucks underneath. */
   --layout-header-height: 70px;
   --radius-md: 0.5rem;
 }

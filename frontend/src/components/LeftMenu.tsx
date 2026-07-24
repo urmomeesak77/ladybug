@@ -157,6 +157,9 @@ function AuthenticatedLinks({
 // class the `max-width: 50rem` rules turn into a floating panel, `panelRef` lets the drawer
 // hook hit-test pointer-downs, and `onNavigate` fires on every entry so choosing one closes
 // the drawer. All three are optional and inert above the breakpoint, where `open` is never true.
+// `panelRef` must be supplied whenever `open` can become true: without it, the drawer hook's
+// outside-pointer-down check has nothing to hit-test, so every pointer-down inside the open
+// drawer reads as outside and closes it before a click on an entry can land.
 function LeftMenu({ open = false, panelRef, onNavigate }: {
   open?: boolean;
   panelRef?: RefObject<HTMLElement>;

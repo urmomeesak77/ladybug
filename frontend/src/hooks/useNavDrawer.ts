@@ -37,6 +37,6 @@ export function useNavDrawer() {
     panelRef.current?.querySelector<HTMLElement>('a, button')?.focus();
   }, [open]);
   function close(): void { setOpen(false); }
-  function toggle(): void { setOpen(!open); }
+  function toggle(): void { setOpen((value) => !value); }
   return { open, toggle, close, panelRef, triggerRef };
 }
