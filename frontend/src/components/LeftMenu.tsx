@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, RefObject } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../hooks/useAuth';
@@ -65,17 +65,17 @@ function MenuIcon({ glyph }: { glyph: MenuGlyph }) {
 }
 
 // Prototype order: the login entry sits above Home for anonymous visitors.
-function AnonymousLinks() {
+function AnonymousLinks({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       <li>
-        <NavLink to="/login">
+        <NavLink to="/login" onClick={onNavigate}>
           <MenuIcon glyph="person" />
           Login/register
         </NavLink>
       </li>
       <li>
-        <NavLink to="/" end>
+        <NavLink to="/" end onClick={onNavigate}>
           <MenuIcon glyph="home" />
           Home
         </NavLink>
@@ -92,23 +92,25 @@ function AuthenticatedLinks({
   showModeration,
   showUsers,
   onLogout,
+  onNavigate,
 }: {
   showUpload: boolean;
   showModeration: boolean;
   showUsers: boolean;
   onLogout: () => void;
+  onNavigate?: () => void;
 }) {
   return (
     <>
       <li>
-        <NavLink to="/" end>
+        <NavLink to="/" end onClick={onNavigate}>
           <MenuIcon glyph="home" />
           Home
         </NavLink>
       </li>
       {showUpload ? (
         <li>
-          <NavLink to="/upload">
+          <NavLink to="/upload" onClick={onNavigate}>
             <MenuIcon glyph="upload" />
             Upload
           </NavLink>
@@ -116,7 +118,7 @@ function AuthenticatedLinks({
       ) : null}
       {showModeration ? (
         <li>
-          <NavLink to="/admin/trashposts">
+          <NavLink to="/admin/trashposts" onClick={onNavigate}>
             <MenuIcon glyph="moderation" />
             Trashposts
           </NavLink>
@@ -124,14 +126,14 @@ function AuthenticatedLinks({
       ) : null}
       {showUsers ? (
         <li>
-          <NavLink to="/admin/users">
+          <NavLink to="/admin/users" onClick={onNavigate}>
             <MenuIcon glyph="users" />
             Users
           </NavLink>
         </li>
       ) : null}
       <li>
-        <NavLink to="/account">
+        <NavLink to="/account" onClick={onNavigate}>
           <MenuIcon glyph="person" />
           Account
         </NavLink>
@@ -150,7 +152,16 @@ function AuthenticatedLinks({
 // visitors get a combined Login/register entry; authenticated visitors get Upload,
 // Account and a working Log out control. `unknown` (session check in flight) renders
 // as anonymous so authed-only items never flash.
-function LeftMenu() {
+//
+// The drawer props are how PageLayout drives the narrow-viewport overlay: `open` adds the
+// class the `max-width: 50rem` rules turn into a floating panel, `panelRef` lets the drawer
+// hook hit-test pointer-downs, and `onNavigate` fires on every entry so choosing one closes
+// the drawer. All three are optional and inert above the breakpoint, where `open` is never true.
+function LeftMenu({ open = false, panelRef, onNavigate }: {
+  open?: boolean;
+  panelRef?: RefObject<HTMLElement>;
+  onNavigate?: () => void;
+}) {
   const { status, user, role, logout } = useAuth();
   const navigate = useNavigate();
   const isAuthenticated = status === 'authenticated' && user !== null;
@@ -159,10 +170,16 @@ function LeftMenu() {
   async function handleLogout(): Promise<void> {
     await logout();
     navigate('/');
+    onNavigate?.();
   }
 
   return (
-    <nav id="left-menu" aria-label="Primary">
+    <nav
+      id="left-menu"
+      aria-label="Primary"
+      ref={panelRef}
+      className={open ? 'left-menu--open' : undefined}
+    >
       <ul>
         {isAuthenticated ? (
           <AuthenticatedLinks
@@ -170,9 +187,10 @@ function LeftMenu() {
             showModeration={isAdmin}
             showUsers={isAdmin}
             onLogout={() => void handleLogout()}
+            onNavigate={onNavigate}
           />
         ) : (
-          <AnonymousLinks />
+          <AnonymousLinks onNavigate={onNavigate} />
         )}
       </ul>
     </nav>

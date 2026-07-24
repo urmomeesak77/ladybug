@@ -52,6 +52,21 @@ function renderMenu(value: AuthContextValue, initialPath = '/account') {
   );
 }
 
+// Renders with the drawer props Task 3's PageLayout supplies.
+function renderDrawerMenu(value: AuthContextValue, props: {
+  open?: boolean;
+  onNavigate?: () => void;
+}) {
+  return render(
+    <MemoryRouter initialEntries={['/account']}>
+      <AuthContext.Provider value={value}>
+        <LeftMenu open={props.open} onNavigate={props.onNavigate} />
+        <LocationProbe />
+      </AuthContext.Provider>
+    </MemoryRouter>,
+  );
+}
+
 describe('LeftMenu', () => {
   it('offers a combined Login/register entry plus Home to anonymous visitors', () => {
     renderMenu(authValue({ status: 'anonymous' }));
@@ -160,5 +175,37 @@ describe('LeftMenu', () => {
     for (const icon of icons) {
       expect(icon.getAttribute('aria-hidden')).toBe('true');
     }
+  });
+
+  it('renders without the drawer class by default, so the desktop rail is untouched', () => {
+    renderMenu(authValue({ status: 'anonymous' }));
+
+    expect(screen.getByRole('navigation', { name: 'Primary' }).className).toBe('');
+  });
+
+  it('carries the open class when the drawer is open', () => {
+    renderDrawerMenu(authValue({ status: 'anonymous' }), { open: true });
+
+    expect(screen.getByRole('navigation', { name: 'Primary' }).className).toBe('left-menu--open');
+  });
+
+  it('reports navigation when a link is chosen, so the drawer can close itself', () => {
+    const onNavigate = vi.fn();
+    renderDrawerMenu(authValue({ status: 'anonymous' }), { open: true, onNavigate });
+
+    fireEvent.click(screen.getByRole('link', { name: 'Home' }));
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports navigation after logging out', async () => {
+    const onNavigate = vi.fn();
+    const value = authValue({ status: 'authenticated', user });
+    renderDrawerMenu(value, { open: true, onNavigate });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
+
+    expect(await screen.findByText('/')).toBeTruthy();
+    expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 });
