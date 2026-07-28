@@ -1,26 +1,32 @@
-// Formats a post's creation timestamp for the byline. In-house (no date library):
-// Intl.DateTimeFormat is a platform built-in, so no dependency is added (Principle I).
+// Formats a post's creation timestamp for the byline and the comment list. In-house
+// (no date library, Principle I) and no Intl either: Intl was only ever pinning the
+// format against browser-locale drift, and it cannot produce 'yyyy-mm-dd hh:mm' without
+// formatToParts surgery. Padded local getters give the same guarantee in ten lines.
 export class PostDate {
-  // Fixed 'en-US' locale so the byline's *format* is the design's 'Jul 22, 2026' for
-  // every visitor, rather than varying per browser locale. Timezone is intentionally the
-  // viewer's local zone (no `timeZone` option), so the displayed calendar day is the
-  // visitor's local day — the conventional "date added" behaviour for a social feed.
-  private static readonly formatter = new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-
-  // Returns 'Jul 22, 2026' for a valid ISO string, or null for null/blank/unparseable
-  // input so the byline can omit the date rather than print 'Invalid Date'.
+  // Timezone is intentionally the viewer's local zone (local getters, not getUTC*), so the
+  // displayed day and clock are the visitor's own — the conventional "posted at" behaviour
+  // for a social feed.
   static format(iso: string | null): string | null {
+    const date = PostDate.parse(iso);
+    return date === null ? null : PostDate.datePart(date);
+  }
+
+  // Null for null/blank/unparseable input so callers can omit the element entirely rather
+  // than print 'Invalid Date'.
+  private static parse(iso: string | null): Date | null {
     if (!iso) {
       return null;
     }
     const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) {
-      return null;
-    }
-    return PostDate.formatter.format(date);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  private static datePart(date: Date): string {
+    const month = PostDate.pad(date.getMonth() + 1);
+    return `${date.getFullYear()}-${month}-${PostDate.pad(date.getDate())}`;
+  }
+
+  private static pad(value: number): string {
+    return String(value).padStart(2, '0');
   }
 }

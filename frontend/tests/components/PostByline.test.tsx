@@ -11,7 +11,7 @@ describe('PostByline', () => {
     render(<PostByline author="alice" createdAt="2026-07-22T12:00:00Z" commentCount={0} />);
 
     expect(screen.getByText(/by alice/i).textContent).toContain('by alice');
-    expect(screen.getByText(/Jul 22, 2026/)).toBeTruthy();
+    expect(screen.getByText(/2026-07-22/)).toBeTruthy();
   });
 
   it('falls back to Anonymous when there is no author', () => {

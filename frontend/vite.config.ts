@@ -19,6 +19,10 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.test.{ts,tsx}'],
+    // Date output is rendered in the runtime's local zone (PostDate uses local getters,
+    // by design). Without pinning, a timestamp assertion would pass on a UTC+3 dev
+    // machine and fail on the UTC CI runner. UTC makes every assertion deterministic.
+    env: { TZ: 'UTC' },
     coverage: {
       // ALL source is coverage-gated (Principle VII), not just lib/. The only
       // exclusion is main.tsx: it mounts <App/> at import time, so importing it

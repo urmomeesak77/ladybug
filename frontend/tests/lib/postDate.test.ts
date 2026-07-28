@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { PostDate } from '../../src/lib/postDate';
 
+// The suite runs with TZ=UTC pinned in vite.config.ts, so these instants render as written.
 describe('PostDate.format', () => {
-  it('formats an ISO timestamp as a short absolute date', () => {
-    // Pinned to a UTC noon so the calendar day is stable regardless of the test runner's
-    // timezone (avoids a midnight-boundary flake).
-    expect(PostDate.format('2026-07-22T12:00:00Z')).toBe('Jul 22, 2026');
+  it('formats an ISO timestamp as an ISO calendar date', () => {
+    expect(PostDate.format('2026-07-22T12:00:00Z')).toBe('2026-07-22');
+  });
+
+  it('zero-pads a single-digit month and day', () => {
+    expect(PostDate.format('2026-01-05T12:00:00Z')).toBe('2026-01-05');
   });
 
   it('returns null for a null, blank, or unparseable input', () => {

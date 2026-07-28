@@ -156,7 +156,7 @@ describe('PostPage', () => {
     renderPost();
 
     expect(await screen.findByText(/by alice/i)).toBeTruthy();
-    expect(screen.getByText(/Jul 22, 2026/)).toBeTruthy();
+    expect(screen.getByText(/2026-07-22/)).toBeTruthy();
   });
 
   it('shows no admin actions for an anonymous viewer', async () => {
