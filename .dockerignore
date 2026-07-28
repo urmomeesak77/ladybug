@@ -29,6 +29,20 @@ frontend/dist
 frontend/test-results
 frontend/playwright-report
 
+# backend/bootstrap/cache/*.php is the OUTPUT of `php artisan config:cache` -- a
+# serialised dump of the fully-resolved config, including APP_KEY, DB_PASSWORD and
+# MAIL_PASSWORD in plaintext. A dev host that has ever run config:cache locally
+# carries this file; without excluding it, `COPY backend/ ./` would bake a real dev
+# secret into a public GHCR image alongside (or instead of) the production one the
+# entrypoint regenerates at container start. This is a SECRET leak, not tidiness --
+# treat it with the same weight as backend/.env* above.
+backend/bootstrap/cache/*.php
+backend/storage/logs
+backend/storage/framework
+backend/.phpunit.result.cache
+backend/coverage.xml
+backend/coverage.clover
+
 # General context bloat, never needed inside either image.
 .git
 .superpowers
