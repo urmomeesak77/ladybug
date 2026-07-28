@@ -17,6 +17,11 @@ mkdir -p storage/app/public \
          storage/framework/views \
          storage/logs
 
+# Dotenv's safeLoad() silently ignores an unreadable .env, and `config:cache` then
+# succeeds against framework defaults -- the app boots pointing at 127.0.0.1 with an
+# empty APP_KEY. Fail here instead, where the cause is obvious.
+[ -r .env ] || { echo "FATAL: /var/www/html/.env is not readable by $(id -un) (uid $(id -u))." >&2; exit 1; }
+
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache

@@ -87,7 +87,16 @@ if [ ! -f "$ROOT/backend.env" ]; then
     DB_PASSWORD="$(grep '^MYSQL_PASSWORD=' "$ROOT/.env" | cut -d= -f2-)"
     sed -i "s|^APP_KEY=.*|APP_KEY=${APP_KEY}|" "$ROOT/backend.env"
     sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" "$ROOT/backend.env"
-    chmod 600 "$ROOT/backend.env"
+    # NOT 600: ladybug-php runs as www-data (uid 33) inside the container, and this
+    # file is bind-mounted read-only, so root:root 600 leaves it unreadable to the
+    # process that needs it. Dotenv's safeLoad() swallows an unreadable .env without
+    # error, and config:cache then "succeeds" against framework defaults -- measured:
+    # the app silently boots pointing at DB_HOST=127.0.0.1 with an empty APP_KEY.
+    # root:33 640 keeps it unreadable to any OTHER user on the box while giving the
+    # www-data group read access -- see entrypoint.sh for the loud failure if this
+    # is ever wrong.
+    chown root:33 "$ROOT/backend.env"
+    chmod 640 "$ROOT/backend.env"
     echo "    generated $ROOT/backend.env"
     echo "    !! MAIL_PASSWORD is still empty -- copy it from the dev backend/.env"
 else

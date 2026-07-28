@@ -324,6 +324,14 @@ Expanding a couple of the terser steps:
   gpg --batch --decrypt --passphrase-file /root/.ladybug-backup-pass \
       env.tar.gz.gpg | tar -xzf -
   mv backend.env .env /web/online-trash.com/
+  # ladybug-php runs as www-data (uid 33) and reads this file bind-mounted
+  # read-only -- root:root 600 (or a plain `mv` preserving that from the
+  # archive) leaves it unreadable to the container. Same ownership setup.sh
+  # itself applies when generating backend.env fresh (Section 3); entrypoint.sh
+  # now refuses to start rather than boot silently against framework defaults
+  # if this is ever wrong.
+  chown root:33 /web/online-trash.com/backend.env
+  chmod 640 /web/online-trash.com/backend.env
   ```
 
 - **Step 7**, `restore.sh` (run from `/web/online-trash.com`), does the rest
