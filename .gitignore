@@ -18,3 +18,9 @@ test-results/
 
 # Spec Kit extension catalog cache (machine-local, refetched on demand)
 .specify/extensions/.cache/
+
+# Production env files are generated on the server and must never be committed --
+# the repository is public. Only the .example templates belong here.
+/deploy/**/.env
+/deploy/backend.env
+/deploy/data/

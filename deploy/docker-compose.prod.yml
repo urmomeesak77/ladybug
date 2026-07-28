@@ -1,0 +1,61 @@
+# Production stack for online-trash.com, deployed to /web/online-trash.com/ on the
+# Zone.eu VPS. Nothing is BUILT here -- images come from GHCR and the server only pulls
+# (1 vCPU / 960 MiB). Compare docker-compose.yml, which is dev-only and says so.
+#
+# Service names are load-bearing: deploy/web/default.conf does `fastcgi_pass
+# ladybug-php:9000` and backend.env sets DB_HOST=ladybug-mysql.
+services:
+  ladybug-mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: trashdb
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?must be set in .env}
+      # First init also creates this non-root user with privileges on trashdb ONLY.
+      # The application connects as this user; root exists for dumps and admin.
+      MYSQL_USER: ladybug
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?must be set in .env}
+    # NOTE: like the dev compose, these apply only when initialising an EMPTY datadir.
+    # Changing them against an existing ./data/mysql updates the container environment
+    # but NOT the server, and auth then breaks. Use ALTER USER on a live server instead.
+    #
+    # Tuned for a 960 MiB box shared with php-fpm, two nginx instances and Thousand.
+    command:
+      - --innodb-buffer-pool-size=96M
+      - --performance-schema=OFF
+      - --max-connections=30
+      - --table-open-cache=200
+      - --table-definition-cache=200
+    # No published port, unlike dev: the database is reachable only on this network.
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      # No -p: mysqladmin ping exits 0 whenever the server is up, even on Access denied,
+      # so a password would only leak into `docker inspect`. Same rationale as dev.
+      test: ["CMD", "mysqladmin", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ladybug-php:
+    image: ghcr.io/urmomeesak77/ladybug-php:${LADYBUG_TAG:-latest}
+    restart: unless-stopped
+    volumes:
+      # Mounted at run time, never baked: the image is public on GHCR.
+      - ./backend.env:/var/www/html/.env:ro
+      - ./data/storage:/var/www/html/storage
+    depends_on:
+      ladybug-mysql:
+        condition: service_healthy
+
+  ladybug-web:
+    image: ghcr.io/urmomeesak77/ladybug-web:${LADYBUG_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      # Loopback only. The edge nginx reaches this via host.docker.internal:8080,
+      # exactly as it reaches the Thousand game on :3000.
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./data/storage/app/public:/srv/media:ro
+    depends_on:
+      - ladybug-php
