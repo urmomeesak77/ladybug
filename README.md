@@ -198,6 +198,15 @@ scripts\e2e.ps1 e2e/upload.spec.ts    # one spec (args pass through to playwrigh
 Both stacks enforce **≥90% line coverage** in CI (`.github/workflows/ci.yml`),
 which also runs the e2e job.
 
+## Deployment
+
+Production runs at `https://online-trash.com` on a Zone.eu VPS, built from
+`deploy/` (Dockerfiles, the prod Compose stack, edge nginx config, and the
+setup/deploy/backup/restore scripts) and released via
+`.github/workflows/release.yml`. The full runbook — first-time server setup,
+releasing, backups, and the disaster-recovery procedure — is
+`docs/DEPLOYMENT.md`.
+
 ## Spec Kit
 
 Feature work follows the Spec Kit flow (specify → plan → tasks → implement).

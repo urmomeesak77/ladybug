@@ -134,6 +134,9 @@ Supporting files:
   (the frontend Vitest coverage gate spans ALL of `src/`, not just `lib/`), plus an
   `e2e` job that boots the isolated `docker-compose.e2e.yml` stack and runs the
   Playwright specs; `.github/scripts/check_coverage.py` is the ≥90% Clover gate.
+- **`deploy/`** — production deployment: Dockerfiles for the php-fpm and nginx+SPA
+  images, the prod Compose stack, edge nginx config, and the setup/deploy/backup/
+  restore scripts. Runbook in `docs/DEPLOYMENT.md`.
 
 **Local toolchain note:** there is no local PHP — run backend tests/artisan/coverage
 through the `php:8.3-cli` Docker container (project convention). The implemented code
