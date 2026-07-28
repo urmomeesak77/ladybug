@@ -52,6 +52,8 @@ echo "posts=", \App\Models\Trashpost::count(),
      " users=", \App\Models\User::count(),
      " comments=", \App\Models\Comment::count(), PHP_EOL;
 '
-curl -fsS http://127.0.0.1:8080/api/health; echo
+# Same reasoning as deploy.sh's health check: ladybug-web publishes no port, so this
+# has to run from inside the container, not the host.
+docker compose exec -T ladybug-web wget -qO- http://127.0.0.1/api/health; echo
 
 echo "==> Restore complete"

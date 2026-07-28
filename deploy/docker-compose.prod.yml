@@ -51,11 +51,24 @@ services:
   ladybug-web:
     image: ghcr.io/urmomeesak77/ladybug-web:${LADYBUG_TAG:-latest}
     restart: unless-stopped
-    ports:
-      # Loopback only. The edge nginx reaches this via host.docker.internal:8080,
-      # exactly as it reaches the Thousand game on :3000.
-      - "127.0.0.1:8080:80"
+    # No published port at all. The edge reaches this container by name over the
+    # shared network below. A loopback publish is unreachable from the edge
+    # (DNAT-scoped to 127.0.0.1/32, while host-gateway is the docker0 address),
+    # and publishing on 0.0.0.0 would be world-reachable over plain HTTP because
+    # Docker's port rules bypass ufw.
+    networks:
+      - default
+      - edge
     volumes:
       - ./data/storage/app/public:/srv/media:ro
     depends_on:
       - ladybug-php
+
+# ladybug-mysql and ladybug-php stay on `default` only (declared implicitly, not
+# listed above) -- neither is attached to `edge`, so the database and the app
+# server both stay unreachable from the shared edge network. Only ladybug-web,
+# which is meant to be reached from outside this stack, joins it.
+networks:
+  edge:
+    external: true
+    name: nginx_default

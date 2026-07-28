@@ -17,7 +17,9 @@ first-party and CORS never enters the picture:
 ```
 Internet ──443──▶ nginx-web-1 (existing edge, /web/nginx)
                    ├─ games.online-trash.com  → unchanged (Thousand game)
-                   └─ online-trash.com        → proxy_pass host.docker.internal:8080
+                   └─ online-trash.com        → proxy_pass http://ladybug-web:80
+                                                 (by container name, over the
+                                                 shared `nginx_default` network)
                                                      │
                               ┌──────────────────────┴────────────────────────┐
                               │  ladybug-web  (nginx:alpine + built SPA)       │
@@ -29,18 +31,42 @@ Internet ──443──▶ nginx-web-1 (existing edge, /web/nginx)
                               ladybug-php (php:8.3-fpm) ──▶ ladybug-mysql (8.0)
 ```
 
-`ladybug-web` publishes only `127.0.0.1:8080` — loopback, not the public
-interface. The existing edge (`nginx-web-1`) reaches it exactly the way it
-already reaches the Thousand game on `:3000`: `proxy_pass` through
-`host.docker.internal`, which that container already declares as an
-`extra_hosts` entry.
+`ladybug-web` publishes **no port at all**. It is attached to two Compose
+networks: its own stack's `default` (to reach `ladybug-php`) and `edge`, an
+`external: true` network pointing at `nginx_default` — the network the shared
+edge container (`nginx-web-1`) already runs on. The edge reaches it by
+container name (`ladybug-web`), resolved per-request via Docker's embedded DNS
+(`resolver 127.0.0.11`), the same pattern `deploy/web/default.conf` already
+uses to reach `ladybug-php`.
 
-**Why the stack owns its own nginx** instead of teaching the shared edge about
-Ladybug's paths: it costs roughly 15 MiB of RAM and buys a self-contained unit
-that can be restarted, rolled back, or torn down entirely without touching the
-edge config that keeps Thousand online. In exchange, the edge gains exactly one
-`proxy_pass` block — the same shape as the existing `/thousand/` one, nothing
-Ladybug-specific for it to know.
+This is **not** the mechanism used for the Thousand game, and deliberately so.
+The original design published `ladybug-web` on `127.0.0.1:8080` and had the
+edge reach it via `host.docker.internal` — exactly how Thousand is reached on
+`:3000` — but that was measured broken on the real server:
+
+```
+host      -> 127.0.0.1:18099            = 200
+container -> host.docker.internal:18099 = CONNECTION REFUSED
+```
+
+A loopback-published port is DNAT-scoped to `127.0.0.1/32`. `host.docker.internal`
+resolves to the `docker0` bridge address (via `host-gateway`), which is a
+*different* address than `127.0.0.1` from the container's point of view, so the
+DNAT rule that makes `127.0.0.1:8080` work never fires for a request arriving
+over the bridge. Docker Desktop masks this locally (it proxies loopback
+publishes through its VM), which is why the bug never showed up in dev — only
+on the real Linux host. The alternative, publishing on `0.0.0.0:8080`, was
+rejected too: Docker's port-publishing `iptables` rules are inserted ahead of
+`ufw`, so that would have made the stack reachable over plain HTTP from the
+public internet regardless of any firewall rule. Sharing the edge's network and
+publishing nothing avoids both failure modes.
+
+**Why the stack still owns its own nginx** instead of teaching the shared edge
+about Ladybug's paths: it costs roughly 15 MiB of RAM and buys a self-contained
+unit that can be restarted, rolled back, or torn down entirely without touching
+the edge config that keeps Thousand online. In exchange, the edge gains exactly
+one `proxy_pass` block — the same shape as the existing `/thousand/` one,
+nothing Ladybug-specific for it to know beyond the container name.
 
 Media (`/storage/`) is served by `ladybug-web` straight off a bind-mount via
 `alias`, never through PHP — size variants are content-addressed and never
@@ -164,10 +190,16 @@ cd /web/online-trash.com
 `deploy.sh` sets `LADYBUG_TAG` in `.env`, `docker compose pull`s,
 `docker compose up -d --remove-orphans`, then runs
 `docker compose exec -T ladybug-php php artisan migrate --force` against the
-**new** image before polling `http://127.0.0.1:8080/api/health` for up to 20
-seconds. If health never comes up it prints `docker compose ps` and the last
-50 lines of `docker compose logs`, then exits non-zero — the stack is left
-running (not rolled back automatically) so you have something to inspect.
+**new** image before polling the health endpoint for up to 20 seconds. The poll
+runs `docker compose exec -T ladybug-web wget -qO- http://127.0.0.1/api/health`
+**inside** the `ladybug-web` container, not from the host: the container
+publishes no port (Section 1), so a host-side `curl` to a loopback port would
+silently test nothing — it would report "healthy" from the host's own loopback
+even if the edge could never reach the stack, which is exactly the bug that
+motivated this design in the first place. If health never comes up it prints
+`docker compose ps` and the last 50 lines of `docker compose logs`, then exits
+non-zero — the stack is left running (not rolled back automatically) so you
+have something to inspect.
 
 Rollback is the same command with a previous SHA: every image is tagged by the
 commit CI validated, so `./deploy.sh <previous-sha>` is a full rollback, code
@@ -431,10 +463,14 @@ docker run -d --name thousand --restart unless-stopped \
 
 `extra_hosts: host.docker.internal:host-gateway` on the edge `web` service
 above is what lets `default.conf`'s `games.online-trash.com` block reach
-Thousand on `:3000`, and is the identical mechanism
-`nginx-edge/online-trash.com.conf` relies on to reach `ladybug-web` on
-`:8080` — rebuilding the edge without that line breaks both proxies, not
-just one.
+Thousand on `:3000` — rebuilding the edge without that line breaks the
+Thousand proxy. Ladybug no longer depends on it: `ladybug-web` publishes no
+port and is reached by container name over the shared `nginx_default` network
+(Section 1), so rebuilding the edge for Ladybug instead requires that the
+`ladybug-web` container be attached to this same Compose network (the `edge`
+network declared `external: true` in `deploy/docker-compose.prod.yml`, which
+*is* `nginx_default` — the default network name Compose derives from this
+`/web/nginx` project directory).
 
 ## 8. Growing the disk
 

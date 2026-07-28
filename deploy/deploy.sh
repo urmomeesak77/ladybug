@@ -23,8 +23,12 @@ echo "==> Migrating"
 docker compose exec -T ladybug-php php artisan migrate --force
 
 echo "==> Health check"
+# Run from INSIDE ladybug-web, not the host: the container publishes no port (it is
+# reached only from the edge, over the shared nginx_default network), so a host-side
+# curl to a loopback port would silently test nothing and this would report "healthy"
+# even if the edge itself could never reach the stack. nginx:alpine ships busybox wget.
 for i in $(seq 1 20); do
-    if curl -fsS http://127.0.0.1:8080/api/health >/dev/null 2>&1; then
+    if docker compose exec -T ladybug-web wget -qO- http://127.0.0.1/api/health >/dev/null 2>&1; then
         echo "    healthy after ${i}s"
         docker compose ps
         exit 0
