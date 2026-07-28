@@ -17,7 +17,7 @@
 - **Production config is non-negotiable:** `APP_ENV=production`, `APP_DEBUG=false`, `LOG_LEVEL=warning`, `SESSION_SECURE_COOKIE=true`, `DB_USERNAME=ladybug` (never root).
 - **Registry:** `ghcr.io/urmomeesak77/ladybug-php` and `ghcr.io/urmomeesak77/ladybug-web`, tagged `latest` and `<git-sha>`, packages **public** so the server needs no `docker login`.
 - **Server paths:** stack lives at `/web/online-trash.com/`; data under `./data/{mysql,storage,backups}`.
-- **FTPS backups:** host `sn-69-18.tll07.zoneas.eu` (**by hostname — the cert is `*.tll07.zoneas.eu` and the bare IP fails verification**), always `--ssl-reqd`, and **never touch any path outside `/ladybug/`** — that account holds live web content.
+- **FTPS backups:** a dedicated user, **chrooted to its own root** (which is the `ladybug/` directory of the web hosting account — it cannot see `htdocs` or anything else). Backup paths are therefore `/db/`, `/env/`, `/media/` with no prefix. Host `sn-69-18.tll07.zoneas.eu` — **connect by hostname; the cert is `*.tll07.zoneas.eu` and the bare IP fails verification** — always `--ssl-reqd` (the server refuses plaintext). The password contains `/`, `=`, `?` and `+`, so it MUST be single-quoted in `/root/.ladybug-ftp`.
 - **PHP style:** PSR-12, 4-space, `declare(strict_types=1)`, functions <30 lines. `docs/CODING_CONVENTIONS.md` is binding.
 - **Backend commands run through Docker** — there is no local PHP.
 - **Coverage gate ≥90%** on both stacks; CI must be green before any image is published.
@@ -1109,11 +1109,12 @@ fi
 
 if [ ! -f /root/.ladybug-ftp ]; then
     cat > /root/.ladybug-ftp <<'ENV'
-# Zone.eu hosting account used for off-box backups. Connect by HOSTNAME: the TLS
-# certificate is *.tll07.zoneas.eu and the bare IP fails verification.
+# Dedicated Zone.eu FTPS user for off-box backups, chrooted to its own root.
+# Connect by HOSTNAME: the certificate is *.tll07.zoneas.eu and the bare IP fails
+# verification. SINGLE-QUOTE the password -- it contains / = ? and + characters.
 FTP_HOST=sn-69-18.tll07.zoneas.eu
 FTP_USER=
-FTP_PASS=
+FTP_PASS=''
 ENV
     chmod 600 /root/.ladybug-ftp
     echo "    created /root/.ladybug-ftp -- fill in FTP_USER and FTP_PASS"
@@ -1205,7 +1206,7 @@ git commit -m "feat(deploy): server setup and deploy scripts"
 
 **Interfaces:**
 - Consumes: `/root/.ladybug-ftp` and `/root/.ladybug-backup-pass` from Task 8.
-- Produces: `/ladybug/db/`, `/ladybug/env/` and `/ladybug/media/` on the FTPS host. Task 16 schedules `backup.sh`; Task 17 exercises `restore.sh`.
+- Produces: `/db/`, `/env/` and `/media/` on the FTPS host (the backup user's own chrooted root). Task 16 schedules `backup.sh`; Task 17 exercises `restore.sh`.
 
 - [ ] **Step 1: Write `deploy/backup.sh`**
 
@@ -1219,8 +1220,10 @@ git commit -m "feat(deploy): server setup and deploy scripts"
 # TWO RULES, both learned from surveying the target:
 #   1. Connect by HOSTNAME. The certificate is *.tll07.zoneas.eu; the bare IP fails
 #      verification. The server also refuses plaintext (530), hence --ssl-reqd.
-#   2. NEVER touch a path outside /ladybug/. That account holds live web content --
-#      htdocs, logs, stats and personal directories going back to 2012.
+#   2. The backup user is chrooted to its own root, so /db, /env and /media here are
+#      NOT the hosting account's root -- it cannot see htdocs or the other content on
+#      that account. Paths stay absolute and --delete is still never used: the chroot
+#      is the guard, this is the defence in depth behind it.
 set -euo pipefail
 
 ROOT=/web/online-trash.com
@@ -1248,7 +1251,7 @@ docker compose exec -T ladybug-mysql \
         --passphrase-file "$PASSPHRASE_FILE" -o "$DUMP"
 
 echo "==> Uploading database dump"
-curl "${CURL_OPTS[@]}" -T "$DUMP" "${FTP_URL}/ladybug/db/$(basename "$DUMP")"
+curl "${CURL_OPTS[@]}" -T "$DUMP" "${FTP_URL}/db/$(basename "$DUMP")"
 
 echo "==> Uploading env bundle"
 # Both env files together: backend.env holds APP_KEY and the app DB password, .env
@@ -1257,7 +1260,7 @@ ENVBUNDLE="data/backups/env-${STAMP}.tar.gz.gpg"
 tar -czf - backend.env .env \
   | gpg --batch --yes --symmetric --cipher-algo AES256 \
         --passphrase-file "$PASSPHRASE_FILE" -o "$ENVBUNDLE"
-curl "${CURL_OPTS[@]}" -T "$ENVBUNDLE" "${FTP_URL}/ladybug/env/$(basename "$ENVBUNDLE")"
+curl "${CURL_OPTS[@]}" -T "$ENVBUNDLE" "${FTP_URL}/env/$(basename "$ENVBUNDLE")"
 
 echo "==> Mirroring media"
 # Incremental: only files whose size or timestamp changed. Media variants are
@@ -1265,7 +1268,7 @@ echo "==> Mirroring media"
 # NOTE the explicit absolute target and the absence of --delete: see rule 2 above.
 lftp -u "${FTP_USER},${FTP_PASS}" \
      -e "set ftp:ssl-force true; set ssl:verify-certificate true; \
-         mirror -R --only-newer --no-perms data/storage/app/public /ladybug/media; \
+         mirror -R --only-newer --no-perms data/storage/app/public /media; \
          bye" \
      "${FTP_HOST}"
 
@@ -1273,13 +1276,13 @@ echo "==> Pruning to the ${KEEP} most recent"
 prune_remote() {
     local dir="$1"
     # Filenames are timestamped, so lexical sort is chronological.
-    curl "${CURL_OPTS[@]}" --list-only "${FTP_URL}/ladybug/${dir}/" \
+    curl "${CURL_OPTS[@]}" --list-only "${FTP_URL}/${dir}/" \
       | sort \
       | head -n -"${KEEP}" \
       | while read -r old; do
             [ -n "$old" ] || continue
             echo "    removing ${dir}/${old}"
-            curl "${CURL_OPTS[@]}" -Q "DELE /ladybug/${dir}/${old}" "${FTP_URL}/ladybug/${dir}/" -o /dev/null
+            curl "${CURL_OPTS[@]}" -Q "DELE /${dir}/${old}" "${FTP_URL}/${dir}/" -o /dev/null
         done
 }
 prune_remote db
@@ -1309,7 +1312,7 @@ echo "==> Backup complete: ${STAMP}"
 # rollback to last night.
 #
 #   ./restore.sh            -> newest remote dump
-#   ./restore.sh <filename> -> a specific dump from /ladybug/db/
+#   ./restore.sh <filename> -> a specific dump from /db/
 set -euo pipefail
 
 ROOT=/web/online-trash.com
@@ -1323,12 +1326,12 @@ cd "$ROOT"
 
 DUMP="${1:-}"
 if [ -z "$DUMP" ]; then
-    DUMP="$(curl "${CURL_OPTS[@]}" --list-only "${FTP_URL}/ladybug/db/" | sort | tail -1)"
+    DUMP="$(curl "${CURL_OPTS[@]}" --list-only "${FTP_URL}/db/" | sort | tail -1)"
 fi
 echo "==> Restoring from: $DUMP"
 
 echo "==> Downloading"
-curl "${CURL_OPTS[@]}" "${FTP_URL}/ladybug/db/${DUMP}" -o "/tmp/${DUMP}"
+curl "${CURL_OPTS[@]}" "${FTP_URL}/db/${DUMP}" -o "/tmp/${DUMP}"
 
 echo "==> Importing"
 gpg --batch --yes --decrypt --passphrase-file "$PASSPHRASE_FILE" "/tmp/${DUMP}" \
@@ -1340,7 +1343,7 @@ rm -f "/tmp/${DUMP}"
 echo "==> Mirroring media back down"
 lftp -u "${FTP_USER},${FTP_PASS}" \
      -e "set ftp:ssl-force true; set ssl:verify-certificate true; \
-         mirror --only-newer --no-perms /ladybug/media data/storage/app/public; \
+         mirror --only-newer --no-perms /media data/storage/app/public; \
          bye" \
      "${FTP_HOST}"
 chown -R 33:33 data/storage
@@ -1402,7 +1405,7 @@ Cover exactly these sections, drawing values from the design spec:
 3. **First-time server setup** — clone the repo to `/root/ladybug`, run `deploy/setup.sh`, save the printed secrets, fill `MAIL_PASSWORD` and the two FTP values.
 4. **Edge nginx** — install `online-trash.com.conf`, remove the apex blocks from `default.conf`, `docker exec nginx-web-1 nginx -t`, then `nginx -s reload`.
 5. **Releasing** — CI publishes on green master; `./deploy.sh` to take latest; `./deploy.sh <sha>` to pin or roll back.
-6. **Backups** — what is stored where, the 5-item retention, and the two FTPS rules (hostname not IP; never leave `/ladybug/`).
+6. **Backups** — what is stored where, the 5-item retention, and the FTPS rules: connect by hostname not IP, the backup user is chrooted to its own root, and the password needs single-quoting.
 7. **Disaster recovery runbook** — the numbered list in Step 2 below.
 8. **Growing the disk** — `growpart /dev/vda 1 && resize2fs /dev/vda1`, non-destructive, `vda1` is the last partition.
 9. **TLS renewal** — the cron, and how to verify expiry.
@@ -1423,7 +1426,7 @@ configuration -- is reproducible from GitHub and GHCR.
    `/root/.ladybug-ftp` (host, user, pass), both `chmod 600`.
 4. `bash /root/ladybug/deploy/setup.sh`
 5. Recover the previous secrets rather than using the freshly generated ones:
-   download the newest `/ladybug/env/env-*.tar.gz.gpg`, decrypt it, and put
+   download the newest `/env/env-*.tar.gz.gpg`, decrypt it, and put
    `backend.env` and `.env` in `/web/online-trash.com/`. **The old APP_KEY matters:
    a new one invalidates every existing session cookie.**
 6. `cd /web/online-trash.com && ./deploy.sh latest`
@@ -1507,12 +1510,21 @@ Expected: 2 GiB swap active, swappiness 10, lftp present, the `data/` tree in pl
 
 ```sh
 . /root/.ladybug-ftp
-curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/ladybug/" \
-  -Q "MKD /ladybug/db" -Q "MKD /ladybug/env" -Q "MKD /ladybug/media" -o /dev/null
-curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/ladybug/"
+curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/" \
+  -Q "MKD /db" -Q "MKD /env" -Q "MKD /media" -o /dev/null
+curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/"
 ```
 
-Expected: `db`, `env` and `media` listed. If the connection fails with a certificate error, you used the IP instead of the hostname.
+Expected: `db`, `env` and `media` listed, and **nothing else** — the user is chrooted, so its root contains only what we put there. If the connection fails with a certificate error, you used the IP instead of the hostname; if it fails to authenticate, the password in `/root/.ladybug-ftp` is not single-quoted.
+
+Then confirm `lftp` can authenticate too, since it parses the password differently from curl:
+
+```sh
+lftp -u "${FTP_USER},${FTP_PASS}" \
+     -e "set ftp:ssl-force true; set ssl:verify-certificate true; ls; bye" "${FTP_HOST}"
+```
+
+Expected: the same three directories. (Verified working against this account on 2026-07-28, including certificate verification.)
 
 - [ ] **Step 5: Fix the ACME challenge path**
 
@@ -1841,7 +1853,7 @@ Expected: within the spec §5 budget, swap barely touched.
 
 **Interfaces:**
 - Consumes: Task 9's scripts and Task 11's credentials.
-- Produces: populated `/ladybug/{db,env,media}`. Task 17 restores from them.
+- Produces: populated `/db`, `/env` and `/media`. Task 17 restores from them.
 
 - [ ] **Step 1: Run a backup by hand**
 
@@ -1858,9 +1870,9 @@ Expected: each stage prints, ending `Backup complete: <stamp>`.
 
 ```sh
 . /root/.ladybug-ftp
-curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/ladybug/db/"
-curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/ladybug/env/"
-curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/ladybug/media/" | head
+curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/db/"
+curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/env/"
+curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/media/" | head
 ```
 
 Expected: one timestamped `.sql.gz.gpg`, one `env-*.tar.gz.gpg`, and the media tree.
@@ -1872,8 +1884,8 @@ An encrypted backup nobody has decrypted is not a backup.
 ```sh
 cd /tmp
 . /root/.ladybug-ftp
-LATEST=$(curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" --list-only "ftp://${FTP_HOST}/ladybug/db/" | sort | tail -1)
-curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/ladybug/db/${LATEST}" -o "$LATEST"
+LATEST=$(curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" --list-only "ftp://${FTP_HOST}/db/" | sort | tail -1)
+curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/db/${LATEST}" -o "$LATEST"
 gpg --batch --decrypt --passphrase-file /root/.ladybug-backup-pass "$LATEST" \
   | gunzip | head -5
 rm -f "/tmp/${LATEST}"
@@ -1885,7 +1897,7 @@ Expected: readable SQL (`-- MySQL dump ...`).
 
 ```sh
 for i in 1 2 3 4 5 6; do ./backup.sh >/dev/null 2>&1 || true; sleep 61; done
-curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" --list-only "ftp://${FTP_HOST}/ladybug/db/" | wc -l
+curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" --list-only "ftp://${FTP_HOST}/db/" | wc -l
 ```
 
 Expected: `5`. (The `sleep` is needed because the stamp has minute resolution.) If a full six-run loop is too slow, upload five dated dummy files and confirm the sixth run prunes to five.
@@ -1934,8 +1946,8 @@ sed -i 's|127.0.0.1:8080:80|127.0.0.1:8099:80|' docker-compose.yml
 
 ```sh
 . /root/.ladybug-ftp
-LATEST=$(curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" --list-only "ftp://${FTP_HOST}/ladybug/env/" | sort | tail -1)
-curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/ladybug/env/${LATEST}" -o env.tar.gz.gpg
+LATEST=$(curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" --list-only "ftp://${FTP_HOST}/env/" | sort | tail -1)
+curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/env/${LATEST}" -o env.tar.gz.gpg
 gpg --batch --decrypt --passphrase-file /root/.ladybug-backup-pass env.tar.gz.gpg | tar -xzf -
 ls -la backend.env .env
 ```
@@ -1950,8 +1962,8 @@ docker compose -p ladybug-dr up -d
 sleep 30
 docker compose -p ladybug-dr exec -T ladybug-php php artisan migrate --force
 
-LATEST=$(curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" --list-only "ftp://${FTP_HOST}/ladybug/db/" | sort | tail -1)
-curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/ladybug/db/${LATEST}" -o dump.gpg
+LATEST=$(curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" --list-only "ftp://${FTP_HOST}/db/" | sort | tail -1)
+curl -s --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_HOST}/db/${LATEST}" -o dump.gpg
 gpg --batch --decrypt --passphrase-file /root/.ladybug-backup-pass dump.gpg | gunzip \
   | docker compose -p ladybug-dr exec -T ladybug-mysql \
       mysql -uroot -p"$(grep '^MYSQL_ROOT_PASSWORD=' .env | cut -d= -f2-)" trashdb
