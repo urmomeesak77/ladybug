@@ -98,9 +98,27 @@ the offset. Once minutes are displayed, `CommentItem`'s `2026-07-23T10:15:00Z`
 renders `13:15` on a UTC+3 developer machine and `10:15` on a UTC CI runner — a
 guaranteed split between local and CI.
 
-The run therefore **pins `TZ=UTC`** via `test.env` in `frontend/vite.config.ts`,
-with a comment explaining why. This also retroactively hardens the existing date
-assertions.
+The fix is to **remove the coupling, not mask it**: every timestamp fixture uses a
+**zone-less ISO date-time** (`'2026-07-22T14:05:00'`, no `Z`). Per ECMA-262 those
+parse as *local* time, so the input and the expected output share a frame and the
+assertion holds in any timezone. (A date-*only* string like `'2026-07-22'` parses
+as UTC, so fixtures must always carry a time component.)
+
+`TZ=UTC` is still pinned via `test.env` in `frontend/vite.config.ts` as a safety
+net for future fixtures, but it is deliberately **not load-bearing**. During
+implementation it was observed failing once — `formatWithTime` returned UTC+3
+output despite the pin — and then was not reproducible across 10 further runs.
+Live config edits *are* picked up (verified by temporarily switching the pin to
+`America/New_York` and seeing the output move), which rules out a stale config
+cache; the likely cause is that assigning `process.env.TZ` inside a Vitest worker
+thread does not always reset Node's timezone cache. An intermittent mechanism is
+not a foundation, hence the zone-less fixtures above.
+
+The four fixtures that actually flow through `new Date()` were converted
+(`postDate`, `PostByline`, `FeedItem`, `PostPage`, `CommentItem`). Other `...Z`
+fixtures in the suite are pass-through payload data or are asserted as raw
+strings — the admin models slice the string and never parse it — so they are
+timezone-independent by construction and were left alone.
 
 ### Assertions
 
