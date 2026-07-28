@@ -8,14 +8,14 @@ afterEach(cleanup);
 
 describe('PostByline', () => {
   it('renders the author and the formatted date', () => {
-    render(<PostByline author="alice" createdAt="2026-07-22T12:00:00Z" commentCount={0} />);
+    render(<PostByline author="alice" createdAt="2026-07-22T12:00:00" commentCount={0} />);
 
     expect(screen.getByText(/by alice/i).textContent).toContain('by alice');
     expect(screen.getByText(/2026-07-22/)).toBeTruthy();
   });
 
   it('falls back to Anonymous when there is no author', () => {
-    render(<PostByline author={null} createdAt="2026-07-22T12:00:00Z" commentCount={0} />);
+    render(<PostByline author={null} createdAt="2026-07-22T12:00:00" commentCount={0} />);
 
     expect(screen.getByText(/by Anonymous/i)).toBeTruthy();
   });
@@ -28,7 +28,7 @@ describe('PostByline', () => {
   });
 
   it('renders the comment count alongside the byline', () => {
-    render(<PostByline author="alice" createdAt="2026-07-22T12:00:00Z" commentCount={4} />);
+    render(<PostByline author="alice" createdAt="2026-07-22T12:00:00" commentCount={4} />);
 
     expect(screen.getByLabelText('4 comments')).toBeTruthy();
   });

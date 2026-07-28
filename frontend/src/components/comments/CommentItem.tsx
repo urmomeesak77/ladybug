@@ -29,7 +29,7 @@ type CommentActionProps = {
 // state is marked by text (the badge), not colour alone (Principle IV, FR-011). Admin+ viewers
 // additionally get the moderation menu (rendered by CommentActions, which owns the confirm).
 function CommentItem({ comment, viewerRole = 'guest', onHide, onUnhide, onDelete }: CommentItemProps) {
-  const date = PostDate.format(comment.createdAt);
+  const date = PostDate.formatWithTime(comment.createdAt);
   const canModerate = Role.rank(viewerRole) >= Role.rank('admin');
 
   return (

@@ -21,7 +21,7 @@ function comment(overrides: Partial<Comment> = {}): Comment {
     body: 'first line\nsecond line',
     author: 'alice',
     hidden: false,
-    createdAt: '2026-07-23T10:15:00.000000Z',
+    createdAt: '2026-07-23T10:15:00',
     ...overrides,
   };
 }
@@ -59,9 +59,9 @@ describe('CommentItem', () => {
     expect(screen.getByText('Anonymous')).toBeTruthy();
   });
 
-  it('renders the formatted post time', () => {
-    renderItem({ createdAt: '2026-07-23T10:15:00.000000Z' });
-    expect(screen.getByText(/Jul 23, 2026/)).toBeTruthy();
+  it('renders the formatted post date and time', () => {
+    renderItem({ createdAt: '2026-07-23T10:15:00' });
+    expect(screen.getByText('2026-07-23 10:15')).toBeTruthy();
   });
 
   it('renders the body as literal plain text (never markup)', () => {

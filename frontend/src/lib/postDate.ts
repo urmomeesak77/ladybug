@@ -11,6 +11,16 @@ export class PostDate {
     return date === null ? null : PostDate.datePart(date);
   }
 
+  // The comment list needs minute precision — several comments routinely land on the same
+  // day. Shares datePart() with format(), so the date half can never drift from the byline's.
+  static formatWithTime(iso: string | null): string | null {
+    const date = PostDate.parse(iso);
+    if (date === null) {
+      return null;
+    }
+    return `${PostDate.datePart(date)} ${PostDate.timePart(date)}`;
+  }
+
   // Null for null/blank/unparseable input so callers can omit the element entirely rather
   // than print 'Invalid Date'.
   private static parse(iso: string | null): Date | null {
@@ -24,6 +34,10 @@ export class PostDate {
   private static datePart(date: Date): string {
     const month = PostDate.pad(date.getMonth() + 1);
     return `${date.getFullYear()}-${month}-${PostDate.pad(date.getDate())}`;
+  }
+
+  private static timePart(date: Date): string {
+    return `${PostDate.pad(date.getHours())}:${PostDate.pad(date.getMinutes())}`;
   }
 
   private static pad(value: number): string {

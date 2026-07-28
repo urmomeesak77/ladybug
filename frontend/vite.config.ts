@@ -19,9 +19,12 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.test.{ts,tsx}'],
-    // Date output is rendered in the runtime's local zone (PostDate uses local getters,
-    // by design). Without pinning, a timestamp assertion would pass on a UTC+3 dev
-    // machine and fail on the UTC CI runner. UTC makes every assertion deterministic.
+    // Date output renders in the runtime's local zone (PostDate uses local getters, by
+    // design), so a '...Z' fixture would read differently on a UTC+3 dev machine and the
+    // UTC CI runner. This pin is a safety net for that, NOT a guarantee to lean on: setting
+    // TZ inside a worker thread does not always reset Node's timezone cache (observed
+    // failing once here, not reproducible in 10 further runs). Timestamp assertions must
+    // therefore use ZONE-LESS ISO date-times, which parse as local and hold in any zone.
     env: { TZ: 'UTC' },
     coverage: {
       // ALL source is coverage-gated (Principle VII), not just lib/. The only
