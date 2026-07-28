@@ -241,20 +241,25 @@ passphrase that decrypts every backup lives only in
 
 - **Data loss only** — the box itself survives (disk intact, `nginx-web-1` and
   `thousand` still running), but the Ladybug stack, its database, or its media
-  is gone or corrupted. Steps 4-7 below apply as written; skip straight to
-  them.
+  is gone or corrupted. Steps 4-7 below apply as written, then Step 9
+  (Post-deploy verification) — skip straight to those; the edge and Thousand
+  need no attention.
 - **Total loss** — a wiped/reprovisioned VPS. Steps 1-9 below rebuild
   *Ladybug*: for Ladybug specifically, everything except the backup
   passphrase, the FTP credentials, and SSH access is reproducible from GitHub
   and GHCR. But the same wipe also destroys the **shared edge**
   (`nginx-web-1`, `/web/nginx/docker-compose.yml`, `default.conf` with the
   games blocks, the certbot service and its cert store) and the **Thousand
-  game** container, neither of which is tracked in this repo. Nothing in
-  Steps 1-9 recreates those — Step 8 assumes `/web/nginx` and `nginx-web-1`
-  already exist. On a genuine total loss, rebuild the shared edge and Thousand
-  **first**, using the Appendix below as your only record of their
-  configuration, then proceed with Steps 1-9. The Appendix is a snapshot, not
-  a substitute for the live host, and may be stale by the time you need it.
+  game** container, neither of which is tracked in this repo, and neither of
+  which Steps 1-9 recreates on their own — Step 8 assumes `/web/nginx` and
+  `nginx-web-1` already exist. On a genuine total loss, insert the rebuild
+  **between Step 2 and Step 3**: Steps 1-2 provision the VPS and install
+  Docker (a prerequisite the edge needs too), then rebuild the shared edge and
+  Thousand from the Appendix below — it must be done before Step 8, which
+  edits `/web/nginx/conf.d/default.conf` and runs `docker exec nginx-web-1
+  nginx -t` — then continue with Step 3 onward as written. The Appendix is a
+  snapshot, not a substitute for the live host, and may be stale by the time
+  you need it.
 
 1. Provision Ubuntu 24.04, point DNS at the new IP.
 2. Install Docker, then `git clone https://github.com/urmomeesak77/ladybug.git /root/ladybug`.
