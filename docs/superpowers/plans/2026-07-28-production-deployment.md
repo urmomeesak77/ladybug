@@ -20,6 +20,24 @@
 - **FTPS backups:** a dedicated user, **chrooted to its own root** (which is the `ladybug/` directory of the web hosting account — it cannot see `htdocs` or anything else). Backup paths are therefore `/db/`, `/env/`, `/media/` with no prefix. Host `sn-69-18.tll07.zoneas.eu` — **connect by hostname; the cert is `*.tll07.zoneas.eu` and the bare IP fails verification** — always `--ssl-reqd` (the server refuses plaintext). The password contains `/`, `=`, `?` and `+`, so it MUST be single-quoted in `/root/.ladybug-ftp`.
 - **PHP style:** PSR-12, 4-space, `declare(strict_types=1)`, functions <30 lines. `docs/CODING_CONVENTIONS.md` is binding.
 - **Backend commands run through Docker** — there is no local PHP.
+- **`php artisan tinker` does NOT exist in this project.** `laravel/tinker` is not a
+  dependency (not in `require`, not in `require-dev`), and adding it would be a
+  Principle I decision requiring explicit approval — besides being a poor idea in
+  production. Where an ad-hoc query is needed, boot the framework directly; this is
+  the same sequence Artisan performs, and it is proven working against the
+  production image:
+  ```sh
+  docker compose exec -T ladybug-php php -r '
+  require "/var/www/html/vendor/autoload.php";
+  $app = require "/var/www/html/bootstrap/app.php";
+  $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+  echo config("app.env"), PHP_EOL;
+  '
+  ```
+  Facades (`DB::`, `Mail::`) and models are available after `bootstrap()`, because
+  that is what registers them. Where a shipped Artisan command can cross-check the
+  same fact (`php artisan about --json`, `php artisan db:show`), use it as a second
+  independent signal so a bootstrap mistake cannot fake a pass.
 - **Coverage gate ≥90%** on both stacks; CI must be green before any image is published.
 - **Do not create branches.** Commit on `master`.
 
@@ -378,7 +396,17 @@ server {
     # health route declared in bootstrap/app.php's withRouting(health:).
     location ~ ^/(api|up|sanctum)(/|$) {
         include fastcgi_params;
-        fastcgi_pass ladybug-php:9000;
+
+        # Resolve php-fpm per REQUEST, not at config load. A bare hostname makes nginx
+        # refuse to START whenever ladybug-php is not yet resolvable -- which happens on
+        # a host reboot, where Docker's daemon-triggered restarts do not honour
+        # depends_on. With a variable upstream nginx starts regardless, and a down
+        # backend degrades to a clean 502 instead of a dead web container.
+        # 127.0.0.11 is Docker's embedded DNS, present on every Compose network.
+        resolver 127.0.0.11 valid=10s;
+        set $upstream ladybug-php;
+        fastcgi_pass $upstream:9000;
+
         # SCRIPT_FILENAME is resolved inside the PHP container's own filesystem, so this
         # nginx never needs a copy of the application code.
         fastcgi_param SCRIPT_FILENAME /var/www/html/public/index.php;
@@ -437,6 +465,29 @@ docker run --rm ladybug-web-prod:test sh -c 'ls /usr/share/nginx/html/assets | h
 ```
 
 Expected: `syntax is ok` / `test is successful`; `index.html` and `assets` listed; hashed asset filenames printed.
+
+This passes standalone only because of the `resolver` + variable-upstream form above. With
+a bare `fastcgi_pass ladybug-php:9000`, nginx resolves the name at config-load time and
+this command fails with `host not found in upstream` for everyone, every time.
+
+Then prove the container survives an unresolvable backend — the failure mode the variable
+upstream exists to remove:
+
+```sh
+docker run -d --name lbweb-test -p 127.0.0.1:8099:80 ladybug-web-prod:test
+sleep 3 && docker ps --filter name=lbweb-test --format '{{.Status}}'
+curl -s -o /dev/null -w 'api=%{http_code}
+'   http://127.0.0.1:8099/api/posts
+curl -s -o /dev/null -w 'spa=%{http_code}
+'   http://127.0.0.1:8099/
+curl -s -o /dev/null -w 'route=%{http_code}
+' http://127.0.0.1:8099/posts/abcdefghij
+docker ps --filter name=lbweb-test --format '{{.Status}}'
+docker rm -f lbweb-test
+```
+
+Expected: running (not restarting); `api=502`, `spa=200`, `route=200`; and **still running**
+after the 502.
 
 - [ ] **Step 5: Confirm no secret leaked into the bundle**
 
@@ -722,14 +773,26 @@ Expected: `{"status":"ok"}`; `200`; `204`; a JSON feed envelope; `<!doctype html
 ```sh
 # Debug must be off: a forced error must not return a stack trace.
 curl -s http://127.0.0.1:8080/api/posts/does-not-exist | head -c 200; echo
-docker compose exec -T ladybug-php php artisan tinker --execute \
-  'echo config("app.debug") ? "DEBUG ON (BAD)" : "debug off (correct)";'
+docker compose exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+echo config("app.debug") ? "DEBUG ON (BAD)" : "debug off (correct)", PHP_EOL;
+'
 # The app must be connected as the non-root user.
-docker compose exec -T ladybug-php php artisan tinker --execute \
-  'echo DB::selectOne("select current_user() u")->u, PHP_EOL;'
+docker compose exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+echo DB::selectOne("select current_user() u")->u, PHP_EOL;
+'
+# Cross-check both facts with commands that DO ship, so a bootstrap mistake in the
+# two snippets above cannot manufacture a false pass.
+docker compose exec -T ladybug-php php artisan about --json | head -c 300; echo
+docker compose exec -T ladybug-php php artisan db:show | head -20
 ```
 
-Expected: a plain JSON 404 with no trace; `debug off (correct)`; a `ladybug@%` current user (**not** `root@`).
+Expected: a plain JSON 404 with no trace; `debug off (correct)`; a `ladybug@%` current user (**not** `root@`); and from the cross-checks `"debug_mode":false` plus a `Username ... ladybug` row.
 
 - [ ] **Step 7: Tear down and clean up**
 
@@ -1236,6 +1299,17 @@ PASSPHRASE_FILE=/root/.ladybug-backup-pass
 FTP_URL="ftp://${FTP_HOST}"
 CURL_OPTS=(--ssl-reqd --user "${FTP_USER}:${FTP_PASS}" --silent --show-error --fail)
 
+# Run a snippet inside the booted app. `php artisan tinker` does NOT exist here:
+# laravel/tinker is not a dependency of this project, and the production image ships
+# --no-dev regardless. Booting the kernel is what Artisan itself does.
+lb_php() {
+    docker compose exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+'"$1"
+}
+
 cd "$ROOT"
 
 echo "==> Dumping database"
@@ -1293,9 +1367,8 @@ ls -1t data/backups/env-*.tar.gz.gpg     2>/dev/null | tail -n +$((KEEP + 1)) | 
 echo "==> Disk check"
 USED=$(df --output=pcent / | tail -1 | tr -dc '0-9')
 if [ "$USED" -gt 80 ]; then
-    docker compose exec -T ladybug-php php artisan tinker --execute \
-        "Mail::raw('online-trash.com root filesystem is ${USED}% full.', fn (\$m) =>
-            \$m->to('urmo.meesak@gmail.com')->subject('[ladybug] disk ${USED}% full'));"
+    lb_php "Mail::raw('online-trash.com root filesystem is ${USED}% full.', fn (\$m) =>
+        \$m->to('urmo.meesak@gmail.com')->subject('[ladybug] disk ${USED}% full'));"
 fi
 
 echo "==> Backup complete: ${STAMP}"
@@ -1349,10 +1422,15 @@ lftp -u "${FTP_USER},${FTP_PASS}" \
 chown -R 33:33 data/storage
 
 echo "==> Verifying"
-docker compose exec -T ladybug-php php artisan tinker --execute \
-    'echo "posts=", \App\Models\Trashpost::count(),
-          " users=", \App\Models\User::count(),
-          " comments=", \App\Models\Comment::count(), PHP_EOL;'
+# Not `artisan tinker` -- see backup.sh for why that command does not exist here.
+docker compose exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+echo "posts=", \App\Models\Trashpost::count(),
+     " users=", \App\Models\User::count(),
+     " comments=", \App\Models\Comment::count(), PHP_EOL;
+'
 curl -fsS http://127.0.0.1:8080/api/health; echo
 
 echo "==> Restore complete"
@@ -1610,12 +1688,17 @@ Expected: `{"status":"ok"}`, an empty feed envelope, and `200` for the SPA shell
 - [ ] **Step 3: Verify production hardening on the real host**
 
 ```sh
-docker compose exec -T ladybug-php php artisan tinker --execute \
-  'echo config("app.env"), " debug=", var_export(config("app.debug"), true), PHP_EOL;'
-docker compose exec -T ladybug-php php artisan tinker --execute \
-  'echo DB::selectOne("select current_user() u")->u, PHP_EOL;'
-docker compose exec -T ladybug-php php artisan tinker --execute \
-  'echo config("app.url"), PHP_EOL;'
+docker compose exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+echo config("app.env"), " debug=", var_export(config("app.debug"), true), PHP_EOL;
+echo config("app.url"), PHP_EOL;
+echo DB::selectOne("select current_user() u")->u, PHP_EOL;
+'
+# Independent cross-check with shipped commands.
+docker compose exec -T ladybug-php php artisan about --json | head -c 300; echo
+docker compose exec -T ladybug-php php artisan db:show | head -20
 # The database must not be reachable from outside the compose network.
 ss -ltnp | grep -E '3306|8080'
 ```
@@ -1690,17 +1773,25 @@ Expected: ~1.3 GB transferred; the root filesystem still well under 80%.
 
 ```sh
 cd /web/online-trash.com
-docker compose exec -T ladybug-php php artisan tinker --execute \
-  'echo "posts=", \App\Models\Trashpost::count(),
-        " users=", \App\Models\User::count(),
-        " comments=", \App\Models\Comment::count(), PHP_EOL;'
+docker compose exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+echo "posts=", \App\Models\Trashpost::count(),
+     " users=", \App\Models\User::count(),
+     " comments=", \App\Models\Comment::count(), PHP_EOL;
+'
 ```
 
 Compare against the same counts on the dev box. Then confirm a real post's media exists on disk:
 
 ```sh
-docker compose exec -T ladybug-php php artisan tinker --execute \
-  'echo \App\Models\Trashpost::whereNotNull("image")->value("hash"), PHP_EOL;'
+docker compose exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+echo \App\Models\Trashpost::whereNotNull("image")->value("hash"), PHP_EOL;
+'
 curl -fsS -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:8080/api/posts/<that-hash>"
 ```
 
@@ -1750,17 +1841,33 @@ Expected: `200` and `Cache-Control: public, immutable`.
 Migrating everything carried dev e-mail addresses and password hashes into production. List them and delete what does not belong:
 
 ```sh
-docker compose exec -T ladybug-php php artisan tinker --execute \
-  '\App\Models\User::orderBy("id")->get(["id","name","email","role"])->each(fn($u) => print("$u->id  $u->email  $u->role\n"));'
+docker compose exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+foreach (\App\Models\User::orderBy("id")->get(["id","name","email","role"]) as $u) {
+    echo $u->id, "  ", $u->email, "  ", $u->role, PHP_EOL;
+}
+'
 ```
 
 Delete each test account by e-mail, and confirm the intended superuser survives:
 
 ```sh
-docker compose exec -T ladybug-php php artisan tinker --execute \
-  '\App\Models\User::where("email","<test@example.com>")->delete();'
-docker compose exec -T ladybug-php php artisan tinker --execute \
-  '\App\Models\User::where("role","superuser")->get(["email"])->each(fn($u) => print("$u->email\n"));'
+docker compose exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+echo \App\Models\User::where("email", "<test@example.com>")->delete(), " deleted", PHP_EOL;
+'
+docker compose exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+foreach (\App\Models\User::where("role", "superuser")->get(["email"]) as $u) {
+    echo $u->email, PHP_EOL;
+}
+'
 ```
 
 Their uploads are orphaned rather than cascaded (`trashposts.user_id` is `nullOnDelete`), so no memes are lost. If no superuser exists, create one: `php artisan make:superuser`.
@@ -1974,8 +2081,12 @@ gpg --batch --decrypt --passphrase-file /root/.ladybug-backup-pass dump.gpg | gu
 ```sh
 curl -fsS http://127.0.0.1:8099/api/health; echo
 curl -fsS http://127.0.0.1:8099/api/posts | head -c 300; echo
-docker compose -p ladybug-dr exec -T ladybug-php php artisan tinker --execute \
-  'echo "posts=", \App\Models\Trashpost::count(), " users=", \App\Models\User::count(), PHP_EOL;'
+docker compose -p ladybug-dr exec -T ladybug-php php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+echo "posts=", \App\Models\Trashpost::count(), " users=", \App\Models\User::count(), PHP_EOL;
+'
 ```
 
 Expected: counts matching production. Media is not restored here (the mirror is large and the point is the data path); note that `restore.sh` step separately.
