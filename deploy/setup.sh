@@ -38,6 +38,16 @@ if [ ! -f /etc/docker/daemon.json ]; then
 }
 JSON
     systemctl restart docker
+    echo "    wrote /etc/docker/daemon.json"
+elif grep -q 'max-size' /etc/docker/daemon.json; then
+    echo "    /etc/docker/daemon.json already sets log limits, left untouched"
+else
+    # Deliberately not merged automatically: daemon.json may carry unrelated settings
+    # (storage-driver, cgroup driver) and a bad merge breaks the Docker daemon on a box
+    # with no console. Surface it instead -- silently skipping would leave the 20 GiB
+    # disk with no log cap, which is exactly what this block exists to prevent.
+    echo "    !! /etc/docker/daemon.json exists WITHOUT log limits -- add these by hand:"
+    echo '       "log-driver": "json-file", "log-opts": {"max-size":"10m","max-file":"3"}'
 fi
 
 echo "==> Packages"
@@ -112,6 +122,11 @@ Backup passphrase   : $(cat /root/.ladybug-backup-pass)
 
 The backup passphrase is the one secret that CANNOT be recovered from the
 backups -- it is what decrypts them. Put it in a password manager now.
+
+CAUTION: run this script interactively and never redirect its stdout to a
+file or a logged session (tee, script, a captured SSH session, ...) -- that
+writes these same secrets somewhere the chmod 600 on the files above cannot
+protect them.
 ========================================================
 
 Remaining manual steps:
