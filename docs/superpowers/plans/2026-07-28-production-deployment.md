@@ -976,14 +976,20 @@ server {
     listen [::]:80;
     server_name online-trash.com www.online-trash.com;
 
-    # MUST come before the redirect. certbot's http-01 challenge is fetched over plain
-    # HTTP, and the apex block previously redirected it away -- one of the two reasons
-    # renewal was broken. The games block always had this.
+    # certbot's http-01 challenge is fetched over plain HTTP and must not be redirected
+    # away. Textual order is NOT what makes this work: a `return` placed directly in the
+    # server{} context runs in the server-rewrite phase, which precedes location matching
+    # entirely, so it would fire unconditionally and this location would never be reached.
+    # The redirect therefore lives in `location /` below, so the challenge prefix -- a
+    # longer, more specific match -- wins. Verified: server-level return yields 301 and no
+    # token; the form below yields 200 and the token.
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
 
-    return 301 https://online-trash.com$request_uri;
+    location / {
+        return 301 https://online-trash.com$request_uri;
+    }
 }
 
 # www -> apex, so there is exactly one canonical origin. This matters beyond tidiness:
@@ -1012,6 +1018,9 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
+    # No includeSubDomains: games.online-trash.com is a sibling on the same certificate
+    # but is not managed by this file, and the directive would force HTTPS on it for a
+    # year with no way to walk it back quickly.
     add_header Strict-Transport-Security "max-age=31536000" always;
 
     # 10 MiB image cap (CreatePostRequest) plus multipart overhead. Without this nginx
@@ -1606,24 +1615,54 @@ Expected: the same three directories. (Verified working against this account on 
 
 - [ ] **Step 5: Fix the ACME challenge path**
 
-Renewal is broken for two reasons; this is the first. Add the challenge location to the **apex `:80`** block in `/web/nginx/conf.d/default.conf`, above its `return 301` (the games block already has one):
+Renewal is broken for two reasons; this is the first.
+
+**The subtlety that makes this worth doing carefully.** The games `:80` block already
+*has* an ACME location — and it does not work. nginx evaluates a `return` placed
+directly in the `server{}` context during the **server-rewrite phase**, which runs
+*before* location matching, so a server-level `return 301` fires unconditionally and
+any sibling `location` is never reached. Verified empirically:
+
+```
+location /.well-known/acme-challenge/ { root /var/www/certbot; }
+return 301 https://example.com$request_uri;      →  301, token NOT served
+
+location /.well-known/acme-challenge/ { root /var/www/certbot; }
+location / { return 301 https://example.com$request_uri; }
+                                                  →  200, token served
+```
+
+Renewal has been limping only because Let's Encrypt follows the HTTP→HTTPS redirect
+into the `:443` block's copy of the location. Do not rely on that.
+
+So in `/web/nginx/conf.d/default.conf`, for the **games `:80` block**, move its
+existing `return 301` inside a `location /`:
 
 ```nginx
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
 ```
+
+The apex `:80` block needs no edit here — its blocks are removed entirely in Task 15
+and replaced by `deploy/nginx-edge/online-trash.com.conf`, which already uses the
+`location /` form.
 
 Then:
 
 ```sh
 docker exec nginx-web-1 nginx -t && docker exec nginx-web-1 nginx -s reload
 echo ok > /web/nginx/certbot/www/probe.txt
-curl -s http://online-trash.com/.well-known/acme-challenge/probe.txt
+curl -s http://games.online-trash.com/.well-known/acme-challenge/probe.txt
 rm /web/nginx/certbot/www/probe.txt
 ```
 
-Expected: `ok` — served over plain HTTP without being redirected.
+Expected: `ok` — served over plain HTTP **without** being redirected. If you get an
+HTML redirect page instead, the `return` is still at server level.
 
 - [ ] **Step 6: Repair and schedule renewal**
 
