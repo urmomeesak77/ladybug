@@ -5,6 +5,18 @@
 # then ignore the real .env that gets bind-mounted at run time.
 set -e
 
+# The compose stack bind-mounts a host directory over /var/www/html/storage, which
+# shadows the skeleton baked into the image -- on a fresh server that host directory
+# is empty. Recreate it here so the container is self-sufficient wherever it is
+# mounted. These are needed beyond view:cache: SESSION_DRIVER=file, CACHE_STORE=file
+# and file logging all write here on the first request.
+mkdir -p storage/app/public \
+         storage/app/private \
+         storage/framework/cache/data \
+         storage/framework/sessions \
+         storage/framework/views \
+         storage/logs
+
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
