@@ -34,6 +34,29 @@ $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 '"$1"
 }
 
+# `set -euo pipefail` aborts on the first failing command -- correct for not
+# continuing past a broken step, but by default that abort is silent apart from a
+# line in a cron log nobody reads, and this script is the only thing standing
+# between a VPS reset and permanent data loss. Mail the operator on ANY failure.
+#
+# - `trap - ERR` first thing, so a failure in the mail step itself (e.g. the
+#   container is already gone) cannot re-trigger this handler and loop.
+# - $exit_code is captured before running anything else, and the handler ends by
+#   re-raising it with `exit`, so the mail step (or lb_php failing) can never mask
+#   the original failure's exit status.
+# - `|| true` on the mail command itself: if sending the failure e-mail ALSO fails
+#   (e.g. ladybug-php is the thing that's down), that must not overwrite $exit_code
+#   or stop the explicit `exit "$exit_code"` below from running.
+on_err() {
+    local exit_code=$?
+    trap - ERR
+    echo "FAILED: backup.sh aborted (exit ${exit_code}) -- see the cron log." >&2
+    lb_php "Mail::raw('online-trash.com backup.sh FAILED (exit ${exit_code}). The nightly backup did not complete -- check /var/log/ladybug-backup.log.', fn (\$m) =>
+        \$m->to('urmo.meesak@gmail.com')->subject('[ladybug] backup FAILED'));" || true
+    exit "$exit_code"
+}
+trap on_err ERR
+
 cd "$ROOT"
 
 echo "==> Dumping database"
@@ -54,8 +77,22 @@ curl "${CURL_OPTS[@]}" -T "$DUMP" "${FTP_URL}/db/$(basename "$DUMP")"
 echo "==> Uploading env bundle"
 # Both env files together: backend.env holds APP_KEY and the app DB password, .env
 # holds the MySQL root password. Without these a restored dump is unusable.
+#
+# Also archives the shared edge's own nginx config and compose file -- NOT the cert
+# store, which certbot re-issues on demand -- so the edge is genuinely recoverable
+# from this bundle instead of merely documented in the DEPLOYMENT.md appendix. Both
+# paths are outside $ROOT: this stack does not own the edge, so a box where they are
+# missing (local testing, or the edge laid out differently) must not fail the whole
+# backup over an optional extra -- included conditionally, relative to `/` via -C so
+# a restore can untar them straight back into place.
 ENVBUNDLE="data/backups/env-${STAMP}.tar.gz.gpg"
-tar -czf - backend.env .env \
+EDGE_EXTRAS=()
+if [ -d /web/nginx/conf.d ] || [ -f /web/nginx/docker-compose.yml ]; then
+    EDGE_EXTRAS+=(-C /)
+    [ -d /web/nginx/conf.d ]             && EDGE_EXTRAS+=(web/nginx/conf.d)
+    [ -f /web/nginx/docker-compose.yml ] && EDGE_EXTRAS+=(web/nginx/docker-compose.yml)
+fi
+tar -czf - backend.env .env "${EDGE_EXTRAS[@]}" \
   | gpg --batch --yes --symmetric --cipher-algo AES256 \
         --passphrase-file "$PASSPHRASE_FILE" -o "$ENVBUNDLE"
 curl "${CURL_OPTS[@]}" -T "$ENVBUNDLE" "${FTP_URL}/env/$(basename "$ENVBUNDLE")"

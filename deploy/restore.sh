@@ -42,6 +42,14 @@ lftp -u "${FTP_USER},${FTP_PASS}" \
      "${FTP_HOST}"
 chown -R 33:33 data/storage
 
+echo "==> Migrating"
+# deploy.sh already migrated an EMPTY database up to the current schema before this
+# script ever runs (DR order: deploy.sh, then restore.sh). The dump just imported
+# above replaces that schema wholesale with whatever DROP TABLE/CREATE TABLE state
+# it was taken in -- possibly older than the code now running -- so the app is left
+# on a stale schema unless something re-migrates. --force: no TTY here either.
+docker compose exec -T ladybug-php php artisan migrate --force
+
 echo "==> Verifying"
 # Not `artisan tinker` -- see backup.sh for why that command does not exist here.
 docker compose exec -T ladybug-php php -r '

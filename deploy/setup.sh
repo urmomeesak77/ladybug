@@ -52,7 +52,14 @@ fi
 
 echo "==> Packages"
 # lftp does incremental FTPS mirroring for the media backup; curl alone cannot.
+# gpg (package gnupg) encrypts/decrypts every backup and env bundle; curl uploads,
+# downloads and lists them over FTPS. A freshly provisioned Ubuntu 24.04 image
+# guarantees none of the three -- without this, the gap would first surface at the
+# first nightly backup.sh run (or worse, inside restore.sh during an actual DR),
+# well after setup.sh looked like it had succeeded.
 command -v lftp >/dev/null || { apt-get update -qq && apt-get install -y -qq lftp; }
+command -v gpg  >/dev/null || { apt-get update -qq && apt-get install -y -qq gnupg; }
+command -v curl >/dev/null || { apt-get update -qq && apt-get install -y -qq curl; }
 
 echo "==> Directories"
 mkdir -p "$ROOT"/data/{mysql,storage/app/public,backups}

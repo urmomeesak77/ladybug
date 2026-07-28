@@ -17,9 +17,13 @@ jobs:
   images:
     name: Build and push images
     runs-on: ubuntu-latest
-    # workflow_run fires on failure too; only ship green builds.
+    # workflow_run fires on failure too; only ship green builds. workflow_dispatch is
+    # further restricted to master: dispatching from any other branch/PR would publish
+    # `latest` AND mint a `<sha>` tag for a commit CI never validated on that ref,
+    # which silently breaks deploy.sh's rollback-by-SHA (the tag would exist, but
+    # would not correspond to a commit CI ever ran against).
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') ||
       github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
