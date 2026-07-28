@@ -1,0 +1,37 @@
+# Repo-root .dockerignore. Both deploy/php/Dockerfile and deploy/nginx's Dockerfile
+# (Task 3) build with the REPO ROOT as context and COPY backend/ / frontend/
+# wholesale. Docker does NOT consult .gitignore, so without this file every
+# gitignored local artifact on the build host -- most importantly real secrets in
+# backend/.env / frontend/.env -- gets copied into a public GHCR image, where
+# `docker history` and the filesystem are readable by anyone. This file is the
+# only thing standing between a normal dev checkout and a leaked SMTP/DB/app-key
+# credential (see task-2-report.md, Critical finding).
+
+# Real per-environment secrets. .env.example files are tracked templates, not
+# secrets, but nothing in either image needs them either, so the wildcard is fine.
+backend/.env*
+frontend/.env*
+
+# Dependency trees: both Dockerfiles install these fresh inside the build (composer
+# install / npm ci), so the host's copy is never needed and would otherwise
+# overwrite the image's own --no-dev / production install (see task-2-report.md).
+backend/vendor
+backend/node_modules
+frontend/node_modules
+
+# Local-only artifacts a fresh CI checkout never has, but a dev host does.
+backend/public/storage
+backend/storage/*.key
+backend/storage/pail
+backend/auth.json
+backend/database/*.sqlite
+frontend/dist
+frontend/test-results
+frontend/playwright-report
+
+# General context bloat, never needed inside either image.
+.git
+.superpowers
+node_modules
+temp
+test-results
