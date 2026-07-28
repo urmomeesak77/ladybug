@@ -27,6 +27,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // `role:admin` (etc.) gates a route to accounts of at least the named role.
         $middleware->alias(['role' => EnsureRole::class]);
+
+        // The production stack binds to 127.0.0.1:8080 and is reachable only by the edge
+        // nginx on the same host, so every proxy that can reach us is ours to trust. Without
+        // this Laravel sees the proxy's IP and scheme http: signed verification links would
+        // be built (and validated) over the wrong scheme, media URLs would be http, and the
+        // uploads/comments rate limiters would key every visitor to one bucket.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
