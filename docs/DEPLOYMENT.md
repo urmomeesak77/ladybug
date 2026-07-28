@@ -237,14 +237,33 @@ passphrase that decrypts every backup lives only in
 
 ## 7. Disaster recovery: rebuilding on a fresh VPS
 
-You need three things that exist nowhere else: the backup passphrase (password
-manager), the FTP credentials, and SSH access. Everything else -- code, images,
-configuration -- is reproducible from GitHub and GHCR.
+**Two different disasters, and this section only fully covers one of them.**
+
+- **Data loss only** — the box itself survives (disk intact, `nginx-web-1` and
+  `thousand` still running), but the Ladybug stack, its database, or its media
+  is gone or corrupted. Steps 4-7 below apply as written; skip straight to
+  them.
+- **Total loss** — a wiped/reprovisioned VPS. Steps 1-9 below rebuild
+  *Ladybug*: for Ladybug specifically, everything except the backup
+  passphrase, the FTP credentials, and SSH access is reproducible from GitHub
+  and GHCR. But the same wipe also destroys the **shared edge**
+  (`nginx-web-1`, `/web/nginx/docker-compose.yml`, `default.conf` with the
+  games blocks, the certbot service and its cert store) and the **Thousand
+  game** container, neither of which is tracked in this repo. Nothing in
+  Steps 1-9 recreates those — Step 8 assumes `/web/nginx` and `nginx-web-1`
+  already exist. On a genuine total loss, rebuild the shared edge and Thousand
+  **first**, using the Appendix below as your only record of their
+  configuration, then proceed with Steps 1-9. The Appendix is a snapshot, not
+  a substitute for the live host, and may be stale by the time you need it.
 
 1. Provision Ubuntu 24.04, point DNS at the new IP.
 2. Install Docker, then `git clone https://github.com/urmomeesak77/ladybug.git /root/ladybug`.
 3. Write `/root/.ladybug-backup-pass` (from the password manager) and
-   `/root/.ladybug-ftp` (host, user, pass), both `chmod 600`.
+   `/root/.ladybug-ftp` (host, user, pass), both `chmod 600`. `/root/.ladybug-ftp`
+   is shell-sourced by `backup.sh`/`restore.sh`, so it must match the skeleton
+   `setup.sh` itself creates (Section 3): `FTP_HOST=`, `FTP_USER=`, and
+   `FTP_PASS='...'` — **single-quoted**, since the password contains `/`, `=`,
+   `?` and `+`.
 4. `bash /root/ladybug/deploy/setup.sh`
 5. Recover the previous secrets rather than using the freshly generated ones:
    download the newest `/env/env-*.tar.gz.gpg`, decrypt it, and put
@@ -294,17 +313,37 @@ Expanding a couple of the terser steps:
   '
   ```
 
-- **Step 8**, edge and TLS, is Section 4 of this document followed by issuing
-  fresh certificates (a fresh VPS has no `/web/nginx/certbot/conf` to reuse):
+- **Step 8**, edge and TLS. This assumes the shared edge already exists —
+  either because this is a data-loss-only recovery, or because a total-loss
+  recovery has already rebuilt it from the Appendix. Install Section 4's edge
+  config, then issue fresh certificates (a fresh cert store has no existing
+  registration or cert to renew):
+
+  > **⚠ UNVERIFIED COMMAND.** Unlike every other command in this document,
+  > the `certonly` invocation below was **not** copied from or checked against
+  > a real config file — `/web/nginx/docker-compose.yml` and its `certbot`
+  > service definition live only on the production server, not in this repo,
+  > so there was nothing to verify it against. It was constructed by analogy
+  > with the verified `certbot renew` invocation in Section 9, plus the flags
+  > a *first-time* Let's Encrypt registration typically needs that `renew`
+  > does not (renew reuses an already-registered account; a fresh VPS has
+  > none). `docker compose run` has no TTY, so if these flags are wrong or
+  > incomplete, an interactive prompt will hang rather than fail cleanly —
+  > confirm the actual `certbot` service's entrypoint/image on the live host
+  > (or in the Appendix, once recorded there) before running this for real.
 
   ```sh
   cd /web/nginx
   docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
+      -n --agree-tos --email <operator-email> \
       -d online-trash.com -d www.online-trash.com -d games.online-trash.com
   docker exec nginx-web-1 nginx -s reload
   ```
 
-  then re-add the renewal cron from Section 9.
+  `-n` (non-interactive) and `--agree-tos` avoid the hang noted above;
+  `--email <operator-email>` must be filled in (or replace both with
+  `--register-unsafely-without-email` if no renewal-reminder address is
+  wanted). Then re-add the renewal cron from Section 9.
 
 ### Post-deploy verification
 
@@ -329,6 +368,68 @@ release you don't fully trust:
   Section 10.
 - `https://games.online-trash.com/thousand/` still answers — confirms the edge
   change did not disturb the neighboring game.
+
+### Appendix: shared edge and Thousand, as surveyed 2026-07-28
+
+**Not tracked in this repo, not owned by Ladybug, and not exercised by any
+script here.** Recorded only so a total-loss rebuild (see the note at the top
+of Section 7) is not blind. This is a point-in-time snapshot — **the live host
+is authoritative**; verify against it (`cat /web/nginx/docker-compose.yml`,
+`docker inspect thousand`) before relying on this for a real rebuild, and
+update this appendix if it drifts.
+
+`/web/nginx/docker-compose.yml`:
+
+```yaml
+# /web/nginx/docker-compose.yml as surveyed 2026-07-28 -- NOT tracked in this repo.
+# Recorded here so a total-loss rebuild is not blind. Verify against the live host
+# before relying on it.
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /web/online-trash.com/public:/usr/share/nginx/html
+      - /web/games.online-trash.com/public:/usr/share/nginx/games
+      - /web/nginx/conf.d:/etc/nginx/conf.d
+      - /web/nginx/certbot/conf:/etc/letsencrypt
+      - /web/nginx/certbot/www:/var/www/certbot
+    restart: always
+
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - /web/nginx/certbot/conf:/etc/letsencrypt
+      - /web/nginx/certbot/www:/var/www/certbot
+```
+
+The container name `nginx-web-1`, used throughout this document
+(`docker exec nginx-web-1 nginx -t`, etc.), is Compose's default
+`<project>-<service>-<replica>` name for the `web` service above — it depends
+on the Compose project name at the directory it was brought up from, so
+confirm it with `docker ps` after a rebuild rather than assuming it.
+
+**Thousand**, started by hand rather than via Compose:
+
+```sh
+docker run -d --name thousand --restart unless-stopped \
+    -p 3000:3000 \
+    -e NODE_ENV=production \
+    -e BASE_PATH=/thousand \
+    -e ALLOWED_ORIGINS=https://games.online-trash.com \
+    ghcr.io/urmomeesak77/thousand:latest
+```
+
+`extra_hosts: host.docker.internal:host-gateway` on the edge `web` service
+above is what lets `default.conf`'s `games.online-trash.com` block reach
+Thousand on `:3000`, and is the identical mechanism
+`nginx-edge/online-trash.com.conf` relies on to reach `ladybug-web` on
+`:8080` — rebuilding the edge without that line breaks both proxies, not
+just one.
 
 ## 8. Growing the disk
 
