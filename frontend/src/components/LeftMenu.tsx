@@ -90,20 +90,21 @@ function GamesLink({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-// Prototype order: the login entry sits above Home for anonymous visitors.
+// Home leads the menu for anonymous visitors too, so the entry point to the feed sits
+// in the same first slot it occupies for authenticated ones.
 function AnonymousLinks({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       <li>
-        <NavLink to="/login" onClick={onNavigate}>
-          <MenuIcon glyph="person" />
-          Login/register
-        </NavLink>
-      </li>
-      <li>
         <NavLink to="/" end onClick={onNavigate}>
           <MenuIcon glyph="home" />
           Home
+        </NavLink>
+      </li>
+      <li>
+        <NavLink to="/login" onClick={onNavigate}>
+          <MenuIcon glyph="person" />
+          Login/register
         </NavLink>
       </li>
       <GamesLink onNavigate={onNavigate} />
