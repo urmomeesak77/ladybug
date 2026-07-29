@@ -157,6 +157,29 @@ describe('LeftMenu', () => {
     expect(screen.queryByRole('link', { name: 'Users' })).toBeNull();
   });
 
+  it('points the Games entry at the sister site for anonymous visitors', () => {
+    renderMenu(authValue({ status: 'anonymous' }));
+
+    const games = screen.getByRole('link', { name: 'Games' });
+    expect(games.getAttribute('href')).toBe('https://games.online-trash.com');
+  });
+
+  it('points the Games entry at the sister site for authenticated users', () => {
+    renderMenu(authValue({ status: 'authenticated', user }));
+
+    const games = screen.getByRole('link', { name: 'Games' });
+    expect(games.getAttribute('href')).toBe('https://games.online-trash.com');
+  });
+
+  it('reports navigation when Games is chosen, so the drawer can close itself', () => {
+    const onNavigate = vi.fn();
+    renderDrawerMenu(authValue({ status: 'anonymous' }), { open: true, onNavigate });
+
+    fireEvent.click(screen.getByRole('link', { name: 'Games' }));
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
   it('logs out and navigates home', async () => {
     const value = authValue({ status: 'authenticated', user });
     renderMenu(value, '/account');
@@ -171,7 +194,7 @@ describe('LeftMenu', () => {
     const { container } = renderMenu(authValue({ status: 'authenticated', user }));
 
     const icons = container.querySelectorAll('svg.left-menu-icon');
-    expect(icons.length).toBe(4);
+    expect(icons.length).toBe(5);
     for (const icon of icons) {
       expect(icon.getAttribute('aria-hidden')).toBe('true');
     }

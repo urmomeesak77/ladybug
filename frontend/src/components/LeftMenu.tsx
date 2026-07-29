@@ -4,7 +4,11 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Role } from '../lib/role';
 
-type MenuGlyph = 'home' | 'person' | 'upload' | 'logout' | 'moderation' | 'users';
+type MenuGlyph = 'home' | 'person' | 'upload' | 'logout' | 'moderation' | 'users' | 'games';
+
+// The sister site the Games entry points at. Absolute because it leaves the SPA:
+// a router link would resolve it against our own origin.
+const GAMES_URL = 'https://games.online-trash.com';
 
 // Prototype-style flat glyphs on a 25x25 grid. House and person are copied verbatim
 // from the prototype's LeftMenu; upload (arrow into tray) and logout (door + arrow)
@@ -52,6 +56,15 @@ const GLYPHS: Record<MenuGlyph, ReactElement> = {
       <ellipse cx="20" cy="24" rx="7" ry="4" />
     </g>
   ),
+  // Gamepad d-pad plus its two action buttons; the pad body is left out because the
+  // glyph set is single-color solids, so an outlined body would need a cut-out.
+  games: (
+    <g>
+      <polygon points="6,7 10,7 10,11 14,11 14,15 10,15 10,19 6,19 6,15 2,15 2,11 6,11" />
+      <circle cx="19" cy="10" r="2.5" />
+      <circle cx="19" cy="17" r="2.5" />
+    </g>
+  ),
 };
 
 // Decorative only: the adjacent link/button text is the accessible name (Principle IV).
@@ -61,6 +74,19 @@ function MenuIcon({ glyph }: { glyph: MenuGlyph }) {
       <rect x="0" y="0" rx="5" ry="5" width="25" height="25" className="left-menu-icon-bg" />
       {GLYPHS[glyph]}
     </svg>
+  );
+}
+
+// Leaves the SPA, so it is a plain anchor rather than a NavLink: no client-side
+// route to match, and nothing to mark as the current page. Shown to everyone.
+function GamesLink({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <li>
+      <a href={GAMES_URL} onClick={onNavigate}>
+        <MenuIcon glyph="games" />
+        Games
+      </a>
+    </li>
   );
 }
 
@@ -80,6 +106,7 @@ function AnonymousLinks({ onNavigate }: { onNavigate?: () => void }) {
           Home
         </NavLink>
       </li>
+      <GamesLink onNavigate={onNavigate} />
     </>
   );
 }
@@ -138,6 +165,7 @@ function AuthenticatedLinks({
           Account
         </NavLink>
       </li>
+      <GamesLink onNavigate={onNavigate} />
       <li>
         <button type="button" className="left-menu__logout" onClick={onLogout}>
           <MenuIcon glyph="logout" />
