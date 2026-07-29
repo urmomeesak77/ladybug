@@ -282,5 +282,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/016-seo-discoverability/plan.md` (feature: SEO & Social-Sharing Discoverability).
+`specs/017-google-oauth-login/plan.md` (feature: Sign In / Sign Up with a Google Account).
 <!-- SPECKIT END -->
