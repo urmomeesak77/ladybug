@@ -216,14 +216,14 @@ passes https://validator.schema.org/ with 0 errors.
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T045 [P] [US5] Add `backend/tests/Unit/Support/StructuredDataTest.php`: an image meme yields an `ImageObject` with `url`, `contentUrl`, `name`, `description`, `datePublished` and a `Person` author; a YouTube meme yields a `VideoObject` with `thumbnailUrl`, `uploadDate` and an `embedUrl` composed from a **re-validated** id; a meme whose stored `youtube` value no longer parses **omits** `embedUrl` rather than composing one from raw input (Principle VI); every graph carries a two-item `BreadcrumbList` (FR-026); a `VideoObject` with no meme description falls back to the site description; encoding uses the six `json_encode` flags from research D5 so `</script>` inside a title is inexpressible, with **no** `htmlspecialchars` on top
+- [x] T045 [P] [US5] Add `backend/tests/Unit/Support/StructuredDataTest.php`: an image meme yields an `ImageObject` with `url`, `contentUrl`, `name`, `description`, `datePublished` and a `Person` author; a YouTube meme yields a `VideoObject` with `thumbnailUrl`, `uploadDate` and an `embedUrl` composed from a **re-validated** id; a meme whose stored `youtube` value no longer parses **omits** `embedUrl` rather than composing one from raw input (Principle VI); every graph carries a two-item `BreadcrumbList` (FR-026); a `VideoObject` with no meme description falls back to the site description; encoding uses the six `json_encode` flags from research D5 so `</script>` inside a title is inexpressible, with **no** `htmlspecialchars` on top
 
 ### Implementation for User Story 5
 
-- [ ] T046 [US5] Implement `backend/app/Support/StructuredData.php` building the `@graph` per contracts/shell-response.md → Structured data, reading **every** value off the same `PageMeta` that produced the `og:` tags so FR-027 holds by construction
-- [ ] T047 [US5] Populate `PageMeta::$structuredData` in `PageMeta::forPost()` (`backend/app/Support/PageMeta.php`) and leave it `null` in `PageMeta::site()`, so a non-public meme emits **no** JSON-LD at all rather than an empty graph (FR-028)
-- [ ] T048 [US5] Replace the T013 stub in `backend/app/Support/ShellRenderer.php` with the real `<script type="application/ld+json">` emission, skipped entirely when `structuredData` is `null`
-- [ ] T049 [US5] Extend `backend/tests/Feature/Http/Controllers/ShellControllerTest.php`: a public image meme and a public YouTube meme each emit exactly one parseable JSON-LD block whose values match the page's `og:` tags; a pending and a soft-deleted meme emit none
+- [x] T046 [US5] Implement `backend/app/Support/StructuredData.php` building the `@graph` per contracts/shell-response.md → Structured data, reading **every** value off the same `PageMeta` that produced the `og:` tags so FR-027 holds by construction
+- [x] T047 [US5] Populate `PageMeta::$structuredData` in `PageMeta::forPost()` (`backend/app/Support/PageMeta.php`) and leave it `null` in `PageMeta::site()`, so a non-public meme emits **no** JSON-LD at all rather than an empty graph (FR-028)
+- [x] T048 [US5] Replace the T013 stub in `backend/app/Support/ShellRenderer.php` with the real `<script type="application/ld+json">` emission, skipped entirely when `structuredData` is `null`
+- [x] T049 [US5] Extend `backend/tests/Feature/Http/Controllers/ShellControllerTest.php`: a public image meme and a public YouTube meme each emit exactly one parseable JSON-LD block whose values match the page's `og:` tags; a pending and a soft-deleted meme emit none
 
 **Checkpoint**: SC-007 — 100% of publicly visible permalinks pass a structured-data validator.
 

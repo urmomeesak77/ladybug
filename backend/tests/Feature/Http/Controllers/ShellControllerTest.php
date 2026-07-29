@@ -272,8 +272,9 @@ final class ShellControllerTest extends TestCase {
 
     /**
      * AS1.6 and every vector in contracts/shell-response.md → Escaping. The document
-     * structure must be unmoved: still exactly one <title>, still exactly the shell's
-     * own single <script> tag, and the raw value never present verbatim.
+     * structure must be unmoved: still exactly one <title>, and exactly two <script>
+     * tags — the shell's own asset tag and the JSON-LD block a public meme carries
+     * (US5). A third would mean a vector produced a live element.
      */
     public function test_a_meme_title_cannot_alter_the_response_structure(): void {
         $vectors = [
@@ -290,9 +291,28 @@ final class ShellControllerTest extends TestCase {
             $body = (string) $this->get("/posts/{$post->hash}")->getContent();
 
             $this->assertStringNotContainsString($vector, $body, $vector);
-            $this->assertSame(1, substr_count($body, '<script'), $vector);
+            $this->assertSame(2, substr_count($body, '<script'), $vector);
             $this->assertSame(1, substr_count($this->headOf($body), '<title>'), $vector);
+            // The vector round-trips through the graph as data, not as markup.
+            $this->assertSame($vector, $this->structuredDataOf($body)['@graph'][0]['name'], $vector);
         }
+    }
+
+    /**
+     * The parsed JSON-LD graph, which doubles as an assertion that exactly one block
+     * is present and that it is valid JSON.
+     *
+     * @return array<string, mixed>
+     */
+    private function structuredDataOf(string $body): array {
+        $this->assertSame(1, substr_count($body, 'application/ld+json'));
+        $matched = preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $body, $matches);
+
+        $this->assertSame(1, $matched);
+        $graph = json_decode($matches[1], true);
+        $this->assertIsArray($graph, 'the JSON-LD block did not parse');
+
+        return $graph;
     }
 
     /**
@@ -401,6 +421,88 @@ final class ShellControllerTest extends TestCase {
             '<link rel="canonical" href="https://online-trash.com/login">',
             escape: false,
         );
+    }
+
+    /**
+     * US5/FR-027: the graph is not a second description of the page, it is the same
+     * one. Every shared value must match the og: tag it was built alongside, or a
+     * validator and an unfurl card would disagree about the same address.
+     */
+    public function test_a_public_image_meme_emits_a_graph_matching_its_og_tags(): void {
+        $post = Trashpost::factory()->visible()->create(['title' => 'Cat on a roomba', 'username' => 'Some uploader']);
+        $this->writeImageVariants($post, ['800']);
+
+        $body = (string) $this->get("/posts/{$post->hash}")->getContent();
+        $node = $this->structuredDataOf($body)['@graph'][0];
+
+        $this->assertSame('ImageObject', $node['@type']);
+        $this->assertSame("https://online-trash.com/posts/{$post->hash}", $node['url']);
+        $this->assertSame('Cat on a roomba', $node['name']);
+        $this->assertSame(['@type' => 'Person', 'name' => 'Some uploader'], $node['author']);
+        // The og: tag and the graph carry the same image, byte for byte.
+        $this->assertStringContainsString(
+            '<meta property="og:image" content="' . $node['contentUrl'] . '">',
+            $body,
+        );
+        $this->assertStringContainsString(
+            '<meta property="og:title" content="' . $node['name'] . '">',
+            $body,
+        );
+    }
+
+    public function test_a_public_youtube_meme_emits_a_video_graph_matching_its_og_tags(): void {
+        $post = Trashpost::factory()->visible()->linkOnly()->create(['title' => 'A video meme']);
+        $post->youtube_thumbnail = MediaPath::youtubeThumbnailRelativePath((string) $post->youtube);
+        $post->save();
+
+        $body = (string) $this->get("/posts/{$post->hash}")->getContent();
+        $node = $this->structuredDataOf($body)['@graph'][0];
+
+        $this->assertSame('VideoObject', $node['@type']);
+        $this->assertSame('https://www.youtube.com/embed/' . $post->youtube, $node['embedUrl']);
+        $this->assertStringContainsString(
+            '<meta property="og:image" content="' . $node['thumbnailUrl'] . '">',
+            $body,
+        );
+    }
+
+    /** FR-026: the trail is on every meme page, whatever the media. */
+    public function test_a_public_meme_graph_carries_the_breadcrumb_trail(): void {
+        $post = Trashpost::factory()->visible()->create(['title' => 'Cat on a roomba']);
+
+        $trail = $this->structuredDataOf((string) $this->get("/posts/{$post->hash}")->getContent())['@graph'][1];
+
+        $this->assertSame('BreadcrumbList', $trail['@type']);
+        $this->assertCount(2, $trail['itemListElement']);
+    }
+
+    /**
+     * FR-028: no graph AT ALL for a non-public meme — not an empty one. Rich results
+     * for a page that asks not to be indexed is a contradiction, and the graph is the
+     * one place a hidden meme's title could otherwise still surface.
+     */
+    public function test_a_non_public_meme_emits_no_structured_data(): void {
+        $posts = [
+            Trashpost::factory()->hidden()->create(['title' => 'Pendingsecrettitle']),
+            Trashpost::factory()->deleted()->create(['title' => 'Deletedsecrettitle']),
+        ];
+
+        foreach ($posts as $post) {
+            $body = (string) $this->get("/posts/{$post->hash}")->getContent();
+
+            $this->assertStringNotContainsString('application/ld+json', $body);
+        }
+    }
+
+    /** Nor does any generic address — the graph describes a meme or nothing. */
+    public function test_generic_addresses_emit_no_structured_data(): void {
+        foreach (['/', '/login', '/nope', '/posts/zzzzzzzzzz'] as $path) {
+            $this->assertStringNotContainsString(
+                'application/ld+json',
+                (string) $this->get($path)->getContent(),
+                $path,
+            );
+        }
     }
 
     /**

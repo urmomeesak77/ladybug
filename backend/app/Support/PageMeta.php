@@ -96,20 +96,34 @@ class PageMeta {
         // image card looks broken (D7).
         $mediaImage = self::mediaImageUrl($post);
 
+        // The values the head block and the graph share are computed ONCE, here, and
+        // handed to both. That is what makes FR-027 hold by construction: there is no
+        // second derivation of the title, description, canonical or image that could
+        // drift from the one the og: tags carry.
+        $canonical = self::absoluteUrl("/posts/{$post->hash}");
+        $socialTitle = Str::truncateWords($label, self::SOCIAL_TITLE_LIMIT);
+        $socialDescription = Str::truncateWords($description, self::SOCIAL_DESCRIPTION_LIMIT);
+        $imageUrl = self::absoluteUrl($mediaImage ?? (string) config('seo.fallback_image'));
+
         return new self(
             // Deliberately not truncated (D6): the browser tab already elides, and
             // cutting it would change what a visitor sees today (FR-009).
             title: $label . ' - ' . (string) config('seo.site_name'),
             description: Str::truncateWords($description, self::DESCRIPTION_LIMIT),
-            canonical: self::absoluteUrl("/posts/{$post->hash}"),
+            canonical: $canonical,
             ogType: 'article',
-            socialTitle: Str::truncateWords($label, self::SOCIAL_TITLE_LIMIT),
-            socialDescription: Str::truncateWords($description, self::SOCIAL_DESCRIPTION_LIMIT),
-            imageUrl: self::absoluteUrl($mediaImage ?? (string) config('seo.fallback_image')),
+            socialTitle: $socialTitle,
+            socialDescription: $socialDescription,
+            imageUrl: $imageUrl,
             isLargeImageCard: $mediaImage !== null,
             isIndexable: true,
-            // The JSON-LD graph arrives with US5; until then a meme page carries none.
-            structuredData: null,
+            structuredData: StructuredData::forPost(
+                post: $post,
+                canonical: $canonical,
+                name: $socialTitle,
+                description: $socialDescription,
+                imageUrl: $imageUrl,
+            ),
         );
     }
 

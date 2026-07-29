@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Support;
 
+use App\Models\Trashpost;
 use App\Support\PageMeta;
 use App\Support\ShellRenderer;
 use Tests\TestCase;
@@ -171,5 +172,60 @@ final class ShellRendererTest extends TestCase {
 
         $this->assertStringStartsWith($template, $html);
         $this->assertStringContainsString('<title>online-trash</title>', $html);
+    }
+
+    /** FR-028: a PageMeta with no graph emits no block, not an empty one. */
+    public function test_metadata_without_a_graph_emits_no_json_ld_block(): void {
+        $html = ShellRenderer::render($this->template(), $this->meta());
+
+        $this->assertStringNotContainsString('application/ld+json', $html);
+    }
+
+    public function test_a_graph_is_emitted_as_a_single_parseable_json_ld_block(): void {
+        $html = ShellRenderer::render($this->template(), $this->metaWithGraph());
+
+        $this->assertSame(1, substr_count($html, 'application/ld+json'));
+        $this->assertSame(1, preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $matches));
+        $this->assertSame('https://schema.org', json_decode($matches[1], true)['@context']);
+    }
+
+    /**
+     * The block belongs inside the head like every other tag. Emitting it after
+     * </head> would put it in the body, where the SPA's own render owns the DOM.
+     */
+    public function test_the_json_ld_block_lands_inside_the_head(): void {
+        $html = ShellRenderer::render($this->template(), $this->metaWithGraph());
+
+        $this->assertLessThan(strpos($html, '</head>'), strpos($html, 'application/ld+json'));
+    }
+
+    /**
+     * The payload must NOT be run through htmlspecialchars: inside a <script>
+     * element the browser decodes no entities, so an escaped `&quot;` would leave
+     * the JSON unparseable. StructuredData's encode flags are the whole defence.
+     */
+    public function test_the_json_ld_payload_is_not_html_escaped(): void {
+        $html = ShellRenderer::render($this->template(), $this->metaWithGraph('He said "hi"'));
+
+        $this->assertSame(1, preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $matches));
+        $this->assertStringNotContainsString('&quot;', $matches[1]);
+        $this->assertSame('He said "hi"', json_decode($matches[1], true)['@graph'][0]['name']);
+    }
+
+    /**
+     * A PageMeta carrying a graph. forPost() is the only constructor that produces
+     * one, and an unsaved model is enough — nothing on this path queries.
+     */
+    private function metaWithGraph(string $title = 'Cat on a roomba'): PageMeta {
+        $post = new Trashpost();
+        $post->forceFill([
+            'hash' => 'aB3dEf7GhJ',
+            'title' => $title,
+            'type' => 'image',
+            'file' => null,
+            'created_at' => '2026-07-01 12:34:56',
+        ]);
+
+        return PageMeta::forPost($post);
     }
 }

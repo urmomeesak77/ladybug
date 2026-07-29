@@ -68,7 +68,16 @@ class ShellRenderer {
             // out of it (a hidden meme's page still carries the site chrome) are.
             $tags[] = self::meta('name', 'robots', 'noindex, follow');
         }
-        // JSON-LD is added in US5; a non-public page never carries any (FR-028).
+        if ($meta->structuredData !== null) {
+            // Skipped entirely rather than emitted empty, so a non-public meme
+            // carries no graph at all (FR-028). The payload is NOT passed through
+            // escape(): inside a <script> element the browser decodes no entities,
+            // so htmlspecialchars would corrupt the JSON instead of protecting it.
+            // StructuredData::encode's flags are what make the block unbreakable.
+            $tags[] = '<script type="application/ld+json">'
+                . StructuredData::encode($meta->structuredData)
+                . '</script>';
+        }
 
         return implode("\n  ", $tags);
     }
