@@ -26,6 +26,7 @@ class ModerationService {
     public function __construct(
         private readonly MediaOwnershipService $media = new MediaOwnershipService(),
         private readonly RatingService $rating = new RatingService(),
+        private readonly PageMetaService $meta = new PageMetaService(),
     ) {
     }
 
@@ -66,6 +67,7 @@ class ModerationService {
             DB::rollBack();
             throw $e;
         }
+        $this->forgetMetadata($hash);
 
         return $post;
     }
@@ -91,6 +93,7 @@ class ModerationService {
             DB::rollBack();
             throw $e;
         }
+        $this->forgetMetadata($hash);
 
         return $post;
     }
@@ -116,6 +119,7 @@ class ModerationService {
             DB::rollBack();
             throw $e;
         }
+        $this->forgetMetadata($hash);
 
         return $post;
     }
@@ -139,6 +143,7 @@ class ModerationService {
             DB::rollBack();
             throw $e;
         }
+        $this->forgetMetadata($hash);
 
         return $post;
     }
@@ -166,7 +171,22 @@ class ModerationService {
             DB::rollBack();
             throw $e;
         }
+        $this->forgetMetadata($hash);
         $this->deleteEverywhere($paths);
+    }
+
+    /**
+     * Drop the meme permalink's cached <head> metadata so the next request for it
+     * reflects the state this transition just wrote (FR-040) — a taken-down meme's
+     * title and image must stop unfurling at once, not up to an hour later.
+     *
+     * Called AFTER the commit, never inside the transaction: an entry cleared while
+     * the write is still uncommitted can be repopulated from the pre-transition
+     * state by a concurrent request, and would then outlive the change it was meant
+     * to publish.
+     */
+    private function forgetMetadata(string $hash): void {
+        $this->meta->forget($hash);
     }
 
     /**

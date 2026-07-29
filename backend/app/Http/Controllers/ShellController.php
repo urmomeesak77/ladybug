@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Support\PageMeta;
+use App\Services\PageMetaService;
 use App\Support\ShellRenderer;
 use App\Support\SpaRoutes;
 use Illuminate\Http\Request;
@@ -31,13 +31,22 @@ class ShellController extends Controller {
      */
     private static array $templates = [];
 
+    public function __construct(
+        private readonly PageMetaService $meta = new PageMetaService(),
+    ) {
+    }
+
     public function show(Request $request): Response {
         $path = self::normalisePath($request->path());
         // An address the SPA has no view for is a real 404 that still carries the
         // shell, so the SPA renders its own NotFoundPage (FR-014). The further
         // split between a hidden meme (200) and a purged one (404) arrives with US4.
         $status = SpaRoutes::match($path) === null ? 404 : 200;
-        $meta = PageMeta::site(self::canonical($path), SpaRoutes::isIndexable($path));
+        // Every address goes through the same resolver: a permalink picks up its
+        // meme's own metadata, everything else the generic site block. Routing them
+        // through one call is what keeps the canonical rule (and, in US4, the
+        // degradation guard) in a single place rather than one per branch.
+        $meta = $this->meta->forPath($path);
 
         return response(ShellRenderer::render($this->template(), $meta), $status)
             ->header('Content-Type', 'text/html; charset=UTF-8')
@@ -55,11 +64,6 @@ class ShellController extends Controller {
      */
     private static function normalisePath(string $path): string {
         return '/' . ltrim($path, '/');
-    }
-
-    /** Absolute, on the canonical origin. Query and fragment are already absent. */
-    private static function canonical(string $path): string {
-        return rtrim((string) config('app.url'), '/') . $path;
     }
 
     /**
