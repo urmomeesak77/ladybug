@@ -18,14 +18,34 @@ class Str {
      * must enforce it at the storage layer (e.g. a unique column) — all current
      * callers do, with a retry loop on collision.
      */
-    public static function createUniqueHash(int $length = 10): string {
-        $hash = '';
-        for ($i = 0; $i < $length; $i++) {
-            $hash .= Base64::convertDecToBase64(random_int(0, 63));
+    public static function createUniqueHash($length = 10) {
+
+        $num = self::getTimeBasedUniqueNumber();
+
+        $hash = Base64::convertDecToBase64($num);
+
+        if (strlen($hash) > $length) {
+            $hash = substr($hash, 0, $length);
+        }
+        while (strlen($hash) < $length) {
+            $hash .= Base64::convertDecToBase64(rand(0, 63));
         }
 
         return $hash;
     }
+
+    /**
+     * @return string
+     */
+    protected static function getTimeBasedUniqueNumber() {
+        $time = explode(' ', microtime());
+
+        $num = $time[1] . floor($time[0] * 1000000);
+        $num = rand(2, 114) . $num; //num should be between  64^9 and 64^10
+
+        return $num;
+    }
+
 
     /**
      * Shorten a value to at most $limit characters, cutting at a word boundary
