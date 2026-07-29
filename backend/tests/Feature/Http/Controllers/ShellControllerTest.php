@@ -519,6 +519,48 @@ final class ShellControllerTest extends TestCase {
         // suite's runtime rendering a stack trace off the bind mount.
         $this->get('/')->assertStatus(500);
     }
+
+    /* -------------------------------------------------------------------- *
+     * US6 — canonical addresses (FR-033)
+     * -------------------------------------------------------------------- */
+
+    /**
+     * FR-033: the feed's page cursor is a view of one resource, not a resource of
+     * its own. Every cursor page must therefore point search engines back at the
+     * bare origin, or the archive competes with itself for the same content.
+     */
+    public function test_a_feed_cursor_page_canonicalises_to_the_bare_origin(): void {
+        $response = $this->get('/?after=aB3dEf7GhJ');
+
+        $response->assertOk();
+        $response->assertSee('<link rel="canonical" href="https://online-trash.com/">', escape: false);
+    }
+
+    /** Any query at all is dropped, not just the one cursor parameter. */
+    public function test_a_query_string_never_reaches_the_canonical(): void {
+        $cases = [
+            '/?after=aB3dEf7GhJ&utm_source=slack' => 'https://online-trash.com/',
+            '/login?redirect=/account' => 'https://online-trash.com/login',
+            '/nope?x=1' => 'https://online-trash.com/nope',
+        ];
+
+        foreach ($cases as $path => $canonical) {
+            $this->get($path)->assertSee(
+                "<link rel=\"canonical\" href=\"{$canonical}\">",
+                escape: false,
+            );
+        }
+    }
+
+    /** A permalink canonicalises to itself, cursor or not. */
+    public function test_a_permalink_canonicalises_to_itself_without_the_query(): void {
+        $post = Trashpost::factory()->create(['activated_at' => now()]);
+
+        $this->get("/posts/{$post->hash}?utm_source=discord")->assertSee(
+            "<link rel=\"canonical\" href=\"https://online-trash.com/posts/{$post->hash}\">",
+            escape: false,
+        );
+    }
 }
 
 /**

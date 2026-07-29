@@ -95,8 +95,19 @@ class ShellController extends Controller {
     /**
      * Request::path() yields `login` and, for the root, `/`. Everything downstream
      * reasons about leading-slash paths, so normalise once here.
+     *
+     * The cut at `?` and `#` is FR-033: `/?after={cursor}` is a VIEW of the home
+     * feed, not a resource of its own, so every cursor page has to point back at the
+     * bare origin or the archive competes with itself for the same content. Laravel's
+     * path() already excludes both, and a fragment never leaves the browser — the cut
+     * is here so the guarantee survives a future caller that hands over a raw URI,
+     * rather than resting on a framework detail nothing in this class states. It must
+     * stay server-side: done in the SPA it would sit behind the JavaScript crawlers do
+     * not run, which is the exact failure this feature exists to fix.
      */
     private static function normalisePath(string $path): string {
+        $path = explode('#', explode('?', $path, 2)[0], 2)[0];
+
         return '/' . ltrim($path, '/');
     }
 

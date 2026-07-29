@@ -241,15 +241,18 @@ origin.
 
 ### Tests for User Story 6 ⚠️
 
-- [ ] T050 [P] [US6] Extend `frontend/tests/pages/HomePage.test.tsx` with heading-level assertions: exactly one `role="heading"` at level 1, its accessible name names the site or the feed, and `FeedItem` titles remain at level 2 with no skipped level between them
-- [ ] T051 [P] [US6] Extend `backend/tests/Feature/Http/Controllers/ShellControllerTest.php` with the FR-033 canonical cases: `/?after={cursor}` canonicalises to the bare origin with the query stripped, and every other address canonicalises to itself, absolute, without query or fragment
+- [x] T050 [P] [US6] Extend `frontend/tests/pages/HomePage.test.tsx` with heading-level assertions: exactly one `role="heading"` at level 1, its accessible name names the site or the feed, and `FeedItem` titles remain at level 2 with no skipped level between them
+- [x] T051 [P] [US6] Extend `backend/tests/Feature/Http/Controllers/ShellControllerTest.php` with the FR-033 canonical cases: `/?after={cursor}` canonicalises to the bare origin with the query stripped, and every other address canonicalises to itself, absolute, without query or fragment
 
 ### Implementation for User Story 6
 
-- [ ] T052 [US6] Add a real, visible `<h1>` to `frontend/src/pages/HomePage.tsx` inside the existing `<section aria-label="Memes">`. It must **not** be `sr-only` — a screen-reader-only heading satisfies a checker while leaving the page looking unlabelled (research D13)
-- [ ] T053 [US6] Style the heading in `frontend/src/styles/theme.css` against the existing theme custom properties and in relative units, so it is legible in both appearances and intact at 320 px, tablet and desktop (Principles IV and VIII, FR-034)
-- [ ] T054 [US6] **Extend** the canonical built in Phase 2 (T011/T015 already emit one, and T016 already asserts it for `/`) so that it strips the query string and fragment in `backend/app/Http/Controllers/ShellController.php` / `PageMeta::site()`. This is a refinement of existing behaviour, not a new code path. It must stay **server-side** — doing it client-side would put it behind the JavaScript crawlers do not run, which is the exact failure this feature exists to fix
-- [ ] T055 [US6] Verify per quickstart.md §5 in the dev SPA: heading order sequential, both appearances legible, no horizontal scroll at 320 px, Back/Forward/Refresh still restore view and scroll anchor on `/`, `/?after=…` and `/posts/{hash}` (Principle III), and the Network panel shows the same request sequence as before the feature with only a larger document response. The new `<h1>` is the **one** permitted visible difference (FR-009's sole exception, SC-009); anything else that moved on the page is a regression
+- [x] T052 [US6] Add a real, visible `<h1>` to `frontend/src/pages/HomePage.tsx` inside the existing `<section aria-label="Memes">`. It must **not** be `sr-only` — a screen-reader-only heading satisfies a checker while leaving the page looking unlabelled (research D13)
+- [x] T053 [US6] Style the heading in `frontend/src/styles/theme.css` against the existing theme custom properties and in relative units, so it is legible in both appearances and intact at 320 px, tablet and desktop (Principles IV and VIII, FR-034)
+- [x] T054 [US6] **Extend** the canonical built in Phase 2 (T011/T015 already emit one, and T016 already asserts it for `/`) so that it strips the query string and fragment in `backend/app/Http/Controllers/ShellController.php` / `PageMeta::site()`. This is a refinement of existing behaviour, not a new code path. It must stay **server-side** — doing it client-side would put it behind the JavaScript crawlers do not run, which is the exact failure this feature exists to fix
+- [ ] T055 [US6] **BLOCKED — needs a browser.** The Chrome extension is not connected, so
+  quickstart §5 steps 2–5 (both appearances, 320 px/tablet/desktop, Back/Forward/Refresh, the
+  Network panel round-trip check) are unrun. Step 1 (heading order) IS verified automatically by
+  T050's two jsdom cases. Verify per quickstart.md §5 in the dev SPA: heading order sequential, both appearances legible, no horizontal scroll at 320 px, Back/Forward/Refresh still restore view and scroll anchor on `/`, `/?after=…` and `/posts/{hash}` (Principle III), and the Network panel shows the same request sequence as before the feature with only a larger document response. The new `<h1>` is the **one** permitted visible difference (FR-009's sole exception, SC-009); anything else that moved on the page is a regression
 
 **Checkpoint**: all six stories functional and independently verifiable.
 
