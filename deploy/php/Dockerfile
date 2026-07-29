@@ -4,6 +4,20 @@
 #
 # Build context is the REPO ROOT, so this can copy backend/ (see release.yml).
 
+# The SPA shell Laravel injects its <head> into must be the BUILT index.html, with
+# its content-hashed asset tags -- and that file exists only inside the web image.
+# So the php image builds the frontend a second time and keeps just that one file
+# (research D2, plan.md -> Complexity Tracking). The two images cannot disagree:
+# release.yml builds both from the same commit in one matrix, deploy.sh pins one
+# LADYBUG_TAG for both, and Vite's hashes are content-derived. Buildx's gha layer
+# cache makes the repeat build free unless frontend/ actually changed.
+FROM node:20 AS shell
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 FROM composer:2 AS vendor
 WORKDIR /app
 # Dependency manifests first: this layer is cached until composer.lock changes.
@@ -43,6 +57,9 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 WORKDIR /var/www/html
 COPY --from=vendor --chown=www-data:www-data /app /var/www/html
+# Only the shell itself: the assets it references are served by the web image off
+# its own copy of dist/, never through PHP.
+COPY --from=shell --chown=www-data:www-data /app/dist/index.html /var/www/html/resources/spa/index.html
 
 # Drop root: the entrypoint writes bootstrap/cache and storage, both owned by www-data.
 USER www-data

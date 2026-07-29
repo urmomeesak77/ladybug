@@ -65,6 +65,14 @@ services:
       # just Docker teardown but also `git clean` / deleting the project dir.
       # This nested mount shadows the repo's storage skeleton inside /app.
       - ${LADYBUG_DATA_ROOT:-C:/docker_permanent}/ladybug-storage:/app/storage
+      # The SPA shell Laravel injects its <head> into (config seo.shell_path).
+      # In production the php image bakes the BUILT dist/index.html here; dev has
+      # no build, so the unbuilt source shell stands in. Read-only: this is the
+      # frontend's file and nothing in the backend may write to it. Browsing dev
+      # still goes through Vite on :5173 and never touches this route -- the mount
+      # exists so `curl http://localhost:8000/...` can verify the metadata, which
+      # is the correct instrument anyway (the point is what happens without JS).
+      - ./frontend/index.html:/app/resources/spa/index.html:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

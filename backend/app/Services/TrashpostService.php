@@ -194,10 +194,14 @@ class TrashpostService {
     }
 
     /**
-     * Base query for publicly visible posts: activated and (via SoftDeletes) not trashed.
+     * Base query for publicly visible posts. The rule itself lives on the model
+     * (Trashpost::scopePubliclyVisible) so the feed and the sitemap share one
+     * definition rather than two copies that can drift.
+     *
+     * @return Builder<Trashpost>
      */
     private function visible(): Builder {
-        return Trashpost::query()->whereNotNull('activated_at');
+        return Trashpost::publiclyVisible();
     }
 
     /**

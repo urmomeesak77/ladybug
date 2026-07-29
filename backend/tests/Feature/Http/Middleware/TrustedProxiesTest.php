@@ -16,8 +16,15 @@ use Tests\TestCase;
  * since the public disk derives its URL from APP_URL.
  */
 final class TrustedProxiesTest extends TestCase {
+    /**
+     * The probe lives under /api because routes/web.php now ends in the SPA shell
+     * catch-all, which claims every address outside `api|up|sanctum|storage`. A
+     * route registered here in a test is registered LAST and would lose to it. /api
+     * is also the truer home for this probe: the forwarded-header handling exists
+     * for the JSON API and the signed links it issues.
+     */
     private function defineSchemeProbe(): void {
-        Route::get('/_probe/scheme', static fn (Request $request): array => [
+        Route::get('/api/_probe/scheme', static fn (Request $request): array => [
             'secure' => $request->isSecure(),
             'scheme' => $request->getScheme(),
             'ip' => $request->ip(),
@@ -27,7 +34,7 @@ final class TrustedProxiesTest extends TestCase {
     public function test_forwarded_proto_header_marks_the_request_secure(): void {
         $this->defineSchemeProbe();
 
-        $this->get('/_probe/scheme', ['X-Forwarded-Proto' => 'https'])
+        $this->get('/api/_probe/scheme', ['X-Forwarded-Proto' => 'https'])
             ->assertOk()
             ->assertJson(['secure' => true, 'scheme' => 'https']);
     }
@@ -35,7 +42,7 @@ final class TrustedProxiesTest extends TestCase {
     public function test_forwarded_for_header_resolves_the_real_client_ip(): void {
         $this->defineSchemeProbe();
 
-        $this->get('/_probe/scheme', ['X-Forwarded-For' => '203.0.113.7'])
+        $this->get('/api/_probe/scheme', ['X-Forwarded-For' => '203.0.113.7'])
             ->assertOk()
             ->assertJson(['ip' => '203.0.113.7']);
     }
@@ -43,7 +50,7 @@ final class TrustedProxiesTest extends TestCase {
     public function test_a_request_without_forwarded_headers_stays_insecure(): void {
         $this->defineSchemeProbe();
 
-        $this->get('/_probe/scheme')
+        $this->get('/api/_probe/scheme')
             ->assertOk()
             ->assertJson(['secure' => false, 'scheme' => 'http']);
     }
