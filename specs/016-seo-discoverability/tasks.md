@@ -260,13 +260,31 @@ origin.
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T056 [P] Add the cross-referencing comment to `frontend/src/App.tsx` naming `backend/app/Support/SpaRoutes.php` as the server-side mirror of the route table, closing the loop opened in T009 (plan.md → Complexity Tracking)
-- [ ] T057 [P] Document in `docs/DEPLOYMENT.md` how the shell is served (nginx `@shell` → Laravel, and the php image's node stage that bakes `resources/spa/index.html`), the sitemap and robots routes, the gzip settings, and the post-deploy asset-integrity check from quickstart.md §7
-- [ ] T058 Run the backend gates and hold the ≥90% line-coverage floor: `docker compose exec backend vendor/bin/pint --test`, then `php artisan test --coverage-clover=coverage.xml`, then `php ../.github/scripts/check_coverage.py coverage.xml` (SC-010, FR-037)
-- [ ] T059 Run the frontend gates: `docker compose exec frontend npm run lint` and `npm run test -- --coverage`, holding the same floor across all of `src/`
-- [ ] T060 Confirm **FR-035** by diffing the dependency manifests against `master` — `git diff master -- backend/composer.json backend/composer.lock frontend/package.json frontend/package-lock.json` must be **empty**. FR-035 otherwise has no verifying gate anywhere in this feature, and T020 adds an `npm ci` build stage, which makes an accidental frontend dependency easy to miss. Then confirm FR-036 by diffing `backend/routes/api.php` and `backend/app/Http/Resources/` against `master` (must be empty) and by re-running the untouched `backend/tests/Feature/Http/Controllers/TrashpostsApiControllerTest.php`, `CreatePostTest.php` and `CommentControllerTest.php` — no JSON API route, response shape or status code may have moved, and the upload and media pipelines must be untouched
-- [ ] T061 Walk quickstart.md §§2–3 end to end against the dev stack — shell metadata, hidden-meme leakage, escaping vectors, status codes, sitemap membership against `Trashpost::publiclyVisible()->count()`, and robots content type
-- [ ] T062 Post-deploy validation per quickstart.md §§6–8: schema.org validator against a production permalink (SC-007), a real unfurl in Slack/Discord (SC-001), the shell's asset tags all answering `200` (the D2 failure mode), and the cold-cache p95 measured by the **procedure in quickstart §8** — clear the cache, 20 sequential timed requests to a permalink, 95th percentile of server time-to-first-byte, first (cold) request included — against the 300 ms budget (SC-011)
+- [x] T056 [P] Add the cross-referencing comment to `frontend/src/App.tsx` naming `backend/app/Support/SpaRoutes.php` as the server-side mirror of the route table, closing the loop opened in T009 (plan.md → Complexity Tracking)
+- [x] T057 [P] Document in `docs/DEPLOYMENT.md` how the shell is served (nginx `@shell` → Laravel, and the php image's node stage that bakes `resources/spa/index.html`), the sitemap and robots routes, the gzip settings, and the post-deploy asset-integrity check from quickstart.md §7
+- [x] T058 (Pint 149 files PASS; 675 tests, 1740 assertions; coverage **98.74%** ≥ 90) Run the backend gates and hold the ≥90% line-coverage floor: `docker compose exec backend vendor/bin/pint --test`, then `php artisan test --coverage-clover=coverage.xml`, then `php ../.github/scripts/check_coverage.py coverage.xml` (SC-010, FR-037)
+- [x] T059 (ESLint clean; 86 files / 772 tests; lines **98.96%** ≥ 90 across all of `src/`) Run the frontend gates: `docker compose exec frontend npm run lint` and `npm run test -- --coverage`, holding the same floor across all of `src/`
+- [x] T060 (both diffs empty; the three untouched API suites re-run green — 69 tests, 198 assertions) Confirm **FR-035** by diffing the dependency manifests against `master` — `git diff master -- backend/composer.json backend/composer.lock frontend/package.json frontend/package-lock.json` must be **empty**. FR-035 otherwise has no verifying gate anywhere in this feature, and T020 adds an `npm ci` build stage, which makes an accidental frontend dependency easy to miss. Then confirm FR-036 by diffing `backend/routes/api.php` and `backend/app/Http/Resources/` against `master` (must be empty) and by re-running the untouched `backend/tests/Feature/Http/Controllers/TrashpostsApiControllerTest.php`, `CreatePostTest.php` and `CommentControllerTest.php` — no JSON API route, response shape or status code may have moved, and the upload and media pipelines must be untouched
+- [x] T061 Walk quickstart.md §§2–3 end to end against the dev stack — shell metadata, hidden-meme leakage, escaping vectors, status codes, sitemap membership against `Trashpost::publiclyVisible()->count()`, and robots content type.
+  **Results (2026-07-29, dev origin `:8000`)**: permalink `/posts/PJK5gyJ5_g` carries one `<title>`
+  (`Helpline - online-trash`), description, own canonical, full `og:`/`twitter:` sets, an absolute
+  `/storage/…/300/…webp` `og:image` (confirmed the widest variant on disk — the API reports sizes
+  `[300, 100]`), one parseable JSON-LD `@graph`, no `noindex`. Home feed: site metadata, no robots
+  tag, canonical `…:8000/`. `/?after=…` canonicalises to the bare origin. Statuses: unknown hash
+  `404`, unmatched route `404`, `/login` `200`. Near-misses `/uptime`, `/apixyz`, `/storage-wars`
+  each return `404` **carrying the shell** (`id="root"` present), never a framework error page.
+  Soft-deleted meme `Pf1Vg9oWpc`: `200`, zero occurrences of its title, generic site metadata,
+  `noindex, follow`, no JSON-LD. `robots.txt` `text/plain; charset=UTF-8` with exactly the six
+  prefixes and no `/storage/`; `sitemap.xml` `application/xml` `<sitemapindex>`; `posts-1.xml`
+  `<loc>` count **2619**, exactly equal to the DB's publicly-visible count of **2619**.
+  **Not walked live**: the escaping vectors (they need a meme deliberately titled with an
+  injection payload, which means mutating the real dev media library) — covered instead by
+  `ShellControllerTest::test_a_meme_title_cannot_alter_the_response_structure` against every vector
+  in contracts/shell-response.md, and by `StructuredDataTest`'s `json_encode`-flag cases
+- [ ] T062 **BLOCKED until the feature is deployed** — every check here runs against production,
+  which this branch has not reached. The procedures are now written down in
+  `docs/DEPLOYMENT.md` §1 and §7 → Post-deploy verification, so they travel with the release
+  rather than living only here. Post-deploy validation per quickstart.md §§6–8: schema.org validator against a production permalink (SC-007), a real unfurl in Slack/Discord (SC-001), the shell's asset tags all answering `200` (the D2 failure mode), and the cold-cache p95 measured by the **procedure in quickstart §8** — clear the cache, 20 sequential timed requests to a permalink, 95th percentile of server time-to-first-byte, first (cold) request included — against the 300 ms budget (SC-011)
 
 ---
 

@@ -247,8 +247,11 @@ Run once against production after the deploy:
 ## 7. Production-specific checks after deploy
 
 ```bash
-# The shell template really made it into the php image (D2)
-docker compose -f docker-compose.prod.yml exec ladybug-php ls -l resources/spa/index.html
+# The shell template really made it into the php image (D2).
+# deploy/setup.sh installs docker-compose.prod.yml AS /web/online-trash.com/docker-compose.yml,
+# so on the server the file does NOT carry the `.prod` name it has in this repo.
+docker compose -f /web/online-trash.com/docker-compose.yml exec ladybug-php \
+  ls -l resources/spa/index.html
 
 # The asset tags in the served shell match assets that exist
 curl -s https://online-trash.com/ | grep -o '/assets/[^"]*' | while read a; do
@@ -267,7 +270,8 @@ SC-011's budget is 300 ms of **server** time at p95 against a cold metadata cach
 is fixed so two people measuring it get the same number:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec ladybug-php php artisan cache:clear
+# Same naming caveat as §7: on the server the stack file is docker-compose.yml, not .prod.yml.
+docker compose -f /web/online-trash.com/docker-compose.yml exec ladybug-php php artisan cache:clear
 
 # 20 sequential requests; the first is the cold one and IS included in the percentile.
 for i in $(seq 20); do
