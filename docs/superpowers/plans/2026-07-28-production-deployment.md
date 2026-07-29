@@ -2113,6 +2113,20 @@ curl --ssl-reqd --user "${FTP_USER}:${FTP_PASS}" --list-only "ftp://${FTP_HOST}/
 
 Expected: `5`. (The `sleep` is needed because the stamp has minute resolution.) If a full six-run loop is too slow, upload five dated dummy files and confirm the sixth run prunes to five.
 
+**This step found a real bug, 2026-07-29 — the dummy-file variant is the one to
+use, and `wc -l` on the raw listing is the wrong assertion.** This server's
+`NLST` includes `.` and `..`, so the listing is always two entries longer than
+the number of backups. Worse, under C collation both sort *before* the
+timestamped dumps, so `prune_remote`'s `sort | head -n -5` selected `.`, `..`
+and the oldest dump for deletion, and `DELE /db/.` fails → `--fail` → the `ERR`
+trap → the whole backup aborts and mails a failure. It stayed invisible because
+it can only fire once a sixth backup exists, i.e. it would have started failing
+on the sixth night, having never once pruned. `prune_remote` now takes a
+filename regex and filters the listing before sorting; verified by seeding five
+older dummies and confirming the next run pruned exactly the oldest two, leaving
+five real backups and touching nothing else. Assert on
+`--list-only | grep -E '^trashdb-' | wc -l`, not on the bare listing.
+
 - [ ] **Step 5: Schedule it**
 
 ```sh
@@ -2149,9 +2163,27 @@ Do not point this at `/web/online-trash.com`. Use a separate directory and a sep
 mkdir -p /tmp/ladybug-dr/data/{mysql,storage/app/public,backups}
 cd /tmp/ladybug-dr
 cp /root/ladybug/deploy/docker-compose.prod.yml docker-compose.yml
-# Do NOT reuse the live port.
-sed -i 's|127.0.0.1:8080:80|127.0.0.1:8099:80|' docker-compose.yml
+# Detach from the shared edge network, then publish a loopback port instead.
+sed -i '/^      - edge$/d' docker-compose.yml
+sed -i '/^networks:$/,$d' docker-compose.yml
+cat > docker-compose.override.yml <<'YML'
+services:
+  ladybug-web:
+    ports:
+      - "127.0.0.1:8099:80"
+YML
 ```
+
+**Corrected 2026-07-29, during the rehearsal.** This step originally said only
+"do NOT reuse the live port" and sed'd `127.0.0.1:8080:80` → `8099`. That sed is
+a no-op — Task 4's fix (`d016495`) removed the loopback publish entirely, so
+`ladybug-web` has no `ports:` at all now and is reached over the external
+`nginx_default` network by bare name (`set $upstream ladybug-web;`, Task 7).
+Compose creates that alias **per project**, so bringing the rehearsal up as
+written would have put a *second* container answering to `ladybug-web` on the
+edge network and the edge would have round-robined **live traffic into the
+rehearsal stack**. Detaching from `edge` is therefore mandatory, not tidiness,
+and the loopback publish has to be added rather than rewritten.
 
 - [ ] **Step 2: Recover the secrets from the backup, as a real recovery would**
 

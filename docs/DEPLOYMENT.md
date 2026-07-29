@@ -261,6 +261,14 @@ Local copies of the database and env bundle also sit in
   primary guard.
 - **The password needs single-quoting** wherever it is written to a file —
   see Section 3.
+- **`NLST` returns `.` and `..` as entries** on this server (measured
+  2026-07-29), so anything that lists a remote directory must filter to the
+  real filenames before acting on the result. Under C collation both sort
+  *before* the timestamped dumps, so `sort | tail -1` ("newest") is safe, but
+  `sort | head -n -5` ("all but the newest five") is not — it would hand `.`
+  and `..` to `DELE`. `backup.sh`'s `prune_remote` takes a filename regex for
+  exactly this reason; see the comment there before writing any new FTP
+  listing code.
 
 Credentials themselves are never in this document or in the repository: the
 FTP username and password live only in `/root/.ladybug-ftp`, and the
@@ -389,6 +397,58 @@ Expanding a couple of the terser steps:
   `--email <operator-email>` must be filled in (or replace both with
   `--register-unsafely-without-email` if no renewal-reminder address is
   wanted). Then re-add the renewal cron from Section 9.
+
+### Rehearsing the restore without touching production
+
+Rehearsed 2026-07-29 against the live backups. Repeat this after any change to
+`backup.sh`, `restore.sh`, or the compose stack.
+
+Stage a scratch copy under a **separate compose project** (`-p ladybug-dr`) in
+`/tmp/ladybug-dr`, with its own `data/{mysql,storage/app/public,backups}`.
+
+> **⚠ Detach the rehearsal stack from the edge network — this is the one step
+> that can take the live site down.** `docker-compose.prod.yml` puts
+> `ladybug-web` on the external `nginx_default` network, and the edge resolves
+> its upstream by bare name (`set $upstream ladybug-web;` with Docker's
+> embedded resolver, Section 4). Compose creates that network alias **per
+> project**, so a rehearsal stack joining `nginx_default` registers a *second*
+> container answering to `ladybug-web`, and the edge round-robins live traffic
+> into the rehearsal. Before `up`, delete the `- edge` entry under
+> `ladybug-web` and the top-level `networks:` block, then publish a loopback
+> port instead (`127.0.0.1:8099:80` via a `docker-compose.override.yml`) so the
+> rehearsal is reachable for verification but only from the host.
+
+The rehearsal must recover the secrets **from the backup**, not from the live
+`/web/online-trash.com/` — decrypting `/env/env-*.tar.gz.gpg` with
+`/root/.ladybug-backup-pass` is the single step that proves the passphrase and
+the bundle are both good, and it is the step you do not want to be attempting
+for the first time during a real outage.
+
+Then: `docker compose -p ladybug-dr up -d`, `artisan migrate --force`, import
+the newest decrypted `/db/` dump, `artisan migrate --force` again (the dump
+carries whatever schema it was taken at, which may be older than the running
+code), and verify row counts against live. Tear down with
+`docker compose -p ladybug-dr down -v && rm -rf /tmp/ladybug-dr`, then confirm
+the **live** stack is still up and `https://online-trash.com/api/health`
+answers 200.
+
+**Measured 2026-07-29** (1 vCPU / 960 MiB box, live stack running alongside):
+
+| Phase | Time |
+| --- | --- |
+| Recover + decrypt env bundle | seconds |
+| DR stack up, MySQL healthy | ~15 s |
+| `migrate` on an empty DB | ~30 s |
+| Download + decrypt + import the dump (2619 posts, 256 KB compressed) | ~30 s |
+| **Database/application path, end to end** | **under 5 minutes** |
+| Media mirror back down (1.3 GB) | *not timed end to end* — the 1.3 GB **upload** took ~9 min, so budget 10–15 min |
+
+Restored counts matched live exactly (`posts=2619 users=2 comments=0`), the
+rehearsal stack answered `/api/health` and served a real feed, and the memory
+headroom held (565 MiB available with both stacks up, 2 GiB swap barely
+touched). The media mirror's **download** direction was verified separately on
+one variant directory (2622 files, 133 MB): `diff -r` against the live
+originals reported no differences.
 
 ### Post-deploy verification
 

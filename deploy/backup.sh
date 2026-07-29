@@ -110,8 +110,21 @@ lftp -u "${FTP_USER},${FTP_PASS}" \
 echo "==> Pruning to the ${KEEP} most recent"
 prune_remote() {
     local dir="$1"
+    local pattern="$2"
     # Filenames are timestamped, so lexical sort is chronological.
+    #
+    # The $pattern filter is not cosmetic. This server's NLST includes `.` and `..`
+    # as entries (measured 2026-07-29), and under C collation both sort BEFORE the
+    # dumps -- so `head -n -KEEP` hands them straight to DELE, which fails, which
+    # aborts the whole backup via the ERR trap and mails a failure. That stays
+    # invisible until the KEEP+1-th backup exists, i.e. it would first fire on the
+    # sixth night, having never pruned anything. Matching the real filenames also
+    # means KEEP counts backups rather than directory entries.
+    #
+    # `|| true` because grep exits 1 on no match, and an empty remote directory
+    # (first ever run) must not trip `set -e`.
     curl "${CURL_OPTS[@]}" --list-only "${FTP_URL}/${dir}/" \
+      | { grep -E "$pattern" || true; } \
       | sort \
       | head -n -"${KEEP}" \
       | while read -r old; do
@@ -120,8 +133,8 @@ prune_remote() {
             curl "${CURL_OPTS[@]}" -Q "DELE /${dir}/${old}" "${FTP_URL}/${dir}/" -o /dev/null
         done
 }
-prune_remote db
-prune_remote env
+prune_remote db  '^trashdb-[0-9]{8}-[0-9]{4}\.sql\.gz\.gpg$'
+prune_remote env '^env-[0-9]{8}-[0-9]{4}\.tar\.gz\.gpg$'
 ls -1t data/backups/trashdb-*.sql.gz.gpg 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
 ls -1t data/backups/env-*.tar.gz.gpg     2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
 
