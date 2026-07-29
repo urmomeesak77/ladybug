@@ -514,6 +514,9 @@ final class ShellControllerTest extends TestCase {
     public function test_a_missing_shell_template_is_a_server_error(): void {
         config(['seo.shell_path' => base_path('tests/fixtures/no-such-shell.html')]);
 
+        // What matters is the status, not the error page. phpunit.xml pins
+        // APP_DEBUG=false, which also keeps this case from costing a fifth of the
+        // suite's runtime rendering a stack trace off the bind mount.
         $this->get('/')->assertStatus(500);
     }
 }

@@ -19,6 +19,14 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Pinned here rather than inherited from .env, for two reasons. It stops
+             the suite behaving differently on one developer's machine than on
+             another's or on CI. And with debug ON, any test that provokes an
+             unhandled exception renders the verbose stack-trace page, which reads
+             the source of every frame (dozens of vendor files), so on a
+             bind-mounted checkout one such test cost ~40s, a fifth of the whole
+             run. What those tests assert is the status code, never the page. -->
+        <env name="APP_DEBUG" value="false"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
