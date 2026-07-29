@@ -1591,7 +1591,16 @@ stat -c '%a %n' /web/online-trash.com/.env /web/online-trash.com/backend.env \
                 /root/.ladybug-ftp /root/.ladybug-backup-pass
 ```
 
-Expected: 2 GiB swap active, swappiness 10, lftp present, the `data/` tree in place, and `600` on all four secret files.
+Expected: 2 GiB swap active, swappiness 10, lftp present, the `data/` tree in place, and
+`600` on `.env`, `/root/.ladybug-ftp` and `/root/.ladybug-backup-pass`, with
+`640 root:www-data` on `backend.env` (deliberately — uid 33 must read it).
+
+**Actually check these, do not assume.** (2026-07-29: found `/root/.ladybug-backup-pass`
+at **644** — world-readable to every account on the box, and it is the one secret that
+cannot be recovered from the backups.) The cause was that `setup.sh` originally chmod'd
+only inside the `if [ ! -f ]` block that *creates* each file, so any secret that predated
+the script kept its umask mode. `setup.sh` now re-asserts all four modes on every run, so
+a re-run repairs this; the check above is what catches it if it ever regresses.
 
 - [ ] **Step 4: Verify the FTPS target end to end**
 
@@ -1648,42 +1657,71 @@ existing `return 301` inside a `location /`:
     }
 ```
 
-The apex `:80` block needs no edit here — its blocks are removed entirely in Task 15
-and replaced by `deploy/nginx-edge/online-trash.com.conf`, which already uses the
-`location /` form.
+**The apex blocks need the same fix, now — not in Task 15.** (Corrected 2026-07-29
+against the live box.) The claim that renewal "limps" via the `:443` copy of the
+location holds only for **games**, whose `:443` block does have one. The apex `:443`
+block has **no** `acme-challenge` location at all, so `online-trash.com` and
+`www.online-trash.com` were not limping — they were failing outright. Measured, before
+the fix:
+
+```
+Identifier: online-trash.com      Type: unauthorized   Detail: ... 404
+Identifier: www.online-trash.com  Type: unauthorized   Detail: ... 404
+```
+
+Waiting for Task 15 to replace those blocks would leave renewal broken in the
+meantime, so apply the same treatment to the apex `:80` block (redirect into
+`location /`, plus the challenge location) **and** add the challenge location to the
+apex `:443` block. Task 15's `deploy/nginx-edge/online-trash.com.conf` already carries
+both, so this interim edit is simply superseded, not undone.
 
 Then:
 
 ```sh
 docker exec nginx-web-1 nginx -t && docker exec nginx-web-1 nginx -s reload
-echo ok > /web/nginx/certbot/www/probe.txt
+# NOTE the path: the directive is `root`, not `alias`, so nginx appends the FULL URI
+# to it and the file must live at <webroot>/.well-known/acme-challenge/. Writing the
+# probe to the top of the webroot (as an earlier draft of this step did) can only ever
+# 404, which looks exactly like the redirect bug this step is meant to prove is fixed.
+mkdir -p /web/nginx/certbot/www/.well-known/acme-challenge
+echo ok > /web/nginx/certbot/www/.well-known/acme-challenge/probe.txt
 curl -s http://games.online-trash.com/.well-known/acme-challenge/probe.txt
-rm /web/nginx/certbot/www/probe.txt
+curl -s http://online-trash.com/.well-known/acme-challenge/probe.txt
+rm /web/nginx/certbot/www/.well-known/acme-challenge/probe.txt
 ```
 
-Expected: `ok` — served over plain HTTP **without** being redirected. If you get an
-HTML redirect page instead, the `return` is still at server level.
+Expected: `ok` from **both**, served over plain HTTP **without** being redirected. If you
+get an HTML redirect page instead, the `return` is still at server level.
 
 - [ ] **Step 6: Repair and schedule renewal**
 
 The certbot container has been `Exited (1)` for weeks and root has no crontab — the second reason. Test a dry run, then schedule:
 
+**`-T` and `--non-interactive` are mandatory, not tidiness.** (Corrected 2026-07-29.)
+`docker compose run` allocates a TTY by default; with no TTY attached — a
+non-interactive SSH command, and **cron** — certbot hangs indefinitely right after
+`Processing /etc/letsencrypt/renewal/...` instead of failing. Observed twice: the
+container sat running until killed by hand. Scheduled without `-T`, renewal would
+silently never complete and the cert would simply expire. `timeout` bounds the damage
+if it ever wedges anyway.
+
 ```sh
 cd /web/nginx
-docker compose run --rm certbot renew --webroot -w /var/www/certbot --dry-run
+timeout 420 docker compose run --rm -T certbot renew --webroot -w /var/www/certbot --dry-run --non-interactive
 ```
 
-Expected: `Congratulations, all simulated renewals succeeded`.
+Expected: `Congratulations, all simulated renewals succeeded`. Allow it a few minutes —
+the Let's Encrypt **staging** endpoint used by `--dry-run` is markedly slower than
+production and a 180s budget was not always enough.
+
+Install the entry non-interactively (`crontab -e` needs an editor and a TTY):
 
 ```sh
-crontab -e
-```
-
-Add:
-
-```cron
-# TLS renewal: certbot no-ops until the cert is inside its 30-day window.
-17 3 * * * cd /web/nginx && docker compose run --rm certbot renew --webroot -w /var/www/certbot --quiet && docker exec nginx-web-1 nginx -s reload
+{ crontab -l 2>/dev/null | grep -v 'certbot renew' || true
+  echo '# TLS renewal: certbot no-ops until the cert is inside its 30-day window.'
+  echo '17 3 * * * cd /web/nginx && timeout 600 docker compose run --rm -T certbot renew --webroot -w /var/www/certbot --quiet --non-interactive && docker exec nginx-web-1 nginx -s reload'
+} | crontab -
+crontab -l
 ```
 
 - [ ] **Step 7: Confirm the current expiry**
@@ -1714,15 +1752,22 @@ cd /web/online-trash.com
 
 Expected: images pull, three services start, migrations run, `healthy after Ns`, and `docker compose ps` shows all three up with `ladybug-mysql` healthy.
 
-- [ ] **Step 2: Verify the stack from the host**
+- [ ] **Step 2: Verify the stack over the edge network**
+
+**Not `127.0.0.1:8080`.** (Corrected 2026-07-29.) This step predates the fix in
+`d016495`: the stack publishes **no host port at all** any more, and `ladybug-web` is
+reached by name over the shared external `nginx_default` network. A host-side curl to
+a loopback port now tests nothing and simply fails. Exercise the same path the edge
+actually uses:
 
 ```sh
-curl -fsS http://127.0.0.1:8080/api/health; echo
-curl -fsS http://127.0.0.1:8080/api/posts; echo
-curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/
+docker run --rm --network nginx_default curlimages/curl:latest -sS http://ladybug-web/api/health; echo
+docker run --rm --network nginx_default curlimages/curl:latest -sS http://ladybug-web/api/posts; echo
+docker run --rm --network nginx_default curlimages/curl:latest -sS -o /dev/null -w '%{http_code}\n' http://ladybug-web/
 ```
 
-Expected: `{"status":"ok"}`, an empty feed envelope, and `200` for the SPA shell.
+Expected: `{"status":"ok"}`, an empty feed envelope (`{"data":[]}`), and `200` for the
+SPA shell.
 
 - [ ] **Step 3: Verify production hardening on the real host**
 
@@ -1739,10 +1784,25 @@ echo DB::selectOne("select current_user() u")->u, PHP_EOL;
 docker compose exec -T ladybug-php php artisan about --json | head -c 300; echo
 docker compose exec -T ladybug-php php artisan db:show | head -20
 # The database must not be reachable from outside the compose network.
-ss -ltnp | grep -E '3306|8080'
+ss -ltnp | grep -E '3306|8080' || echo "  none listening - correct"
+# Only ladybug-web may join the edge network; php and mysql must not appear here.
+docker network inspect nginx_default -f '{{range .Containers}}{{.Name}}{{println}}{{end}}'
 ```
 
-Expected: `production debug=false`; `ladybug@%`; `https://online-trash.com`; **only** `127.0.0.1:8080` listening, no 3306 anywhere.
+Expected: `production debug=false`; `ladybug@%`; `https://online-trash.com`; **nothing**
+listening on either port (corrected 2026-07-29 — with `d016495` there is no published
+port, so the old "only `127.0.0.1:8080`" expectation is now a failure signal); and only
+`nginx-web-1` plus `online-trashcom-ladybug-web-1` attached to `nginx_default`.
+
+**Chaining several `docker compose exec -T` calls in one heredoc-fed script:** append
+`</dev/null` to each. `exec -T` forwards stdin to the container, so the first call
+swallows the remainder of the script and every later command silently never runs —
+which reads as a clean pass.
+
+`php artisan db:show` ends with `The "intl" PHP extension is required` on this image.
+That is the diagnostic's own number formatting, not the app: no application code uses
+`Number::`/`NumberFormatter`, and `ext-intl` is not in `composer.json`. The values it
+prints above the error are still valid.
 
 - [ ] **Step 4: Check the memory budget**
 
@@ -1829,12 +1889,17 @@ docker compose exec -T ladybug-php php -r '
 require "/var/www/html/vendor/autoload.php";
 $app = require "/var/www/html/bootstrap/app.php";
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-echo \App\Models\Trashpost::whereNotNull("image")->value("hash"), PHP_EOL;
-'
-curl -fsS -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:8080/api/posts/<that-hash>"
+echo \App\Models\Trashpost::whereNotNull("file")->value("hash"), PHP_EOL;
+' </dev/null
+docker run --rm --network nginx_default curlimages/curl:latest \
+  -sS -o /dev/null -w '%{http_code}\n' "http://ladybug-web/api/posts/<that-hash>"
 ```
 
 Expected: matching counts, and `200` from the post endpoint.
+
+(Corrected 2026-07-29: the column is **`file`**, not `image` — `whereNotNull("image")`
+throws `Unknown column 'image'`. And the endpoint is reached over `nginx_default`, per
+the Task 12 Step 2 correction.)
 
 - [ ] **Step 5: Run any pending migrations against the imported schema**
 

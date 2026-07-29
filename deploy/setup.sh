@@ -112,7 +112,6 @@ fi
 
 if [ ! -f /root/.ladybug-backup-pass ]; then
     gen > /root/.ladybug-backup-pass
-    chmod 600 /root/.ladybug-backup-pass
     echo "    generated /root/.ladybug-backup-pass"
 fi
 
@@ -125,9 +124,20 @@ FTP_HOST=sn-69-18.tll07.zoneas.eu
 FTP_USER=
 FTP_PASS=''
 ENV
-    chmod 600 /root/.ladybug-ftp
     echo "    created /root/.ladybug-ftp -- fill in FTP_USER and FTP_PASS"
 fi
+
+# Re-assert the mode on every run, not just on the run that creates the file. A secret
+# that predates this script -- restored from a backup, scp'd in during a recovery, or
+# written by hand -- otherwise keeps whatever umask produced it: measured 644 on
+# /root/.ladybug-backup-pass, i.e. the one secret that cannot be recovered from the
+# backups was world-readable to every account on the box. Applying chmod unconditionally
+# costs nothing and closes that gap wherever the file came from.
+chmod 600 /root/.ladybug-backup-pass /root/.ladybug-ftp
+chmod 600 "$ROOT/.env"
+# backend.env is deliberately 640 root:33 -- see the generation block above.
+chown root:33 "$ROOT/backend.env"
+chmod 640 "$ROOT/backend.env"
 
 cat <<SUMMARY
 
