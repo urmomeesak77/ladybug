@@ -302,17 +302,6 @@ main {
   }
 }
 
-/* The feed's page heading. Sized in rem and coloured off the theme tokens, so it stays
-   legible in both appearances and scales with a user's font-size choice rather than
-   pinning to a pixel size (Principles IV and VIII). The bottom margin matches the gap
-   between cards, so the heading reads as part of the same rhythm. */
-.feed__heading {
-  font-size: 1.5rem;
-  line-height: 1.2;
-  color: var(--color-text);
-  margin-bottom: var(--space-lg);
-}
-
 /* Feed list: one column of cards with consistent spacing. */
 .feed__list {
   list-style: none;

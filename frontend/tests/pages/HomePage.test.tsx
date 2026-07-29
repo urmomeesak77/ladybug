@@ -152,6 +152,9 @@ describe('HomePage', () => {
     const top = screen.getAllByRole('heading', { level: 1 });
     expect(top).toHaveLength(1);
     expect(top[0].textContent).toMatch(/memes/i);
+    // Visually hidden by request, but it must stay in the DOM and the a11y tree so the
+    // page keeps its one top-level heading for crawlers and screen readers.
+    expect(top[0].className).toBe('sr-only');
   });
 
   it('keeps feed entry titles one level below the page heading', async () => {
