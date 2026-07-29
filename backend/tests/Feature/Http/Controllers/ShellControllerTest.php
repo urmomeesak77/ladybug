@@ -6,9 +6,12 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Models\Trashpost;
 use App\Models\User;
+use App\Services\PageMetaService;
 use App\Support\MediaPath;
+use App\Support\PageMeta;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use Tests\TestCase;
 
 final class ShellControllerTest extends TestCase {
@@ -290,5 +293,139 @@ final class ShellControllerTest extends TestCase {
             $this->assertSame(1, substr_count($body, '<script'), $vector);
             $this->assertSame(1, substr_count($this->headOf($body), '<title>'), $vector);
         }
+    }
+
+    /**
+     * US4, contracts/shell-response.md → Status codes. A row that exists is a page,
+     * whatever its visibility; only a hash that names no row at all is missing. The
+     * split matters because a crawler treats a 200 carrying "not found" as a soft
+     * 404 and keeps the address in the index (SC-004).
+     */
+    public function test_a_publicly_visible_meme_reports_found(): void {
+        $post = Trashpost::factory()->visible()->create();
+
+        $this->get("/posts/{$post->hash}")->assertOk();
+    }
+
+    /** FR-015: a permitted viewer still gets a working page, so the row is not missing. */
+    public function test_a_pending_meme_reports_found(): void {
+        $post = Trashpost::factory()->hidden()->create();
+
+        $this->get("/posts/{$post->hash}")->assertOk();
+    }
+
+    public function test_a_soft_deleted_meme_reports_found(): void {
+        $post = Trashpost::factory()->deleted()->create();
+
+        $this->get("/posts/{$post->hash}")->assertOk();
+    }
+
+    /**
+     * A purged meme and a hash that never existed are the same thing to the server —
+     * there is no row — and both are genuinely missing.
+     */
+    public function test_a_purged_meme_reports_not_found(): void {
+        $post = Trashpost::factory()->visible()->create();
+        $hash = (string) $post->hash;
+        $post->forceDelete();
+
+        $this->get("/posts/{$hash}")->assertNotFound();
+    }
+
+    public function test_a_hash_that_never_existed_reports_not_found(): void {
+        $this->get('/posts/zzzzzzzzzz')->assertNotFound();
+    }
+
+    /**
+     * A malformed identifier is not a permalink at all, so it fails the address
+     * table rather than becoming a query (Constitution V).
+     */
+    public function test_a_malformed_hash_reports_not_found(): void {
+        foreach (['/posts/abc', '/posts/aB3dEf7GhJx', '/posts'] as $path) {
+            $this->get($path)->assertNotFound();
+        }
+    }
+
+    /** Every private address is a real page — noindex, but present. */
+    public function test_every_non_indexable_static_address_reports_found(): void {
+        $paths = ['/login', '/register', '/account', '/upload', '/verify-email', '/admin/trashposts', '/admin/users'];
+
+        foreach ($paths as $path) {
+            $response = $this->get($path);
+
+            $response->assertOk();
+            $response->assertSee('<meta name="robots" content="noindex, follow">', escape: false);
+        }
+    }
+
+    /**
+     * FR-014: a 404 carries the same shell, so the SPA renders its existing
+     * NotFoundPage rather than the framework's error page.
+     */
+    public function test_a_not_found_permalink_still_carries_the_shell(): void {
+        $body = (string) $this->get('/posts/zzzzzzzzzz')->getContent();
+
+        $this->assertStringContainsString('<div id="root">', $body);
+        $this->assertSame(
+            substr($this->fixture(), (int) strpos($this->fixture(), '</head>')),
+            substr($body, (int) strpos($body, '</head>')),
+        );
+    }
+
+    /**
+     * FR-038: metadata is an enhancement, never a dependency. If resolution fails the
+     * address still answers at the status the route table decided, with the generic
+     * block and a robots tag — degraded, but never a 5xx handed to a crawler.
+     */
+    public function test_a_metadata_failure_degrades_instead_of_erroring(): void {
+        $this->app->instance(PageMetaService::class, new ThrowingPageMetaService());
+
+        foreach (['/' => 200, '/login' => 200, '/posts/zzzzzzzzzz' => 200, '/nope' => 404] as $path => $status) {
+            $response = $this->get($path);
+
+            $response->assertStatus($status);
+            $response->assertSee('<title>online-trash</title>', escape: false);
+            $response->assertSee('<meta name="robots" content="noindex, follow">', escape: false);
+            $this->assertStringContainsString('<div id="root">', (string) $response->getContent(), $path);
+        }
+    }
+
+    /**
+     * The degraded response canonicalises to the address itself, so the fallback
+     * cannot quietly point every failing page at the origin root.
+     */
+    public function test_a_degraded_response_still_canonicalises_to_its_own_address(): void {
+        $this->app->instance(PageMetaService::class, new ThrowingPageMetaService());
+
+        $this->get('/login')->assertSee(
+            '<link rel="canonical" href="https://online-trash.com/login">',
+            escape: false,
+        );
+    }
+
+    /**
+     * A missing shell template is deliberately OUTSIDE the FR-038 fallback: there is
+     * no useful page to serve without it, so it fails loudly (research D11).
+     * deploy/php/entrypoint.sh turns this into a boot failure, which is where a
+     * packaging error belongs — degrading it here would hide that.
+     */
+    public function test_a_missing_shell_template_is_a_server_error(): void {
+        config(['seo.shell_path' => base_path('tests/fixtures/no-such-shell.html')]);
+
+        $this->get('/')->assertStatus(500);
+    }
+}
+
+/**
+ * A PageMetaService whose every answer fails, for the FR-038 degradation cases.
+ * Declared here rather than mocked so the failure is a plain, readable throw.
+ */
+final class ThrowingPageMetaService extends PageMetaService {
+    public function forPath(string $path): PageMeta {
+        throw new RuntimeException('Metadata resolution failed.');
+    }
+
+    public function statusFor(string $path): int {
+        throw new RuntimeException('Metadata resolution failed.');
     }
 }

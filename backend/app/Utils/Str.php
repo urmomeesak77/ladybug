@@ -6,17 +6,18 @@ namespace App\Utils;
 
 class Str {
     /**
-     * Build a random public hash of the given length from the URL-safe base64
-     * alphabet ([A-Za-z0-9_-]).
+     * Build a public hash of the given length from the URL-safe base64 alphabet
+     * ([A-Za-z0-9_-]).
      *
-     * Each character is an independent uniform draw via random_int (a CSPRNG),
-     * so a 10-char hash carries ~60 bits of entropy and is NOT derivable from
-     * the post's creation time — the API exposes created_at to the second, so a
-     * time-seeded hash would leave only the salt to guess (Principle V opacity).
+     * The value is derived from the current microtime plus a random prefix and
+     * padding, which is the prototype's generator and the one this project keeps
+     * deliberately. It is therefore NOT a uniform draw over the alphabet: the
+     * leading characters follow from the clock, so do not read a hash as an
+     * unguessable token.
      *
-     * Uniqueness stays probabilistic: callers needing a guaranteed-unique value
-     * must enforce it at the storage layer (e.g. a unique column) — all current
-     * callers do, with a retry loop on collision.
+     * Uniqueness is probabilistic here and enforced at the storage layer instead:
+     * `trashposts.hash` and `comments.hash` are unique columns and every caller
+     * retries on collision.
      */
     public static function createUniqueHash($length = 10) {
 

@@ -194,13 +194,13 @@ FR-038 guarantee that a metadata failure never becomes a `5xx`.
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T041 [P] [US4] Extend `backend/tests/Feature/Http/Controllers/ShellControllerTest.php` with the contracts/shell-response.md → Status codes table: publicly visible meme `200`; pending meme `200`; soft-deleted meme `200`; purged/never-existing hash `404`; unmatched address `404`; every `noindex` static address `200`. Assert the `404` body is the **same** shell so the SPA renders its existing `NotFoundPage` (FR-014)
-- [ ] T042 [US4] Add the FR-038 degradation case to the same file `backend/tests/Feature/Http/Controllers/ShellControllerTest.php` (sequential after T041 — same file): with `PageMetaService` bound to a double that throws, every public address still returns its normal status with generic site metadata plus `noindex` — never a `5xx`. Assert separately that a **missing shell template** is deliberately *not* covered by the fallback and surfaces as a `500` (research D11)
+- [x] T041 [P] [US4] Extend `backend/tests/Feature/Http/Controllers/ShellControllerTest.php` with the contracts/shell-response.md → Status codes table: publicly visible meme `200`; pending meme `200`; soft-deleted meme `200`; purged/never-existing hash `404`; unmatched address `404`; every `noindex` static address `200`. Assert the `404` body is the **same** shell so the SPA renders its existing `NotFoundPage` (FR-014)
+- [x] T042 [US4] Add the FR-038 degradation case to the same file `backend/tests/Feature/Http/Controllers/ShellControllerTest.php` (sequential after T041 — same file): with `PageMetaService` bound to a double that throws, every public address still returns its normal status with generic site metadata plus `noindex` — never a `5xx`. Assert separately that a **missing shell template** is deliberately *not* covered by the fallback and surfaces as a `500` (research D11)
 
 ### Implementation for User Story 4
 
-- [ ] T043 [US4] Implement the three-way status split in `backend/app/Http/Controllers/ShellController.php`: `SpaRoutes::match()` decides matched-vs-`404`, and for `/posts/{hash}` the `withTrashed()` lookup already in `PageMetaService` distinguishes hidden (`200`) from absent (`404`)
-- [ ] T044 [US4] Wrap **only** the metadata resolution in `ShellController::show()` in `try/catch (Throwable)`, `report()` the exception, and fall back to `PageMeta::site($canonical, isIndexable: false)` at the status the route table already decided. The `catch` must not enclose the rendering call — a renderer bug has to surface as a real error rather than be swallowed into generic metadata (research D11)
+- [x] T043 [US4] Implement the three-way status split in `backend/app/Http/Controllers/ShellController.php`: `SpaRoutes::match()` decides matched-vs-`404`, and for `/posts/{hash}` the `withTrashed()` lookup already in `PageMetaService` distinguishes hidden (`200`) from absent (`404`)
+- [x] T044 [US4] Wrap **only** the metadata resolution in `ShellController::show()` in `try/catch (Throwable)`, `report()` the exception, and fall back to `PageMeta::site($canonical, isIndexable: false)` at the status the route table already decided. The `catch` must not enclose the rendering call — a renderer bug has to surface as a real error rather than be swallowed into generic metadata (research D11)
 
 **Checkpoint**: SC-004 holds — no address that does not resolve to real content reports success.
 
