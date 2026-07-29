@@ -26,7 +26,18 @@ services:
       - --max-connections=30
       - --table-open-cache=200
       - --table-definition-cache=200
-    # No published port, unlike dev: the database is reachable only on this network.
+    # Published on a loopback address ONLY, so the port exists at a fixed address that
+    # survives the container recreation every ./deploy.sh performs -- unlike the
+    # container's network IP, which comes from the pool and changes on every recreate.
+    # Reach it by tunnelling, never directly:
+    #     ssh -L 3307:127.0.0.122:3306 root@online-trash.com
+    # Binding to 127.0.0.122 scopes Docker's DNAT rule to that /32, so the port is
+    # reachable only from the server itself; the whole 127/8 range is on `lo`, so any
+    # address in it is bindable without configuring an interface. Do NOT change this to
+    # 0.0.0.0 or a bare 3306: Docker's rules are inserted ahead of ufw, so a wildcard
+    # publish would expose MySQL to the internet regardless of the firewall.
+    ports:
+      - "127.0.0.122:3306:3306"
     volumes:
       - ./data/mysql:/var/lib/mysql
     healthcheck:
