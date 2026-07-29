@@ -37,4 +37,17 @@ return [
         ],
     ],
 
+    // Google "Sign in with Google" OAuth 2.0 client (feature 017). The credentials are
+    // secrets and live only in .env -- every committed example file carries empty
+    // placeholders. The two URL keys have defaults because they are Google's published
+    // endpoints, not configuration: they exist so a disposable stack can point the flow
+    // at a local stub, and production sets neither.
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect_uri' => env('GOOGLE_REDIRECT_URI'),
+        'authorize_url' => env('GOOGLE_AUTHORIZE_URL', 'https://accounts.google.com/o/oauth2/v2/auth'),
+        'token_url' => env('GOOGLE_TOKEN_URL', 'https://oauth2.googleapis.com/token'),
+    ],
+
 ];
