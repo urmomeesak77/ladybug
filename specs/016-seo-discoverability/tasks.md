@@ -281,10 +281,33 @@ origin.
   injection payload, which means mutating the real dev media library) — covered instead by
   `ShellControllerTest::test_a_meme_title_cannot_alter_the_response_structure` against every vector
   in contracts/shell-response.md, and by `StructuredDataTest`'s `json_encode`-flag cases
-- [ ] T062 **BLOCKED until the feature is deployed** — every check here runs against production,
-  which this branch has not reached. The procedures are now written down in
-  `docs/DEPLOYMENT.md` §1 and §7 → Post-deploy verification, so they travel with the release
-  rather than living only here. Post-deploy validation per quickstart.md §§6–8: schema.org validator against a production permalink (SC-007), a real unfurl in Slack/Discord (SC-001), the shell's asset tags all answering `200` (the D2 failure mode), and the cold-cache p95 measured by the **procedure in quickstart §8** — clear the cache, 20 sequential timed requests to a permalink, 95th percentile of server time-to-first-byte, first (cold) request included — against the 300 ms budget (SC-011)
+- [x] T062 **Deployed 2026-07-29** — `master` merged at `4c60b51`, CI green (backend + frontend +
+  Playwright e2e), `release.yml` built both images, `./deploy.sh 4c60b51…` rolled the stack over
+  (`Nothing to migrate` — this feature adds no schema change), healthy in 1 s. Rollback target is
+  the previously deployed `a30cf22…`. Verified live against `https://online-trash.com`:
+  - **`/` is the Laravel-composed shell**, carrying `<link rel="canonical">` — the static
+    `dist/index.html` can never have one. This is the T019 `index index.html` / directory-match
+    trap cleared on a real nginx, which no PHPUnit test could ever prove.
+  - Permalink `/posts/6k_F1q0fz-`: own title, canonical, `og:image` off the **500px** variant,
+    `twitter:card=summary_large_image`, one JSON-LD block that **parses** to
+    `['ImageObject', 'BreadcrumbList']`.
+  - **Asset integrity (the D2 failure mode)**: both `/assets/*` tags in the served shell answer
+    `200`, so the php and web images came from the same commit. Shell template present in the php
+    image at `resources/spa/index.html` (799 B).
+  - `robots.txt` → `text/plain; charset=UTF-8`, six prefixes, no `/storage/`; `sitemap.xml` →
+    `application/xml; charset=UTF-8` `<sitemapindex>`. **Membership exact**: `posts-1.xml` has
+    **2620** `<loc>`, production DB publicly-visible count is **2620**.
+  - Statuses: unknown hash `404`, unmatched route `404`, `/login` `200`, `/uptime` `404`.
+  - **Compression**: JS asset `Content-Encoding: gzip` + `Vary: Accept-Encoding`; `/storage/`
+    image carries neither; a `--compressed` fetch of `/` is **byte-identical** (same sha256) to an
+    `identity` fetch (FR-029). **SC-005: 69.3%** reduction over the whole first-visit compressible
+    payload (268,784 B → 82,430 B), against a ≥60% target.
+  - **SC-011: p95 = 0.072 s** (n=20, cold first request included, min 0.044 / max 0.089) against
+    the 300 ms budget — a 4× margin.
+  - `https://games.online-trash.com/thousand/` still `200` — the neighbouring game undisturbed.
+  - **Not done**: the schema.org validator run (SC-007) and a real Slack/Discord unfurl (SC-001)
+    both need a browser or those services; the JSON-LD is confirmed well-formed and
+    schema-shaped, but not validator-blessed. Post-deploy validation per quickstart.md §§6–8: schema.org validator against a production permalink (SC-007), a real unfurl in Slack/Discord (SC-001), the shell's asset tags all answering `200` (the D2 failure mode), and the cold-cache p95 measured by the **procedure in quickstart §8** — clear the cache, 20 sequential timed requests to a permalink, 95th percentile of server time-to-first-byte, first (cold) request included — against the 300 ms budget (SC-011)
 
 ---
 
