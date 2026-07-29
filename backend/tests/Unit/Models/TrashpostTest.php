@@ -47,6 +47,30 @@ final class TrashpostTest extends TestCase {
         $this->assertNotNull(Trashpost::withTrashed()->find($post->id));
     }
 
+    public function test_publicly_visible_includes_an_activated_undeleted_post(): void {
+        $post = Trashpost::factory()->visible()->create();
+
+        $this->assertSame([$post->id], Trashpost::publiclyVisible()->pluck('id')->all());
+    }
+
+    public function test_publicly_visible_excludes_a_pending_post(): void {
+        Trashpost::factory()->hidden()->create();
+
+        $this->assertSame([], Trashpost::publiclyVisible()->pluck('id')->all());
+    }
+
+    public function test_publicly_visible_excludes_a_soft_deleted_post(): void {
+        Trashpost::factory()->deleted()->create();
+
+        $this->assertSame([], Trashpost::publiclyVisible()->pluck('id')->all());
+    }
+
+    public function test_publicly_visible_excludes_a_post_that_is_pending_and_soft_deleted(): void {
+        Trashpost::factory()->hidden()->deleted()->create();
+
+        $this->assertSame([], Trashpost::publiclyVisible()->pluck('id')->all());
+    }
+
     public function test_belongs_to_an_owning_user(): void {
         $user = User::factory()->create();
         // hash/user_id are identity/ownership, not content — no longer mass

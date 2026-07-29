@@ -22,8 +22,9 @@ Internet ──443──▶ nginx-web-1 (existing edge, /web/nginx)
                                                  shared `nginx_default` network)
                                                      │
                               ┌──────────────────────┴────────────────────────┐
-                              │  ladybug-web  (nginx:alpine + built SPA)       │
-                              │    /              → dist/, try_files → index  │
+                              │  ladybug-web  (nginx:alpine + built SPA)      │
+                              │    /              → dist/ file, else @shell   │
+                              │    @shell         → fastcgi_pass php:9000     │
                               │    /storage/      → alias to media bind-mount │
                               │    /api /up /sanctum → fastcgi_pass php:9000  │
                               └──────────────────────┬────────────────────────┘
@@ -72,6 +73,97 @@ Media (`/storage/`) is served by `ladybug-web` straight off a bind-mount via
 `alias`, never through PHP — size variants are content-addressed and never
 rewritten, so they carry `expires 30d` and `Cache-Control: public, immutable`.
 `php artisan storage:link` is therefore irrelevant in production.
+
+### How the SPA shell is served (016)
+
+Every page address is answered by **Laravel**, not by nginx handing back a
+static `dist/index.html`. This is what puts a real `<title>`, description,
+canonical, `og:`/`twitter:` tags and JSON-LD in the *first* response — crawlers
+and unfurlers do not run the SPA's JavaScript, so anything the client renders
+later is invisible to them.
+
+The chain, and the two places it can quietly break:
+
+1. **`deploy/web/default.conf`** — `location /` is `try_files $uri @shell`, and
+   `location @shell` proxies to php-fpm. Note there is **no `$uri/` term** and
+   **no `index index.html;` directive** in the server block, plus an exact-match
+   `location = / { try_files /__shell__ @shell; }` whose first term cannot
+   exist. All three are load-bearing together: for `GET /` the request URI is
+   `/`, and a `try_files` term ending in a slash is a *directory* test that
+   matches the document root itself — so a plain `try_files $uri @shell` would
+   hand `/` to the index module and serve the static file, never reaching PHP.
+   The failure is silent: `/posts/{hash}` would unfurl correctly while the home
+   page kept an empty `<head>`, and every PHPUnit test would still pass, because
+   PHPUnit calls Laravel with no nginx in front of it.
+2. **`deploy/php/Dockerfile`** — a `node:20` stage runs `npm ci && npm run build`
+   in `frontend/` and copies **only** `dist/index.html` to
+   `/var/www/html/resources/spa/index.html`. The php image therefore builds the
+   frontend a second time (the web image builds it too, for the assets). That
+   duplication is a deliberate, accepted cost: the alternative is a shared build
+   artifact volume between two independently versioned images.
+   `backend/resources/spa/` is git-ignored — it is a build artifact, never
+   committed.
+3. **`deploy/php/entrypoint.sh`** asserts that shell template is readable at
+   boot. A packaging error must fail loudly when the container starts, not
+   silently at request time — a missing shell is deliberately **not** covered by
+   the metadata fallback described below.
+
+Because the two images build the frontend separately, they can in principle
+carry **different** builds. The shell's `<script>`/`<link>` tags name hashed
+asset filenames, so a mismatch means a shell that references assets the web
+image does not have — a blank page. The post-deploy check for this is in
+Section 7 → Post-deploy verification.
+
+**Metadata resolution** is cached per address (`seo:meta:v1:{sha1(path)}`, TTL
+`config('seo.cache_ttl')`, one hour). Nothing about the *requester* is ever read,
+which is what makes one entry per address correct rather than a leak. Every
+moderation transition (activate / deactivate / delete / restore / purge, plus
+trusted-uploader auto-activation) forgets that meme's entry, so a hidden meme's
+permalink degrades to generic site metadata on the **next** request, not an hour
+later. A metadata failure never becomes a `5xx`: it degrades to the generic
+`noindex` block at whatever status the route table already decided.
+
+**Crawler entry points**, all served by Laravel and all registered *above* the
+shell catch-all in `backend/routes/web.php`:
+
+| Address | Notes |
+|---|---|
+| `/robots.txt` | `text/plain; charset=UTF-8`; disallow list generated from `SpaRoutes::disallowedPaths()`; `Sitemap:` line absolutised from `APP_URL` |
+| `/sitemap.xml` | `<sitemapindex>` listing `static.xml` plus one child per 50,000 visible memes |
+| `/sitemaps/static.xml` | the indexable static addresses |
+| `/sitemaps/posts-{n}.xml` | newest-first permalinks; out-of-range or non-numeric `{n}` → `404` |
+
+> **Never add `frontend/public/robots.txt` or `frontend/public/sitemap.xml`.**
+> Anything in `public/` becomes a real file in `dist/`, which wins nginx's
+> `try_files` and would silently shadow these routes — the site would serve a
+> stale stub instead of the generated document, with no error anywhere.
+
+The SPA's route table (`frontend/src/App.tsx`) is mirrored server-side in
+`backend/app/Support/SpaRoutes.php`, which decides `200`-vs-`404` and
+indexability before any JavaScript runs. **A route added, removed or renamed in
+one must change in the other in the same commit**, or the new address answers
+`404` to every crawler while rendering fine in a browser.
+
+### Compression
+
+`gzip` is configured identically in **both** nginx layers — `deploy/web/default.conf`
+and `deploy/nginx-edge/online-trash.com.conf` — so the behaviour holds however the
+stack is reached:
+
+```
+gzip on; gzip_vary on; gzip_proxied any; gzip_comp_level 5; gzip_min_length 1024;
+```
+
+plus a `gzip_types` list covering CSS, JS, JSON, XML, SVG and plain text. Two
+details are easy to get wrong:
+
+- **`text/html` must not appear in `gzip_types`.** `gzip on` already covers it,
+  and nginx rejects the duplicate — the config will fail to load.
+- **`gzip_proxied any` is load-bearing.** The origin's responses arrive at the
+  edge proxied, and without this the edge declines to compress them.
+
+Meme media under `/storage/` is deliberately **not** compressed: JPEG, PNG, WebP
+and GIF are already compressed formats, so gzip costs CPU and returns nothing.
 
 ## 2. Prerequisites
 
@@ -468,6 +560,32 @@ release you don't fully trust:
 - Upload an image and a YouTube link.
 - Post a comment.
 - Both `/admin/trashposts` and `/admin/users` load for an admin account.
+- **The shell is Laravel-composed, not the static file.** `curl -s https://online-trash.com/ |
+  grep canonical` shows a `<link rel="canonical">`; the static `dist/index.html`
+  can never have one. Repeat on a `/posts/{hash}` permalink. A pass on the
+  permalink with a fail on `/` is the exact signature of the `index index.html`
+  / directory-match trap described in Section 1.
+- **The shell template made it into the php image**, and every asset it names
+  really exists — a `404` here means the php and web images were built from
+  different commits, the one failure mode this design exists to prevent:
+
+  ```sh
+  # deploy/setup.sh installs docker-compose.prod.yml AS /web/online-trash.com/docker-compose.yml,
+  # so the deployed file never carries the `.prod` name it has in this repo.
+  docker compose -f /web/online-trash.com/docker-compose.yml exec ladybug-php \
+    ls -l resources/spa/index.html
+
+  curl -s https://online-trash.com/ | grep -o '/assets/[^"]*' | while read a; do
+    curl -s -o /dev/null -w "%{http_code} $a\n" "https://online-trash.com$a"; done
+  ```
+
+- `/robots.txt` answers `text/plain; charset=UTF-8` (**not** `text/html` — that
+  would mean the shell catch-all swallowed it), and `/sitemap.xml` answers
+  `application/xml` with a `<sitemapindex>`.
+- A hidden meme's permalink (deactivate one in `/admin/trashposts`) leaks no
+  part of its title, description, author or image, on the very next request.
+- A JS asset fetched with `Accept-Encoding: gzip` reports `content-encoding:
+  gzip` and `vary: Accept-Encoding`; a `/storage/` image reports neither.
 - Forcing a 500 returns no stack trace (`APP_DEBUG=false`).
 - `docker stats --no-stream` after warm-up stays within the budget in
   Section 10.

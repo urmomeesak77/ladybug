@@ -22,6 +22,11 @@ mkdir -p storage/app/public \
 # empty APP_KEY. Fail here instead, where the cause is obvious.
 [ -r .env ] || { echo "FATAL: /var/www/html/.env is not readable by $(id -un) (uid $(id -u))." >&2; exit 1; }
 
+# Same shape, same reason: without the SPA shell every HTML address 500s at request
+# time, one visitor at a time, with the cause buried in the log. A packaging error
+# belongs at boot, where it is unmissable and the deploy can be rolled back.
+[ -r resources/spa/index.html ] || { echo "FATAL: /var/www/html/resources/spa/index.html is not readable by $(id -un) (uid $(id -u)) -- the Dockerfile's node stage did not deliver the built SPA shell." >&2; exit 1; }
+
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache

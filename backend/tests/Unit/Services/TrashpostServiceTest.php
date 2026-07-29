@@ -6,12 +6,14 @@ namespace Tests\Unit\Services;
 
 use App\Models\Trashpost;
 use App\Models\User;
+use App\Services\PageMetaService;
 use App\Services\RatingService;
 use App\Services\TrashpostImageProcessor;
 use App\Services\TrashpostService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
@@ -349,6 +351,29 @@ final class TrashpostServiceTest extends TestCase {
 
         $this->assertNotNull($post->activated_at);
         $this->assertSame(RatingService::TRUST_THRESHOLD + 1, $member->fresh()->rating);
+    }
+
+    /**
+     * FR-040: the auto-activation path publishes a meme without a moderator ever
+     * touching it, so it has to drop the permalink's cached metadata for exactly the
+     * same reason ModerationService::activate does. The address can already be warm:
+     * anything that requested it before the upload landed cached the generic
+     * not-a-public-meme block under it.
+     */
+    public function test_an_auto_activated_upload_forgets_its_permalinks_metadata(): void {
+        Storage::fake('public');
+        Http::fake(['img.youtube.com/*' => Http::response('still-bytes', 200)]);
+        $member = $this->memberAt(RatingService::TRUST_THRESHOLD);
+        $hash = 'Abcdefghij';
+        $key = 'seo:meta:v1:' . sha1("/posts/{$hash}");
+        (new PageMetaService())->forPath("/posts/{$hash}");
+        $this->assertNotNull(Cache::get($key), 'the metadata cache was not warmed');
+
+        $post = $this->serviceMinting(new TrashpostImageProcessor(), $hash)
+            ->createPost($member, 'Live now', null, 'dQw4w9WgXcQ');
+
+        $this->assertSame($hash, $post->hash);
+        $this->assertNull(Cache::get($key));
     }
 
     public function test_a_failed_credit_leaves_no_activated_but_uncredited_post(): void {

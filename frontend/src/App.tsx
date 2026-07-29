@@ -28,6 +28,13 @@ function App() {
       <AuthProvider>
         <NoticeProvider>
           <PageLayout>
+            {/* This table is mirrored server-side in backend/app/Support/SpaRoutes.php, which
+                decides whether an address is a page at all (200 vs 404) and whether it is
+                indexable — before any JavaScript runs, because crawlers do not run it (016).
+                The duplication is a deliberate, accepted cost: the two runtimes cannot share a
+                route table without a build step neither stack has. Any route added, removed or
+                renamed here MUST be changed there in the same commit, or the new address will
+                answer 404 to every crawler and unfurler while rendering fine in a browser. */}
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/posts/:hash" element={<PostPage />} />

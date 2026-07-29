@@ -143,6 +143,36 @@ describe('HomePage', () => {
     expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
   });
 
+  it('carries exactly one top-level heading naming the feed', async () => {
+    vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: [post('a0000000')] });
+
+    renderHome();
+    await screen.findByText('Post a0000000');
+
+    const top = screen.getAllByRole('heading', { level: 1 });
+    expect(top).toHaveLength(1);
+    expect(top[0].textContent).toMatch(/memes/i);
+  });
+
+  it('keeps feed entry titles one level below the page heading', async () => {
+    vi.spyOn(Api, 'fetchFeed')
+      .mockResolvedValue({ ok: true, posts: [post('a0000000'), post('a0000001')] });
+
+    renderHome();
+    await screen.findByText('Post a0000001');
+
+    // Levels in DOM order must start at 1 and never jump by more than one, or a
+    // screen reader's heading outline gains a hole where a level was skipped.
+    const levels = screen.getAllByRole('heading')
+      .map((heading) => Number(heading.tagName.slice(1)));
+    expect(levels[0]).toBe(1);
+    for (let i = 1; i < levels.length; i++) {
+      expect(levels[i]).toBeLessThanOrEqual(levels[i - 1] + 1);
+    }
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent))
+      .toEqual(['Post a0000000', 'Post a0000001']);
+  });
+
   it('shows the admin actions kebab on feed items for an admin', async () => {
     vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: [post('a0000000')] });
 

@@ -8,10 +8,12 @@ use App\Models\Trashpost;
 use App\Models\User;
 use App\Services\MediaOwnershipService;
 use App\Services\ModerationService;
+use App\Services\PageMetaService;
 use App\Services\RatingService;
 use App\Support\MediaPath;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Tests\TestCase;
@@ -61,6 +63,57 @@ final class ModerationServiceTest extends TestCase {
 
     private function service(): ModerationService {
         return new ModerationService();
+    }
+
+    /**
+     * FR-040: a shared permalink must stop unfurling the moment a moderator hides
+     * the meme, and start again the moment it is restored. An hour-old cache entry
+     * would keep a taken-down meme's title and image circulating, which is the
+     * leak FR-010 exists to prevent — so every transition drops the entry.
+     */
+    public function test_activate_forgets_the_memes_cached_metadata(): void {
+        $post = Trashpost::factory()->hidden()->create();
+        $key = $this->warmMetadataCache($post);
+
+        $this->service()->activate($post->hash);
+
+        $this->assertNull(Cache::get($key));
+    }
+
+    public function test_deactivate_forgets_the_memes_cached_metadata(): void {
+        $post = Trashpost::factory()->visible()->create();
+        $key = $this->warmMetadataCache($post);
+
+        $this->service()->deactivate($post->hash);
+
+        $this->assertNull(Cache::get($key));
+    }
+
+    public function test_delete_forgets_the_memes_cached_metadata(): void {
+        $post = Trashpost::factory()->visible()->create();
+        $key = $this->warmMetadataCache($post);
+
+        $this->service()->delete($post->hash);
+
+        $this->assertNull(Cache::get($key));
+    }
+
+    public function test_restore_forgets_the_memes_cached_metadata(): void {
+        $post = Trashpost::factory()->visible()->deleted()->create();
+        $key = $this->warmMetadataCache($post);
+
+        $this->service()->restore($post->hash);
+
+        $this->assertNull(Cache::get($key));
+    }
+
+    public function test_purge_forgets_the_memes_cached_metadata(): void {
+        $post = Trashpost::factory()->visible()->create();
+        $key = $this->warmMetadataCache($post);
+
+        $this->service()->purge($post->hash);
+
+        $this->assertNull(Cache::get($key));
     }
 
     public function test_paginates_at_one_hundred_per_page(): void {
@@ -565,6 +618,18 @@ final class ModerationServiceTest extends TestCase {
         $user->save();
 
         return Trashpost::factory()->create(['user_id' => $user->id] + $postState);
+    }
+
+    /**
+     * Resolve and cache this meme's permalink metadata, and return the key it landed
+     * under, so a transition can be asserted to have dropped it (FR-040).
+     */
+    private function warmMetadataCache(Trashpost $post): string {
+        $key = 'seo:meta:v1:' . sha1("/posts/{$post->hash}");
+        (new PageMetaService())->forPath("/posts/{$post->hash}");
+        $this->assertNotNull(Cache::get($key), 'the metadata cache was not warmed');
+
+        return $key;
     }
 
     /**

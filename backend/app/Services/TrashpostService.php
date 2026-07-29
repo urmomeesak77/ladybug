@@ -27,6 +27,7 @@ class TrashpostService {
         private readonly TrashpostImageProcessor $images = new TrashpostImageProcessor(),
         private readonly YoutubeThumbnailService $thumbnails = new YoutubeThumbnailService(),
         private readonly RatingService $rating = new RatingService(),
+        private readonly PageMetaService $meta = new PageMetaService(),
     ) {
     }
 
@@ -136,6 +137,11 @@ class TrashpostService {
             DB::rollBack();
             throw $e;
         }
+        // The same FR-040 invalidation a moderator's activate performs: this path
+        // publishes a meme too, and the permalink may already hold a cached generic
+        // block from a request that arrived before the upload. After the commit, for
+        // the reason ModerationService::forgetMetadata records.
+        $this->meta->forget($post->hash);
     }
 
     /**
@@ -194,10 +200,14 @@ class TrashpostService {
     }
 
     /**
-     * Base query for publicly visible posts: activated and (via SoftDeletes) not trashed.
+     * Base query for publicly visible posts. The rule itself lives on the model
+     * (Trashpost::scopePubliclyVisible) so the feed and the sitemap share one
+     * definition rather than two copies that can drift.
+     *
+     * @return Builder<Trashpost>
      */
     private function visible(): Builder {
-        return Trashpost::query()->whereNotNull('activated_at');
+        return Trashpost::publiclyVisible();
     }
 
     /**

@@ -23,6 +23,11 @@ function HomePage() {
 
   return (
     <section aria-label="Memes">
+      {/* The page's one top-level heading. Deliberately visible rather than sr-only: a
+          screen-reader-only h1 satisfies a structure checker while leaving the page
+          looking unlabelled, which helps nobody (research D13). FeedItem titles sit at
+          h2 below it, so the outline has no skipped level. */}
+      <h1 className="feed__heading">Newest memes</h1>
       {/* Remount the feed on every navigation (location.key changes even when the URL
           does not) so clicking Home while already on the feed still resets it; the
           feed itself decides fresh-vs-restore from the navigation type. */}

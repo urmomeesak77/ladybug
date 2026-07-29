@@ -24,6 +24,11 @@ coverage.xml
 /public/build
 /public/hot
 /public/storage
+# The SPA shell Laravel composes its <head> into. It is the frontend's BUILD
+# output (dist/index.html, with content-hashed asset tags), copied in by the php
+# image's node stage -- committing a copy would drift from the real hashes on the
+# next vite build and break silently. Dev bind-mounts frontend/index.html here.
+/resources/spa
 /storage/*.key
 /storage/pail
 /vendor
