@@ -84,6 +84,18 @@ export class AuthModel {
     return user ? 'authenticated' : 'anonymous';
   }
 
+  // How this account signs in, in words (FR-029, Principle IV — never an icon or a
+  // colour). This sentence is also the ONLY disclosure that a Google link was
+  // auto-attached to a pre-existing password account, so it names both doors when
+  // both exist rather than just the one most recently used. An account claiming
+  // neither door cannot be created; the fallback keeps the function total.
+  static signInMethod(user: AuthUser): string {
+    if (!user.googleLinkedAt) {
+      return 'Email and password';
+    }
+    return user.hasPassword ? 'Google and email/password' : 'Google';
+  }
+
   // Extract a verification link's components from the route param + query. Any missing
   // or blank piece means the link cannot possibly validate, so the page can render the
   // failure state without issuing a doomed request (contracts/frontend.md).

@@ -278,3 +278,74 @@ describe('LoginPage — the Google door', () => {
     expect(clickGoogle()).toHaveBeenCalledWith(undefined);
   });
 });
+
+// Feature 017 (US6/FR-007). A refused round trip lands back here as a real page with a
+// plain-language sentence — never a blank page or a raw error (SC-005).
+describe('LoginPage — a refused Google round trip', () => {
+  it('raises no alert on an ordinary visit', () => {
+    renderLogin(okResult);
+
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it.each([
+    ['cancelled', 'Google sign-in was cancelled.'],
+    ['state', 'That sign-in attempt is no longer valid. Please try again.'],
+    [
+      'unverified_email',
+      'Google did not confirm an e-mail address for that account. Please use e-mail and password instead.',
+    ],
+    ['already_linked', 'That account is already connected to a different Google account.'],
+    ['disabled', 'This account is disabled.'],
+    ['rate_limited', 'Too many sign-in attempts. Please wait a moment and try again.'],
+    ['provider', 'Google could not be reached. Please try again, or use e-mail and password.'],
+  ])('announces the %s refusal in an alert', (code, sentence) => {
+    renderLogin(okResult, `/login?error=${code}`);
+
+    expect(screen.getByRole('alert').textContent).toBe(sentence);
+  });
+
+  it('shows the retryable sentence for a code this build has never heard of', () => {
+    renderLogin(okResult, '/login?error=teapot');
+
+    expect(screen.getByRole('alert').textContent)
+      .toBe('Google could not be reached. Please try again, or use e-mail and password.');
+  });
+
+  it('renders a hand-crafted error parameter as text through the fixed map', () => {
+    renderLogin(okResult, '/login?error=%3Cscript%3Ealert(1)%3C%2Fscript%3E');
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent)
+      .toBe('Google could not be reached. Please try again, or use e-mail and password.');
+    expect(alert.querySelector('script')).toBeNull();
+  });
+
+  it('refuses a disabled account through the Google door in the same words as the password door', async () => {
+    // SC-006: the same outcome at both front doors, stated identically. Compared against
+    // what the password path actually renders rather than against a repeated literal —
+    // a divergence in either sentence has to fail this test.
+    renderLogin({ ok: false, kind: 'disabled' });
+    fillCredentials('ada@example.com', 'Password1');
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+    const passwordDoor = (await screen.findByRole('alert')).textContent;
+
+    cleanup();
+    renderLogin(okResult, '/login?error=disabled');
+
+    expect(screen.getByRole('alert').textContent).toBe(passwordDoor);
+  });
+
+  it('lets a fresh password failure replace the message the round trip arrived with', async () => {
+    renderLogin({ ok: false, kind: 'auth' }, '/login?error=cancelled');
+
+    expect(screen.getByRole('alert').textContent).toBe('Google sign-in was cancelled.');
+
+    fillCredentials('ada@example.com', 'WrongPass1');
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+
+    // The ?error= code is still in the URL, but it describes an older event than the
+    // submit the visitor just watched fail.
+    expect((await screen.findByRole('alert')).textContent).toBe('Email or password is incorrect.');
+  });
+});

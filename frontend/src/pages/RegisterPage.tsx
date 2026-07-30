@@ -1,10 +1,12 @@
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import AuthAlt from '../components/AuthAlt';
 import AuthField from '../components/AuthField';
 import BusyButton from '../components/BusyButton';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthForm } from '../hooks/useAuthForm';
+import { useGoogleRefusal } from '../hooks/useGoogleRefusal';
 import { useNotice } from '../hooks/useNotice';
 import { AuthModel } from '../lib/authModel';
 
@@ -57,6 +59,8 @@ function RegisterPage() {
   const { register } = useAuth();
   const { show } = useNotice();
   const navigate = useNavigate();
+  // A Google round trip that failed comes back HERE as well as to /login.
+  const googleError = useGoogleRefusal();
   const form = useAuthForm<RegisterValues>(
     { name: '', email: '', password: '', passwordConfirmation: '' },
     AuthModel.validateRegister,
@@ -88,12 +92,14 @@ function RegisterPage() {
     <section className="auth">
       <h1>Sign up</h1>
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
+        {googleError ? <p className="auth-form__error" role="alert">{googleError}</p> : null}
         <fieldset disabled={form.submitting}>
           <RegisterFields form={form} />
           <BusyButton type="submit" busy={form.submitting} disabled={form.hasErrors}>Register</BusyButton>
         </fieldset>
         <p className="auth-form__link"><Link to="/login">Already have an account? Login here....</Link></p>
       </form>
+      <AuthAlt />
     </section>
   );
 }

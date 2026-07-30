@@ -3,11 +3,12 @@ import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Location } from 'react-router-dom';
 
+import AuthAlt from '../components/AuthAlt';
 import AuthField from '../components/AuthField';
 import BusyButton from '../components/BusyButton';
-import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthForm } from '../hooks/useAuthForm';
+import { useGoogleRefusal } from '../hooks/useGoogleRefusal';
 import { useNotice } from '../hooks/useNotice';
 import { AuthModel } from '../lib/authModel';
 
@@ -53,6 +54,8 @@ function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [formError, setFormError] = useState('');
+  // This form's own last failure, or the refusal a Google round trip returned with.
+  const refusal = useGoogleRefusal(formError);
   const form = useAuthForm<LoginValues>({ email: '', password: '' }, AuthModel.validateLogin);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -92,22 +95,17 @@ function LoginPage() {
     <section className="auth">
       <h1>Log in</h1>
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
-        {formError ? <p className="auth-form__error" role="alert">{formError}</p> : null}
+        {refusal ? <p className="auth-form__error" role="alert">{refusal}</p> : null}
         <fieldset disabled={form.submitting}>
           <LoginFields form={form} />
           <BusyButton type="submit" busy={form.submitting} disabled={form.hasErrors}>Login</BusyButton>
         </fieldset>
         <p className="auth-form__link"><Link to="/register">No account? Register here....</Link></p>
       </form>
-      <div className="auth-alt">
-        {/* The separation is the WORD "or", not a rule: FR-026 requires the two methods
-            be distinguished by text, which a styled divider alone does not do. */}
-        <span className="auth-alt__label">or</span>
-        {/* The same location.state.from the password path reads above. Clicking is a
-            full-page navigation, which destroys router state, so the blocked
-            destination has to make the round trip as ?redirect= (FR-006). */}
-        <GoogleSignInButton redirectTo={(location.state as { from?: Location } | null)?.from?.pathname} />
-      </div>
+      {/* The same location.state.from the password path reads above. Clicking is a
+          full-page navigation, which destroys router state, so the blocked destination
+          has to make the round trip as ?redirect= (FR-006). */}
+      <AuthAlt redirectTo={(location.state as { from?: Location } | null)?.from?.pathname} />
     </section>
   );
 }
