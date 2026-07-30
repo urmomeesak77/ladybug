@@ -13,6 +13,7 @@ use App\Support\OAuthFlowState;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -660,5 +661,507 @@ final class GoogleAuthControllerTest extends TestCase {
         // Single-use by construction: consume() reads and removes in one operation, so
         // a replayed return finds nothing.
         $this->assertNull(session(OAuthFlowState::SESSION_KEY));
+    }
+
+    // ------------------------------------------- US4: the flow does not complete
+    //
+    // Every case below asserts the same three things, because SC-005 is a conjunction:
+    // a real page (the 302 and its message code), signed out, and nothing written.
+    // None of them fakes the token endpoint — Http::preventStrayRequests() is armed in
+    // setUp(), so a refusal that let a request through to Google would fail the test
+    // outright rather than pass quietly.
+    //
+    // The controller shape these cover already existed, so every test here was green the
+    // moment it was written and none of them proved anything by passing. Each was checked
+    // by deleting the guard it claims to exercise and confirming it goes red: the provider
+    // -error branch, the state comparison, the TTL check, the `code` guard, and consume()'s
+    // pull-not-get. Two of them — an absent state and a callback with no flow at all — turn
+    // out to be refused by TWO independent guards (a non-string state, and an absent
+    // `expires_at` reading as 0), so removing either alone leaves them green; they go red
+    // only when both are gone. That redundancy is the design, not a gap, and it is recorded
+    // here so nobody later reads a single-guard mutation surviving as proof the test is
+    // vacuous.
+
+    /** The 302, the message code, no session, and no rows: the whole of SC-005 at once. */
+    private function assertRefusedWithoutWriting(TestResponse $response, string $code): void {
+        $response->assertRedirect(self::FRONTEND . '/login?error=' . $code);
+        $this->assertFalse(Auth::guard('web')->check());
+        $this->assertSame(0, User::count());
+        $this->assertSame(0, UserIdentity::count());
+    }
+
+    // ---------------------------------------------------------- US4: AS1 cancellation
+
+    public function test_a_declined_consent_screen_is_reported_as_a_cancellation(): void {
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?error=access_denied&state=' . $state);
+
+        // Choosing not to continue is not a fault, and the visitor already knows what
+        // they did — so this is the one refusal whose sentence offers to try again
+        // rather than apologising for something.
+        $this->assertRefusedWithoutWriting($response, 'cancelled');
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function providerErrors(): array {
+        return [
+            'a Google-side fault' => ['server_error'],
+            'a temporary outage' => ['temporarily_unavailable'],
+            'a scope Google refused' => ['invalid_scope'],
+            'a client the console does not know' => ['invalid_client'],
+        ];
+    }
+
+    #[DataProvider('providerErrors')]
+    public function test_any_other_provider_error_is_not_blamed_on_the_visitor(string $error): void {
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?error=' . urlencode($error) . '&state=' . $state);
+
+        // Only `access_denied` is a decision the visitor made. Everything else is the
+        // provider's problem, and there is nothing for the visitor to correct beyond
+        // trying again.
+        $this->assertRefusedWithoutWriting($response, 'provider');
+    }
+
+    public function test_an_empty_error_value_is_not_treated_as_an_error(): void {
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?error=&state=' . $state);
+
+        // Framework behaviour a refusal path rests on, so it is asserted rather than
+        // assumed (research D6): Laravel's GLOBAL ConvertEmptyStringsToNull turns `?error=`
+        // into an absent parameter, so this request carries no provider error and is judged
+        // on its state and code like any other — and having no code, it is the ordinary
+        // state refusal. `provider` would be the wrong sentence here anyway: nothing went
+        // wrong at Google. What SC-005 asks of this URL either way is that it is a 302 to a
+        // real page with nothing written, and it is.
+        $this->assertRefusedWithoutWriting($response, 'state');
+    }
+
+    // ------------------------------------------------------- US4: AS2 a tampered state
+
+    public function test_an_absent_state_is_refused(): void {
+        $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=the-code');
+
+        $this->assertRefusedWithoutWriting($response, 'state');
+    }
+
+    public function test_an_altered_state_is_refused(): void {
+        $state = $this->startFlow();
+
+        // One character of 64. hash_equals() has no notion of "close enough", which is
+        // the point: the state is a token, not a checksum.
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . strtr($state, ['a' => 'b']));
+
+        $this->assertRefusedWithoutWriting($response, 'state');
+    }
+
+    public function test_a_state_from_a_different_flow_is_refused(): void {
+        $abandoned = $this->startFlow();
+        // A second start replaces the first flow in this browser, so the state above is
+        // now exactly what a state minted for somebody ELSE looks like from here: real,
+        // well-formed, 64 hex characters, and not the one this session is waiting on.
+        $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $abandoned);
+
+        $this->assertRefusedWithoutWriting($response, 'state');
+    }
+
+    public function test_a_callback_with_no_flow_at_all_is_refused(): void {
+        // Nobody started anything: the URL was typed, bookmarked, or crafted.
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . str_repeat('a', 64));
+
+        $this->assertRefusedWithoutWriting($response, 'state');
+    }
+
+    // ------------------------------------------------ US4: AS3 stale and replayed state
+
+    /** Age the stored flow past its TTL, persisted the way a real request would leave it. */
+    private function expireTheFlow(): void {
+        $flow = session(OAuthFlowState::SESSION_KEY);
+        $flow['expires_at'] = time() - 1;
+        session()->put(OAuthFlowState::SESSION_KEY, $flow);
+        // Written through to the handler, not just to this process's copy: the next
+        // request reloads the session from the driver, and array_replace() lets the
+        // STORED value win — so an unsaved change would be silently undone.
+        session()->save();
+    }
+
+    public function test_a_flow_left_open_past_its_ttl_is_refused(): void {
+        $state = $this->startFlow();
+        $this->expireTheFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $state);
+
+        // The state is the right one; only the clock is wrong. A consent screen left open
+        // for hours is a window an attacker can work in, so the TTL is not advisory.
+        $this->assertRefusedWithoutWriting($response, 'state');
+    }
+
+    public function test_a_state_already_spent_on_a_failed_return_cannot_be_reused(): void {
+        $state = $this->startFlow();
+        // Consumed by a return trip that ended in a refusal rather than a sign-in.
+        $this->get('/api/auth/google/callback?error=access_denied&state=' . $state)
+            ->assertRedirect(self::FRONTEND . '/login?error=cancelled');
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $state);
+
+        // consume() runs at the TOP of the callback, before any refusal can return, so
+        // the state is spent however the request ended. Retrying the abandoned URL after
+        // cancelling therefore starts nothing — the visitor has to start a fresh flow.
+        $this->assertRefusedWithoutWriting($response, 'state');
+    }
+
+    // ------------------------------------------------------- US4: AS2 an absent code
+
+    public function test_an_absent_code_is_refused_as_a_state_failure(): void {
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?state=' . $state);
+
+        // Reported as `state` rather than a code of its own: a return trip missing the
+        // code is indistinguishable from a tampered one, and naming the difference would
+        // tell an attacker which half of the guard they beat (research D10).
+        $this->assertRefusedWithoutWriting($response, 'state');
+    }
+
+    public function test_an_empty_code_is_refused_as_a_state_failure(): void {
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=&state=' . $state);
+
+        // Two guards agree here, which is why both are worth having: the framework's
+        // ConvertEmptyStringsToNull makes this absent before the controller sees it, and
+        // code() refuses `''` on its own account for the day that middleware is not in
+        // front of this route.
+        $this->assertRefusedWithoutWriting($response, 'state');
+    }
+
+    // ------------------------------------------------------ US4: AS4 the provider fails
+    //
+    // Google refusing, hanging, or answering with nonsense is not something the visitor
+    // can act on, so all of it collapses into the one retryable `provider` sentence. What
+    // matters here is that a provider outage produces a PAGE and never a partial account:
+    // the token exchange is the last thing that happens before the first write, so every
+    // one of these lands with the database still empty.
+
+    public function test_a_refused_token_exchange_is_a_provider_failure(): void {
+        Http::fake([self::TOKEN_URL => Http::response('{"error":"invalid_grant"}', 400)]);
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $state);
+
+        $this->assertRefusedWithoutWriting($response, 'provider');
+    }
+
+    public function test_a_token_endpoint_fault_is_a_provider_failure(): void {
+        Http::fake([self::TOKEN_URL => Http::response('upstream is unwell', 500)]);
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $state);
+
+        $this->assertRefusedWithoutWriting($response, 'provider');
+    }
+
+    public function test_a_usable_id_token_on_an_error_status_is_still_refused(): void {
+        // The only case that tells the status check apart from the id_token check: a
+        // response that FAILED but carries a token that would otherwise be accepted. Both
+        // of the cases above are refused either way — a 400 or 500 body has no `id_token`
+        // in it, so the missing-token guard catches them and the status check is never the
+        // reason. This one isolates it, and without `->successful()` it signs the visitor
+        // in on the strength of a body Google never meant as an answer.
+        Http::fake([self::TOKEN_URL => Http::response(['id_token' => $this->idToken()], 500)]);
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $state);
+
+        $this->assertRefusedWithoutWriting($response, 'provider');
+    }
+
+    public function test_an_unreachable_token_endpoint_is_a_provider_failure(): void {
+        // A real rejected connection, not a stubbed status: this is the path the 10-second
+        // timeout ends on, and it is the one that must not become an uncaught exception —
+        // an unreachable Google would otherwise be a 500 in the visitor's face.
+        Http::fake([self::TOKEN_URL => Http::failedConnection()]);
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $state);
+
+        $this->assertRefusedWithoutWriting($response, 'provider');
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function uselessTokenResponses(): array {
+        return [
+            'no id_token at all' => [['access_token' => 'ya29.a0-not-what-we-asked-for']],
+            // Refused twice over: the guard rejects `''`, and Jwt refuses a token with no
+            // three segments even if it did not. Kept for the shape, not for the coverage.
+            'an empty id_token' => [['id_token' => '']],
+            'an id_token that is not a string' => [['id_token' => ['nested']]],
+            'an empty body' => [[]],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     */
+    #[DataProvider('uselessTokenResponses')]
+    public function test_a_response_without_a_usable_id_token_is_a_provider_failure(array $body): void {
+        // A 200 is not enough: only `id_token` is read, so a response that omits it is as
+        // useless as a 500 — including the shapes that would be a TypeError if they were
+        // passed along instead of refused.
+        Http::fake([self::TOKEN_URL => Http::response($body)]);
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $state);
+
+        $this->assertRefusedWithoutWriting($response, 'provider');
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function untrustworthyTokens(): array {
+        return [
+            'a token minted for another client' => [['aud' => 'someone-elses-client.apps.googleusercontent.com']],
+            'a token from another issuer' => [['iss' => 'https://accounts.example.com']],
+            'a token that has already expired' => [['exp' => time() - 1]],
+            'a token with no expiry at all' => [['exp' => null]],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $claims
+     */
+    #[DataProvider('untrustworthyTokens')]
+    public function test_an_id_token_failing_its_own_checks_is_a_provider_failure(array $claims): void {
+        $this->fakeGoogle($claims);
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $state);
+
+        // FR-004 end to end. The signature is deliberately not verified (research D5), so
+        // `aud`, `iss` and `exp` carry the whole weight: a token for another client, from
+        // another issuer, or past its expiry must not create an account here even though
+        // it arrived over our own TLS connection.
+        $this->assertRefusedWithoutWriting($response, 'provider');
+    }
+
+    // --------------------------------------------- US4: a well-formed token, bad claims
+
+    /**
+     * @return array<string, array{array<string, mixed>, string}>
+     */
+    public static function unusableClaims(): array {
+        return [
+            'no subject' => [['sub' => null], 'provider'],
+            'an empty subject' => [['sub' => ''], 'provider'],
+            'a subject wider than the column' => [['sub' => str_repeat('9', 256)], 'provider'],
+            'an address that is not an address' => [['email' => 'not-an-address'], 'provider'],
+            'an address wider than the column' => [['email' => str_repeat('a', 250) . '@example.com'], 'provider'],
+            // Not `provider`: an account with no address at Google is something the visitor
+            // CAN act on — sign in with an e-mail and password instead — so it gets the
+            // sentence that says so. The two refusals are deliberately different.
+            'no address at all' => [['email' => null], 'unverified_email'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $claims
+     */
+    #[DataProvider('unusableClaims')]
+    public function test_claims_that_cannot_make_an_account_are_refused_as_a_page(array $claims, string $code): void {
+        $this->fakeGoogle($claims);
+        $state = $this->startFlow();
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $state);
+
+        // GoogleIdentity is total by construction, which means it REFUSES rather than
+        // returns for any of these. Asserted here at the controller as well as in its own
+        // unit suite, because "every exit is a 302" (FR-007, SC-005) is a claim about this
+        // route: a constructor throwing anything but OAuthFailure would be a 500, and a
+        // 500 mid-sign-in is the blank page the requirement exists to forbid.
+        $this->assertRefusedWithoutWriting($response, $code);
+    }
+
+    // ------------------------------------- US4: AS4 the password door stays open anyway
+
+    public function test_the_password_door_still_works_while_google_is_down(): void {
+        Http::fake([self::TOKEN_URL => Http::response('upstream is unwell', 500)]);
+        User::factory()->create(['email' => 'ada@example.com']);
+        $state = $this->startFlow();
+
+        $this->get('/api/auth/google/callback?code=the-code&state=' . $state)
+            ->assertRedirect(self::FRONTEND . '/login?error=provider');
+        $response = $this->postJson('/api/login', [
+            'email' => 'ada@example.com',
+            'password' => 'password',
+        ], ['Origin' => 'http://localhost']);
+
+        // FR-007: Google is an ADDITIONAL door, so an outage behind it must not shut the
+        // one that was always there. This is also why the refusal lands on /login rather
+        // than a dead end — the page the visitor is sent to is the page that still works.
+        $response->assertOk()->assertJsonPath('data.email', 'ada@example.com');
+    }
+
+    // ------------------------------------------------------------ US4: the rate limiter
+    //
+    // The cap is lowered to two per test rather than spending five requests reaching the
+    // real one. That also proves the limit is read from config rather than hard-coded,
+    // which the e2e stack depends on (it raises the cap for its own run).
+
+    /**
+     * The limiter bucket both routes share. Spelled out rather than read from the
+     * controller's private const: a test that imported the key from the code under test
+     * would still pass if the key changed, which is the one thing it must not do — the
+     * whole point is that the two doors agree on ONE bucket.
+     */
+    private const LIMIT_KEY = 'google-oauth:127.0.0.1';
+
+    private function capTheLimiterAtTwo(): void {
+        config()->set('app.auth_throttle', 2);
+    }
+
+    public function test_the_start_route_refuses_a_flood_with_a_page_and_not_a_429(): void {
+        $this->capTheLimiterAtTwo();
+        $this->get('/api/auth/google/redirect')->assertRedirectContains(self::AUTHORIZE_URL);
+        $this->get('/api/auth/google/redirect')->assertRedirectContains(self::AUTHORIZE_URL);
+
+        $response = $this->get('/api/auth/google/redirect');
+
+        // Research D11, FR-007: the check lives in the controller precisely so this is a
+        // 302 to a real page. The `throttle:` middleware would answer Laravel's HTML 429
+        // here, which is a dead end in the middle of a sign-in — asserting the status is
+        // 302 is what pins that choice.
+        $response->assertStatus(302);
+        $response->assertRedirect(self::FRONTEND . '/login?error=rate_limited');
+    }
+
+    public function test_the_callback_refuses_a_flood_with_a_page_and_not_a_429(): void {
+        $this->capTheLimiterAtTwo();
+        // A state nobody minted, so each of these is an ordinary refusal that spends a
+        // slot without ever reaching Google — which is the shape a flood actually has.
+        $bogus = '/api/auth/google/callback?code=the-code&state=' . str_repeat('a', 64);
+        $this->get($bogus)->assertRedirect(self::FRONTEND . '/login?error=state');
+        $this->get($bogus)->assertRedirect(self::FRONTEND . '/login?error=state');
+
+        $response = $this->get($bogus);
+
+        // The same URL that answered `state` twice now answers `rate_limited`, because the
+        // limiter is checked before anything on the URL is read. The cap is on the door,
+        // not on the outcome — otherwise the cheapest requests would be uncapped.
+        $response->assertStatus(302);
+        $this->assertRefusedWithoutWriting($response, 'rate_limited');
+    }
+
+    public function test_both_doors_draw_on_one_shared_budget(): void {
+        $this->capTheLimiterAtTwo();
+        $this->get('/api/auth/google/redirect')->assertRedirectContains(self::AUTHORIZE_URL);
+        $this->get('/api/auth/google/redirect')->assertRedirectContains(self::AUTHORIZE_URL);
+
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . str_repeat('a', 64));
+
+        // One bucket, not one per route: a flood that could be split across two doors
+        // would get twice the budget for the same effort, which is not a cap.
+        $this->assertRefusedWithoutWriting($response, 'rate_limited');
+    }
+
+    public function test_an_already_signed_in_visitors_stray_clicks_cost_nobody_their_budget(): void {
+        $this->capTheLimiterAtTwo();
+        $this->actingAs(User::factory()->create());
+        for ($i = 0; $i < 4; $i++) {
+            $this->get('/api/auth/google/redirect')->assertRedirect(self::FRONTEND . '/');
+        }
+
+        // Four clicks, twice the cap, and the bucket was never touched at all. Asserted
+        // BEFORE the request below, which spends a slot of its own — checking afterwards
+        // would be asserting 1 and proving nothing.
+        $this->assertSame(0, RateLimiter::attempts(self::LIMIT_KEY));
+        // Anonymous again, from the same IP — a shared office, a NAT, a phone network.
+        $this->app['auth']->forgetGuards();
+        $this->app['auth']->shouldUse('web');
+
+        // The authenticated check runs BEFORE the limiter, which is the whole reason that
+        // ordering is load-bearing: a signed-in visitor whose SPA re-renders the button
+        // must not be able to lock their colleagues out of signing in.
+        $this->get('/api/auth/google/redirect')->assertRedirectContains(self::AUTHORIZE_URL);
+    }
+
+    public function test_a_refused_request_does_not_deepen_its_own_hole(): void {
+        $this->capTheLimiterAtTwo();
+        $this->get('/api/auth/google/redirect');
+        $this->get('/api/auth/google/redirect');
+        $this->assertSame(2, RateLimiter::attempts(self::LIMIT_KEY));
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->get('/api/auth/google/redirect')->assertRedirect(self::FRONTEND . '/login?error=rate_limited');
+        }
+
+        // hit() runs only after the check passes, so hammering the door while locked out
+        // does not extend the lockout. Otherwise a visitor whose SPA retries — or who just
+        // keeps clicking — could never wait their way out of a window they never left.
+        $this->assertSame(2, RateLimiter::attempts(self::LIMIT_KEY));
+    }
+
+    // ------------------------------------------------- US4: AS5 the replayed callback
+    //
+    // The two callbacks above the fold both failed, so neither could have written twice.
+    // These two start from a callback that SUCCEEDED, which is the only version of the
+    // question worth asking: once a code has already bought an account and a session,
+    // what does presenting it a second time buy?
+
+    public function test_a_replayed_callback_creates_no_second_account_and_no_second_session(): void {
+        $this->fakeGoogle();
+        $state = $this->startFlow();
+        $url = '/api/auth/google/callback?code=the-code&state=' . $state;
+        $this->get($url)->assertRedirect(self::FRONTEND . '/');
+        $signedIn = User::sole()->id;
+        $this->app['auth']->forgetGuards();
+
+        $response = $this->get($url);
+
+        // Nothing here relies on Google rejecting a re-used code, which it does: the state
+        // is already spent, so the second request is refused before the code is presented
+        // at all. Http::assertSentCount(1) is what proves that — the token endpoint was
+        // never asked a second time, so the guarantee is ours and not the provider's.
+        $response->assertRedirect(self::FRONTEND . '/login?error=state');
+        $this->assertSame(1, User::count());
+        $this->assertSame(1, UserIdentity::count());
+        $this->assertSame($signedIn, Auth::guard('web')->id());
+        Http::assertSentCount(1);
+    }
+
+    public function test_a_callback_url_replayed_from_another_browser_signs_nobody_in(): void {
+        $this->fakeGoogle();
+        $state = $this->startFlow();
+        $url = '/api/auth/google/callback?code=the-code&state=' . $state;
+        $this->get($url)->assertRedirect(self::FRONTEND . '/');
+        $this->app['auth']->forgetGuards();
+        // A session with nothing in it: no flow, no signed-in account. That is what the
+        // attacker's browser has when a callback URL is lifted from a server log, a
+        // Referer header, or a shoulder-surfed address bar. Written through to the driver,
+        // because the next request reloads the session and the STORED value wins.
+        session()->flush();
+        session()->save();
+
+        $response = $this->get($url);
+
+        // FR-003's "bound to the browser that started it", which is the property a signed
+        // self-describing token would NOT have given us: unguessable and single-use, yes,
+        // but redeemable from anywhere. Holding the whole URL is not enough here.
+        $response->assertRedirect(self::FRONTEND . '/login?error=state');
+        $this->assertFalse(Auth::guard('web')->check());
+        $this->assertSame(1, User::count());
+        $this->assertSame(1, UserIdentity::count());
+        Http::assertSentCount(1);
     }
 }
