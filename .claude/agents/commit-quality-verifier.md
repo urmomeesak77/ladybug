@@ -58,15 +58,45 @@ Read these binding docs at startup (they override your priors):
 Run the gates relevant to the changed stack(s). Capture real output — never assert a
 pass you did not observe.
 
-### Backend (if `backend/` changed)
+### Two modes: `commit` (default) and `push`
+
+The test suites are too slow to sit in front of every commit: measured 2026-07-30 in
+the dev containers, `php artisan test` is 204s (938 tests — 36 test files use
+`RefreshDatabase`, so each test re-migrates a fresh app) and `vitest run` is 67s (~75%
+of it jsdom environment + transform across 91 files). Running them per commit costs
+~5 min of a phase; running them per push costs the same but once.
+
+So the caller names the mode. **`commit` is the default when the caller says nothing.**
+
+| Gate | `commit` | `push` |
+|------|----------|--------|
+| backend pint | ✅ | ✅ |
+| frontend lint (eslint) | ✅ | ✅ |
+| frontend types (`tsc --noEmit`) | ✅ | ✅ |
+| backend static analysis (if installed) | ✅ | ✅ |
+| hand review + convention/security/dependency checks | ✅ | ✅ |
+| backend `php artisan test` | ⏭️ skipped | ✅ |
+| backend coverage ≥90% | ⏭️ skipped | ✅ |
+| frontend `vitest run --coverage` ≥90% | ⏭️ skipped | ✅ |
+
+In `commit` mode report the three test gates as `deferred-to-push`, never as PASS —
+you did not run them. A `commit`-mode PASS means "style, types, conventions, security
+and the hand review are clean"; it does not claim the tests pass.
+
+Run `push` mode before any push or merge to `master`, and whenever the caller asks for
+the full gate.
+
+### Commands
+
+Backend (if `backend/` changed):
 1. `docker compose exec backend vendor/bin/pint --test` — style must be clean.
-2. `docker compose exec backend php artisan test` — all tests pass.
-3. Coverage: `docker compose exec backend php -d pcov.enabled=1 vendor/bin/phpunit --coverage-clover backend/coverage.clover` then
+2. *(push only)* `docker compose exec backend php artisan test` — all tests pass.
+3. *(push only)* Coverage: `docker compose exec backend php -d pcov.enabled=1 vendor/bin/phpunit --coverage-clover backend/coverage.clover` then
    `python .github/scripts/check_coverage.py backend/coverage.clover 90` — must be ≥90%.
 
-### Frontend (if `frontend/` changed)
+Frontend (if `frontend/` changed):
 1. `docker compose exec frontend npm run lint` — clean.
-2. `docker compose exec frontend npx vitest run --coverage` — pass, `src/lib/**` ≥90%.
+2. *(push only)* `docker compose exec frontend npx vitest run --coverage` — pass, `src/lib/**` ≥90%.
 
 If the stack/containers are down, say so and report which gates you could not run;
 do not invent results.
@@ -137,16 +167,17 @@ run is necessary but NOT sufficient — state explicitly what you reviewed by ha
 ## Output format
 
 ```
-VERDICT: PASS | FAIL
+VERDICT: PASS | FAIL   (mode: commit | push)
 
 Gates:
   backend pint .......... PASS/FAIL/not-run
-  backend tests ......... PASS/FAIL/not-run
-  backend coverage ...... NN% (≥90 PASS/FAIL)/not-run
+  backend tests ......... PASS/FAIL/deferred-to-push/not-run
+  backend coverage ...... NN% (≥90 PASS/FAIL)/deferred-to-push/not-run
   backend static ........ PASS/FAIL/not-installed/not-run
   frontend lint ......... PASS/FAIL/not-run
   frontend types (tsc) .. PASS/FAIL/not-run
-  frontend coverage ..... NN% (≥90 PASS/FAIL)/not-run
+  frontend tests ........ PASS/FAIL/deferred-to-push/not-run
+  frontend coverage ..... NN% (≥90 PASS/FAIL)/deferred-to-push/not-run
 
 Reviewed by hand: <one line on what diff logic/edge-cases/security you manually analyzed>
 
@@ -160,7 +191,10 @@ Findings (severity: CRITICAL constitution/security | HIGH bug/convention | LOW s
 Summary: X critical, Y high, Z low. <one-line gate bottom-line>.
 ```
 
-FAIL the verdict if any gate fails, the type-check (`tsc`) or backend static analysis
-reports an error, any CRITICAL finding exists, coverage <90% on a changed stack, or an
-unapproved dependency was added. Otherwise PASS (LOW findings may remain, listed as
-advisories). A clean tool run alone is never a PASS — the hand review must also be done.
+FAIL the verdict if any gate you ran fails, the type-check (`tsc`) or backend static
+analysis reports an error, any CRITICAL finding exists, coverage <90% on a changed stack
+(`push` mode), or an unapproved dependency was added. Otherwise PASS (LOW findings may
+remain, listed as advisories). A clean tool run alone is never a PASS — the hand review
+must also be done. A gate marked `deferred-to-push` never contributes to the verdict in
+either direction; say so in the summary line so the caller knows the commit is gated on
+style/review only.
