@@ -541,6 +541,107 @@ final class GoogleAuthControllerTest extends TestCase {
         $this->assertSame('the-first-subject', $stored->provider_user_id);
     }
 
+    // ------------------------------------------------- US5: AS1 the disabled account
+
+    /** A Google-linked account whose access an administrator has revoked. */
+    private function disabledLinkedAccount(): User {
+        $user = User::factory()->googleOnly()->disabled()->create(['email' => 'visitor@example.com']);
+        UserIdentity::factory()->for($user)->create(['provider_user_id' => self::SUB]);
+
+        return $user;
+    }
+
+    public function test_a_disabled_linked_account_is_refused_at_the_google_door(): void {
+        $this->fakeGoogle();
+        $existing = $this->disabledLinkedAccount();
+
+        $response = $this->completeFlow();
+
+        // FR-017, US5 AS1: the same refusal the password door gives, because a door the
+        // administrator did not close is not access revocation.
+        $response->assertRedirect(self::FRONTEND . '/login?error=disabled');
+        $this->assertFalse(Auth::guard('web')->check());
+        $this->assertTrue($existing->disabled_at->equalTo($existing->fresh()->disabled_at));
+    }
+
+    // --------------------------------------------- US5: AS2 Google confers no role
+
+    public function test_a_google_session_gets_the_role_the_account_already_held(): void {
+        $this->fakeGoogle();
+        User::factory()->admin()->create(['email' => 'visitor@example.com']);
+
+        $this->completeFlow();
+
+        // FR-018: the account's own role decides, both ways. A member signing in with
+        // Google is refused the console (asserted above) and an admin is not — the door
+        // the session came through is not part of the question.
+        $this->getJson('/api/admin/users')->assertOk();
+    }
+
+    // ------------------------------------------ US5: AS3 the account deleted mid-flow
+
+    public function test_an_account_hard_deleted_mid_flow_leaves_a_new_visitor(): void {
+        $this->fakeGoogle();
+        $gone = $this->disabledLinkedAccount()->fresh();
+        $gone->forceFill(['disabled_at' => null])->save();
+
+        $state = $this->startFlow();
+        // Feature 013's hard delete, run while the visitor is away at Google's consent
+        // screen. The link cascades with the account (FR-032).
+        $gone->delete();
+        $response = $this->get('/api/auth/google/callback?code=the-code&state=' . $state);
+        $this->app['auth']->forgetGuards();
+
+        // US5 AS3: no error and no missing account to sign into — the same Google
+        // account is simply somebody new.
+        $response->assertRedirect(self::FRONTEND . '/');
+        $this->assertSame(1, User::count());
+        $this->assertNotSame($gone->id, User::sole()->id);
+        $this->assertSame(User::sole()->id, UserIdentity::sole()->user_id);
+    }
+
+    // ------------------------------------- US5: AS4 refused before it is ever linked
+
+    public function test_a_disabled_account_matched_by_address_is_refused_before_linking(): void {
+        $this->fakeGoogle();
+        $existing = $this->accountHoldingTheAddress();
+        $existing->forceFill(['disabled_at' => now()])->save();
+        $existing->refresh();
+
+        $response = $this->completeFlow();
+
+        // US5 AS4, SC-006: the refusal precedes the first write, so the account is left
+        // exactly as the administrator left it — not linked and then refused.
+        $response->assertRedirect(self::FRONTEND . '/login?error=disabled');
+        $this->assertFalse(Auth::guard('web')->check());
+        $this->assertSame(0, UserIdentity::count());
+        $stored = User::sole();
+        $this->assertSame($existing->password, $stored->password);
+        $this->assertSame(7, $stored->rating);
+        $this->assertTrue($existing->disabled_at->equalTo($stored->disabled_at));
+        $this->assertTrue($existing->updated_at->equalTo($stored->updated_at));
+    }
+
+    // ---------------------------------------------------- US5: AS5 re-enabled again
+
+    public function test_a_re_enabled_account_signs_in_through_google_normally(): void {
+        Http::fake([self::TOKEN_URL => Http::sequence()
+            ->push(['id_token' => $this->idToken()])
+            ->push(['id_token' => $this->idToken()])]);
+        $existing = $this->accountHoldingTheAddress();
+        $existing->forceFill(['disabled_at' => now()])->save();
+
+        $this->completeFlow()->assertRedirect(self::FRONTEND . '/login?error=disabled');
+        $existing->forceFill(['disabled_at' => null])->save();
+        $response = $this->completeFlow();
+
+        // FR-017's final clause: re-enabling is the whole of the undo, because the
+        // refusal left no half-built link behind to clear first.
+        $response->assertRedirect(self::FRONTEND . '/');
+        $this->assertSame($existing->id, Auth::guard('web')->id());
+        $this->assertSame($existing->id, UserIdentity::sole()->user_id);
+    }
+
     // ----------------------------------------------------------------- the token call
 
     public function test_the_callback_redeems_the_code_exactly_once(): void {

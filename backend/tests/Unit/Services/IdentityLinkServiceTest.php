@@ -67,6 +67,33 @@ final class IdentityLinkServiceTest extends TestCase {
         return $user;
     }
 
+    /**
+     * Run the flow and assert it was refused as disabled. Written as a helper because
+     * the "writes nothing" tests below are about the blast radius rather than the code,
+     * and must still fail — rather than silently assert a path that was never refused —
+     * if the guard is ever removed.
+     */
+    private function assertRefused(GoogleIdentity $identity): void {
+        try {
+            $this->service()->resolve($identity);
+            $this->fail('Expected a disabled account to be refused.');
+        }
+        catch (OAuthFailure $failure) {
+            $this->assertSame(OAuthFailure::DISABLED, $failure->failureCode);
+        }
+    }
+
+    /** That same returning visitor, after an administrator revoked its access. */
+    private function disabledReturningVisitor(): User {
+        $user = User::factory()->googleOnly()->disabled()->create([
+            'name' => 'A Visitor',
+            'email' => 'visitor@example.com',
+        ]);
+        UserIdentity::factory()->for($user)->create(['provider_user_id' => self::SUB]);
+
+        return $user;
+    }
+
     // ------------------------------------------------ step 1: the FR-005 email guard
 
     public function test_an_unconfirmed_address_is_refused_before_the_transaction_opens(): void {
@@ -163,6 +190,40 @@ final class IdentityLinkServiceTest extends TestCase {
         // data-model.md §3: the stamp records when the address was FIRST confirmed. A
         // re-call would quietly rewrite it to now() on every single sign-in.
         $this->assertTrue($verifiedAt->equalTo(User::sole()->email_verified_at));
+    }
+
+    public function test_a_disabled_account_is_refused_at_its_own_link(): void {
+        $existing = $this->disabledReturningVisitor();
+
+        try {
+            $this->service()->resolve($this->identity());
+            $this->fail('Expected a disabled account to be refused at the Google door.');
+        }
+        catch (OAuthFailure $failure) {
+            // FR-017, US5 AS1: access revocation that covers only one of two front doors
+            // is not access revocation. The link is not a way around the administrator.
+            $this->assertSame(OAuthFailure::DISABLED, $failure->failureCode);
+        }
+
+        $this->assertNotNull($existing->fresh()->disabled_at);
+    }
+
+    public function test_the_refusal_at_the_link_writes_nothing(): void {
+        $this->travel(-2)->days();
+        $existing = $this->disabledReturningVisitor();
+        $userUpdatedAt = $existing->updated_at;
+        $linkUpdatedAt = UserIdentity::sole()->updated_at;
+        $this->travelBack();
+
+        $this->assertRefused($this->identity());
+
+        // SC-006: the guard sits above the return and below the lookup, so a refusal is
+        // reached before the first write rather than cleaned up after one. Both rows were
+        // written two days ago, so any save at all would drag a timestamp up to now.
+        $this->assertTrue($userUpdatedAt->equalTo(User::sole()->updated_at));
+        $this->assertTrue($linkUpdatedAt->equalTo(UserIdentity::sole()->updated_at));
+        $this->assertSame(1, User::count());
+        $this->assertSame(1, UserIdentity::count());
     }
 
     public function test_a_hard_deleted_account_leaves_its_person_a_new_visitor(): void {
@@ -319,6 +380,75 @@ final class IdentityLinkServiceTest extends TestCase {
         $stored = UserIdentity::sole();
         $this->assertSame($original->id, $stored->id);
         $this->assertSame('the-first-subject', $stored->provider_user_id);
+    }
+
+    public function test_a_disabled_account_matched_by_its_address_is_refused(): void {
+        $existing = $this->passwordAccount();
+        $existing->forceFill(['disabled_at' => now()])->save();
+
+        try {
+            $this->service()->resolve($this->identity());
+            $this->fail('Expected a disabled account to be refused before it is linked.');
+        }
+        catch (OAuthFailure $failure) {
+            // US5 AS4: the account is reachable by either door, so the guard is written
+            // at both — the address path is not a way in around the link path's refusal.
+            $this->assertSame(OAuthFailure::DISABLED, $failure->failureCode);
+        }
+    }
+
+    public function test_the_refusal_by_address_stores_no_link(): void {
+        $this->passwordAccount()->forceFill(['disabled_at' => now()])->save();
+
+        $this->assertRefused($this->identity());
+
+        // SC-006, INV-9: a disabled account must not silently acquire a link on a
+        // sign-in it was always going to refuse — nor an account be created beside it.
+        $this->assertSame(0, UserIdentity::count());
+        $this->assertSame(1, User::count());
+    }
+
+    public function test_the_refusal_by_address_leaves_every_column_as_the_administrator_left_it(): void {
+        $this->travel(-2)->days();
+        $existing = User::factory()->unverified()->create([
+            'name' => 'Ada Lovelace',
+            'email' => 'visitor@example.com',
+            'rating' => 42,
+            'disabled_at' => now(),
+        ]);
+        $this->travelBack();
+
+        $this->assertRefused($this->identity());
+
+        // The account is deliberately unverified as well as disabled, because the
+        // conditional verification stamp is the one write on this path that a guard
+        // placed too low would still let through.
+        $stored = User::sole();
+        $this->assertNull($stored->email_verified_at);
+        $this->assertSame('Ada Lovelace', $stored->name);
+        $this->assertSame($existing->password, $stored->password);
+        $this->assertSame($existing->hash, $stored->hash);
+        $this->assertSame($existing->role, $stored->role);
+        $this->assertSame(42, $stored->rating);
+        $this->assertTrue($existing->disabled_at->equalTo($stored->disabled_at));
+        $this->assertTrue($existing->updated_at->equalTo($stored->updated_at));
+    }
+
+    public function test_a_re_enabled_account_links_as_though_the_refusal_had_never_happened(): void {
+        $existing = $this->passwordAccount();
+        $existing->forceFill(['disabled_at' => now()])->save();
+
+        $this->assertRefused($this->identity());
+
+        $existing->forceFill(['disabled_at' => null])->save();
+        $user = $this->service()->resolve($this->identity());
+
+        // US5 AS5, FR-017's final clause: because the refusal wrote nothing, re-enabling
+        // is the whole of the undo — there is no half-built link to clear first.
+        $this->assertSame($existing->id, $user->id);
+        $this->assertSame(1, User::count());
+        $this->assertSame($existing->id, UserIdentity::sole()->user_id);
+        $this->assertSame(self::SUB, UserIdentity::sole()->provider_user_id);
     }
 
     public function test_an_unconfirmed_address_does_not_verify_the_account_holding_it(): void {

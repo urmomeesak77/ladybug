@@ -88,10 +88,9 @@ class IdentityLinkService {
         // and the same `sub` still resolves to the same account.
         $user = $link?->user;
 
-        // (US5) the disabled guard on this path lands with the story that owns it, and
-        // must sit here — above the return, below the lookup, before any write.
-
         if ($user !== null) {
+            $this->refuseIfDisabled($user);
+
             return $user;
         }
 
@@ -120,8 +119,7 @@ class IdentityLinkService {
      * true by construction rather than by a test that happens to pass.
      */
     private function attach(User $user, GoogleIdentity $identity): User {
-        // (US5) the disabled guard on this path lands with the story that owns it, and
-        // must sit here — above the first write, so a refusal changes nothing.
+        $this->refuseIfDisabled($user);
 
         // FR-012, US3 AS6: one account, one Google account. Re-pointing an existing link
         // would hand whoever arrived second the keys to an account that is not theirs.
@@ -138,6 +136,26 @@ class IdentityLinkService {
         }
 
         return $user;
+    }
+
+    /**
+     * Steps 3 and 5's shared refusal: an account an administrator disabled stays out,
+     * whichever door it knocks on (FR-017, US5 AS1).
+     *
+     * Called at BOTH resolution points and, at each, before that path's first write —
+     * which is the whole of the 2026-07-29 clarification, "refuse first, write nothing".
+     * A disabled account must not silently acquire a link on a sign-in it was always
+     * going to be refused, so SC-006's "left byte-for-byte as the administrator left it"
+     * is a property of where this call sits rather than of a cleanup path (US5 AS4). It
+     * is also what makes re-enabling the whole of the undo: there is nothing behind to
+     * clear (US5 AS5).
+     *
+     * @throws OAuthFailure
+     */
+    private function refuseIfDisabled(User $user): void {
+        if ($user->isDisabled()) {
+            throw new OAuthFailure(OAuthFailure::DISABLED);
+        }
     }
 
     /**
