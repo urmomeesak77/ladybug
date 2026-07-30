@@ -158,4 +158,8 @@ protect them.
 Remaining manual steps:
   1. Fill MAIL_PASSWORD in $ROOT/backend.env (from the dev backend/.env)
   2. Fill FTP_USER and FTP_PASS in /root/.ladybug-ftp
+  3. Fill GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in $ROOT/backend.env, from
+     the Google Cloud console (docs/DEPLOYMENT.md section 3). Optional: left
+     empty, the site runs and the Google button refuses cleanly -- only the
+     password sign-in door works.
 SUMMARY
