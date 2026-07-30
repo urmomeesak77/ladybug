@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AuthUser } from '../../src/lib/authApi';
 import { AuthModel } from '../../src/lib/authModel';
 
 const validRegister = {
@@ -195,6 +196,42 @@ describe('resendFeedback', () => {
   it('reports a network failure as retryable', () => {
     expect(AuthModel.resendFeedback({ ok: false, kind: 'network' }))
       .toBe('Something went wrong. Please check your connection and try again.');
+  });
+});
+
+// Feature 017 (FR-029): the account page states in WORDS which doors the account has —
+// the only disclosure that a Google link was auto-attached to a pre-existing account.
+describe('signInMethod', () => {
+  const account: AuthUser = {
+    hash: 'usr0000001',
+    name: 'Ada',
+    email: 'ada@example.com',
+    emailVerifiedAt: '2026-07-07T10:00:00Z',
+    role: 'member',
+    createdAt: '',
+    updatedAt: '',
+    hasPassword: true,
+    googleLinkedAt: null,
+  };
+
+  it('names Google alone for a passwordless linked account', () => {
+    expect(AuthModel.signInMethod({ ...account, hasPassword: false, googleLinkedAt: '2026-07-29T09:00:00Z' }))
+      .toBe('Google');
+  });
+
+  it('names e-mail and password for an unlinked password account', () => {
+    expect(AuthModel.signInMethod(account)).toBe('Email and password');
+  });
+
+  it('names both for an account carrying both doors', () => {
+    expect(AuthModel.signInMethod({ ...account, googleLinkedAt: '2026-07-29T09:00:00Z' }))
+      .toBe('Google and email/password');
+  });
+
+  // Unreachable in practice — an account with neither door could not have been created —
+  // but the function is total, and the fallback names the door the site started with.
+  it('falls back to e-mail and password when the account claims neither door', () => {
+    expect(AuthModel.signInMethod({ ...account, hasPassword: false })).toBe('Email and password');
   });
 });
 

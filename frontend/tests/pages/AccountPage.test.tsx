@@ -149,3 +149,40 @@ describe('AccountPage', () => {
     expect(screen.queryByRole('button', { name: 'Resend verification e-mail' })).toBeNull();
   });
 });
+
+// Feature 017 (FR-029). The sign-in method is the ONLY place the site tells the owner
+// that a Google link was auto-attached to their pre-existing account (US3) — no e-mail
+// is sent — so it is asserted per outcome rather than in one round-up.
+describe('AccountPage — sign-in method', () => {
+  // Reads the value paired with the term, which also asserts the row is a real dt/dd
+  // pair inside the details list rather than two loose lines of text.
+  function methodFor(overrides: Partial<AuthUser>): HTMLElement {
+    renderAccount({ ...ada, hasPassword: true, googleLinkedAt: null, ...overrides });
+    const term = screen.getByText('Sign-in method');
+    return term.nextElementSibling as HTMLElement;
+  }
+
+  it('names Google alone for a passwordless linked account', () => {
+    expect(methodFor({ hasPassword: false, googleLinkedAt: '2026-07-29T09:00:00Z' }).textContent)
+      .toBe('Google');
+  });
+
+  it('names e-mail and password for an unlinked password account', () => {
+    expect(methodFor({}).textContent).toBe('Email and password');
+  });
+
+  it('names both doors once a Google account is linked to a password account', () => {
+    expect(methodFor({ googleLinkedAt: '2026-07-29T09:00:00Z' }).textContent)
+      .toBe('Google and email/password');
+  });
+
+  it('falls back to e-mail and password for an account claiming neither door', () => {
+    expect(methodFor({ hasPassword: false }).textContent).toBe('Email and password');
+  });
+
+  it('states the method in words, never an icon or a colour', () => {
+    // Principle IV: the value is text and nothing but text — no badge element to
+    // carry the meaning, so it survives a screen reader and a monochrome display.
+    expect(methodFor({}).children.length).toBe(0);
+  });
+});

@@ -61,6 +61,26 @@ describe('mapUser', () => {
 
     expect(AuthApi.mapUser(admin).role).toBe('admin');
   });
+
+  // Feature 017 (FR-029). The 007 fixture above deliberately keeps the payload it was
+  // written against; these cases carry their own, so no existing assertion moves.
+  it('maps the sign-in-method fields of a Google-only account', () => {
+    const googleOnly = { ...rawUser, has_password: false, google_linked_at: '2026-07-29T09:00:00Z' };
+
+    const user = AuthApi.mapUser(googleOnly);
+
+    expect(user.hasPassword).toBe(false);
+    expect(user.googleLinkedAt).toBe('2026-07-29T09:00:00Z');
+  });
+
+  it('maps the sign-in-method fields of an unlinked password account', () => {
+    const passwordOnly = { ...rawUser, has_password: true, google_linked_at: null };
+
+    const user = AuthApi.mapUser(passwordOnly);
+
+    expect(user.hasPassword).toBe(true);
+    expect(user.googleLinkedAt).toBeNull();
+  });
 });
 
 describe('register', () => {

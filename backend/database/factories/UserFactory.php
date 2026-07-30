@@ -50,6 +50,19 @@ class UserFactory extends Factory {
     }
 
     /**
+     * Indicate that the account was created through Google and has no password at
+     * all: verified because Google confirmed the address (FR-014), member role like
+     * any other new account (FR-013). The fixture for every FR-020 assertion.
+     */
+    public function googleOnly(): static {
+        return $this->state(fn (array $attributes) => [
+            'password' => null,
+            'email_verified_at' => now(),
+            'role' => Role::Member->value,
+        ]);
+    }
+
+    /**
      * Indicate that the account holds the admin role.
      */
     public function admin(): static {

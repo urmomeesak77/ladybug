@@ -47,6 +47,10 @@ function AccountPage() {
         <dd>{user.email}</dd>
         <dt>Email verification</dt>
         <dd>{user.emailVerifiedAt === null ? 'Not verified' : 'Verified'}</dd>
+        {/* 017/FR-029: which doors this account has, in words. Also the only notice
+            the owner gets that a Google account was auto-linked to theirs (US3). */}
+        <dt>Sign-in method</dt>
+        <dd>{AuthModel.signInMethod(user)}</dd>
       </dl>
       {user.emailVerifiedAt === null
         ? (

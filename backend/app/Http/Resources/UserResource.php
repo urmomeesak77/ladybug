@@ -14,6 +14,13 @@ class UserResource extends JsonResource {
      * The DB id never reaches clients — the account's public handle is its 10-char
      * hash (Principle V).
      *
+     * The two sign-in-method fields (017, FR-029) are safe here only because this
+     * resource is returned for the REQUESTER'S OWN account and nowhere else —
+     * register, login, /api/user and the verification landing. Which doors an
+     * account has is nobody else's business, and `provider_user_id` is disclosed
+     * to no one at all (FR-022): `google_linked_at` is a timestamp, not an
+     * identifier, and cannot be presented back to Google.
+     *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array {
@@ -25,6 +32,8 @@ class UserResource extends JsonResource {
             'role' => $this->role->value,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            'has_password' => $this->password !== null,
+            'google_linked_at' => $this->googleIdentity?->created_at,
         ];
     }
 }

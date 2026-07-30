@@ -30,7 +30,7 @@ function deferredResult() {
   return { promise, resolve };
 }
 
-function renderRegister(registerResult: AuthResult | Promise<AuthResult>) {
+function renderRegister(registerResult: AuthResult | Promise<AuthResult>, initialEntry = '/register') {
   const register = vi.fn().mockResolvedValue(registerResult);
   const value: AuthContextValue = {
     status: 'anonymous',
@@ -41,7 +41,7 @@ function renderRegister(registerResult: AuthResult | Promise<AuthResult>) {
     refresh: vi.fn(),
   };
   render(
-    <MemoryRouter initialEntries={['/register']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <AuthContext.Provider value={value}>
         <NoticeProvider>
           <LocationProbe />
@@ -201,5 +201,75 @@ describe('RegisterPage', () => {
 
     const link = screen.getByRole('link', { name: 'Already have an account? Login here....' });
     expect(link.getAttribute('href')).toBe('/login');
+  });
+});
+
+// Feature 017 (US6). Signing up with Google has to be offered where people sign up, and
+// a refused round trip returns HERE as well as to /login — so this page gains both the
+// door and, for the first time, a form-level alert region to land the refusal in.
+describe('RegisterPage — the Google door', () => {
+  it('offers the Google option', () => {
+    renderRegister(okResult);
+
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy();
+  });
+
+  it('separates the two methods with the word "or"', () => {
+    renderRegister(okResult);
+
+    // FR-026 is about the WORD: a styled divider alone distinguishes the two methods
+    // by appearance only, which a screen-reader user never receives.
+    expect(screen.getByText('or')).toBeTruthy();
+  });
+
+  it('places the Google option after the form controls', () => {
+    renderRegister(okResult);
+
+    const submit = screen.getByRole('button', { name: 'Register' });
+    const google = screen.getByRole('button', { name: 'Continue with Google' });
+    // Tab order follows DOM order — no tabindex above 0 anywhere (US6 AS2).
+    expect(submit.compareDocumentPosition(google) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('raises no alert on an ordinary visit', () => {
+    renderRegister(okResult);
+
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it.each([
+    ['cancelled', 'Google sign-in was cancelled.'],
+    ['state', 'That sign-in attempt is no longer valid. Please try again.'],
+    [
+      'unverified_email',
+      'Google did not confirm an e-mail address for that account. Please use e-mail and password instead.',
+    ],
+    ['already_linked', 'That account is already connected to a different Google account.'],
+    ['disabled', 'This account is disabled.'],
+    ['rate_limited', 'Too many sign-in attempts. Please wait a moment and try again.'],
+    ['provider', 'Google could not be reached. Please try again, or use e-mail and password.'],
+  ])('announces the %s refusal in an alert', (code, sentence) => {
+    renderRegister(okResult, `/register?error=${code}`);
+
+    // role="alert" so the message is announced, not merely painted (FR-007).
+    expect(screen.getByRole('alert').textContent).toBe(sentence);
+  });
+
+  it('shows the retryable sentence for a code this build has never heard of', () => {
+    renderRegister(okResult, '/register?error=teapot');
+
+    expect(screen.getByRole('alert').textContent)
+      .toBe('Google could not be reached. Please try again, or use e-mail and password.');
+  });
+
+  it('renders a hand-crafted error parameter as text through the fixed map', () => {
+    renderRegister(okResult, '/register?error=%3Cscript%3Ealert(1)%3C%2Fscript%3E');
+
+    // The parameter is a lookup key, never interpolated: nothing of it reaches the DOM,
+    // as markup or as text (contracts/ui-surface.md §2).
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent)
+      .toBe('Google could not be reached. Please try again, or use e-mail and password.');
+    expect(alert.querySelector('script')).toBeNull();
   });
 });

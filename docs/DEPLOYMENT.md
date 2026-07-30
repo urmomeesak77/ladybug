@@ -218,7 +218,7 @@ MySQL app password, and the backup passphrase into a password manager before
 doing anything else. **The backup passphrase cannot be recovered later — it is
 what decrypts the backups.**
 
-Two manual steps remain, called out at the end of the script's output:
+Three manual steps remain, called out at the end of the script's output:
 
 1. Fill `MAIL_PASSWORD` in `/web/online-trash.com/backend.env` — copy the value
    from the dev `backend/.env` (same `smtp.zone.eu` / `no-reply@online-trash.com`
@@ -226,6 +226,66 @@ Two manual steps remain, called out at the end of the script's output:
 2. Fill `FTP_USER` and `FTP_PASS` in `/root/.ladybug-ftp` — the dedicated
    Zone.eu backup account. **Single-quote the password**: it contains `/`,
    `=`, `?` and `+`, all of which an unquoted shell would mangle.
+3. Fill `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in
+   `/web/online-trash.com/backend.env` — see the next section for where those
+   come from.
+
+### The Google OAuth client (017)
+
+"Sign in with Google" needs an OAuth client registered with Google. This is a
+deployment prerequisite, not code: nothing in the repository can create it, and
+no code path can paper over a mistake in it.
+
+**Creating the client.** In the
+[Google Cloud console](https://console.cloud.google.com/apis/credentials),
+create an **OAuth 2.0 Client ID** of type **Web application**. On the OAuth
+consent screen, request only three scopes — `openid`, `email` and `profile`
+(FR-002). The flow reads the `id_token`'s claims and nothing else; a wider
+consent screen would ask visitors to grant access the site never uses.
+
+**The authorised redirect URIs must byte-match `GOOGLE_REDIRECT_URI`.**
+Register both:
+
+```
+http://localhost:8000/api/auth/google/callback      # dev (Google permits http://localhost on any port)
+https://online-trash.com/api/auth/google/callback   # production
+```
+
+A mismatch — a trailing slash, `http` vs `https`, `www.` present or absent — is
+a `redirect_uri_mismatch` screen served by Google, **before** the visitor ever
+returns to us. No application code runs, so none of the feature's own error
+handling can catch it or explain it. Check this first when the flow breaks with
+a Google-branded error page rather than a Ladybug one.
+
+**The three server env keys** go in `/web/online-trash.com/backend.env`
+(`chmod 600`, and `deploy/backend.env.example` carries all three with the id
+and secret **empty** — the repository is public and these are secrets, FR-023):
+
+```
+GOOGLE_CLIENT_ID=<from the console>
+GOOGLE_CLIENT_SECRET=<from the console>
+GOOGLE_REDIRECT_URI=https://online-trash.com/api/auth/google/callback
+```
+
+Leaving them empty is a supported state, not a broken one: the button still
+renders and the flow refuses cleanly with `?error=provider` and a retryable
+message. That is what the e2e stack runs on, so an unconfigured deployment
+degrades to "this door is shut" rather than to a blank page.
+
+**No nginx change is required.** `deploy/web/default.conf` already routes
+`location ~ ^/(api|up|sanctum)(/|$)` to php-fpm, which is why both endpoints
+carry the `/api/` prefix.
+
+**Rolling back the nullable-password migration is a procedure, not a command.**
+`2026_07_29_000001_make_users_password_nullable` is reversible only on a schema
+holding no passwordless accounts, which is what `MigrationReversibilityTest`
+exercises. Once Google-only accounts exist, restoring `NOT NULL` errors under
+MySQL strict mode and silently writes `''` without it — and `''` is not a
+password anyone can use, it is a row that fails login forever with no way to
+recover it. To roll back for real: export the affected accounts
+(`SELECT * FROM users WHERE password IS NULL`), decide their fate — delete
+them, or set a random hash and force a reset, noting that password reset is
+unbuilt project-wide — and only then migrate down.
 
 ## 4. Edge nginx
 
@@ -557,6 +617,11 @@ release you don't fully trust:
   arrives** via `smtp.zone.eu`; click the link and confirm verification
   succeeds.
 - Log in and confirm the session cookie is `Secure`.
+- **Sign in with Google** (017): the button renders on `/login` and `/register`;
+  the round trip signs you in and lands back on the page you came from. If it
+  returns to `/login?error=provider`, the three `GOOGLE_*` keys did not reach
+  the container; if Google itself shows `redirect_uri_mismatch`, the registered
+  URI does not byte-match `GOOGLE_REDIRECT_URI` (Section 3).
 - Upload an image and a YouTube link.
 - Post a comment.
 - Both `/admin/trashposts` and `/admin/users` load for an admin account.

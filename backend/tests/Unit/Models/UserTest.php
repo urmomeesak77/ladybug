@@ -7,8 +7,10 @@ namespace Tests\Unit\Models;
 use App\Enums\Role;
 use App\Models\Trashpost;
 use App\Models\User;
+use App\Models\UserIdentity;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 final class UserTest extends TestCase {
@@ -150,6 +152,55 @@ final class UserTest extends TestCase {
 
         $this->assertNotContains('disabled_at', $fillable);
         $this->assertNotContains('disabled_by', $fillable);
+    }
+
+    public function test_google_identity_resolves_the_google_link(): void {
+        $user = User::factory()->create();
+        $identity = UserIdentity::factory()->create(['user_id' => $user->id]);
+
+        $this->assertTrue($user->fresh()->googleIdentity->is($identity));
+    }
+
+    public function test_google_identity_ignores_a_link_from_another_provider(): void {
+        // The relation is constrained to provider = 'google', so a second provider
+        // added later cannot be mistaken for a Google link (data-model §1).
+        $user = User::factory()->create();
+        UserIdentity::factory()->create(['user_id' => $user->id, 'provider' => 'github']);
+
+        $this->assertNull($user->fresh()->googleIdentity);
+    }
+
+    public function test_google_identity_picks_the_google_link_out_of_several_providers(): void {
+        $user = User::factory()->create();
+        UserIdentity::factory()->create(['user_id' => $user->id, 'provider' => 'github']);
+        $google = UserIdentity::factory()->create(['user_id' => $user->id, 'provider' => 'google']);
+
+        $this->assertTrue($user->fresh()->googleIdentity->is($google));
+    }
+
+    public function test_an_account_with_no_link_has_no_google_identity(): void {
+        $this->assertNull(User::factory()->create()->googleIdentity);
+    }
+
+    public function test_the_google_only_state_is_a_verified_passwordless_member(): void {
+        // The fixture for every Google-created account (data-model §9): no password
+        // at all, already verified because Google confirmed the address (FR-014),
+        // and the ordinary member role (FR-013).
+        $user = User::factory()->googleOnly()->create()->fresh();
+
+        $this->assertNull($user->password);
+        $this->assertNotNull($user->email_verified_at);
+        $this->assertSame(Role::Member, $user->role);
+    }
+
+    public function test_hashing_fails_closed_on_an_absent_stored_hash(): void {
+        // FR-020's second guard is framework behaviour, and a security requirement
+        // resting on an unasserted framework internal is one upgrade away from being
+        // false (research D6). Auth::attempt() reaches Hash::check() with the stored
+        // hash, so these two returns are what stop a passwordless account being
+        // signed into by the password form.
+        $this->assertFalse(Hash::check('', null));
+        $this->assertFalse(Hash::check('', ''));
     }
 
     public function test_posts_returns_the_users_trashposts(): void {

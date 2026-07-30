@@ -575,6 +575,63 @@ main {
   opacity: 0.5;
 }
 
+/* The Google door beneath the password form (017). Stacked, not side by side: at 320px
+   two controls on one row would either wrap unpredictably or clip. */
+.auth-alt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+/* FR-026: the separation is this WORD. The hairlines are drawn as pseudo-elements
+   BESIDE the label precisely so they stay decoration — remove them and the meaning of
+   the row is unchanged, which is the test of whether a signal is carried by text. */
+.auth-alt__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--color-text-muted);
+}
+
+.auth-alt__label::before,
+.auth-alt__label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--color-control-border);
+}
+
+/* Deliberately the same outlined, full-width shape as the submit button above it: the
+   two sign-in methods are equals, so neither gets an accent fill the other lacks. */
+.google-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: 2.75rem; /* ~44px: comfortable touch target (Principle VIII). */
+  padding: 8px;
+  font: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-control-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.google-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* The one element that does not follow the scheme: Google's mark keeps its official
+   brand colours in both appearances (contracts/ui-surface.md §4). It stays legible
+   because it sits on the surface token in either scheme, never on a wash of its own. */
+.google-button__mark {
+  flex: none;
+}
+
 /* The Image/YouTube media chooser: a WAI-ARIA tablist. The tabs wrap rather than scroll on
    narrow screens (no horizontal scroll, Principle VIII) and sit above the active tab's panel. */
 .media-tabs__list {

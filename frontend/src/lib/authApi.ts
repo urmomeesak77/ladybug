@@ -12,6 +12,11 @@ export type AuthUser = {
   role: RoleName;
   createdAt: string;
   updatedAt: string;
+  // Which doors the account has (017, FR-029). Own-account only — no public payload
+  // carries these, and neither is the Google subject identifier, which never leaves
+  // the server (FR-022).
+  hasPassword: boolean;
+  googleLinkedAt: string | null;
 };
 
 // Laravel's validation error envelope: field name → list of messages.
@@ -58,6 +63,8 @@ type RawUser = {
   role: RoleName;
   created_at: string;
   updated_at: string;
+  has_password: boolean;
+  google_linked_at: string | null;
 };
 
 // Sanctum SPA cookie-session auth client (007): register/login/logout plus session probe.
@@ -71,6 +78,8 @@ export class AuthApi {
       role: raw.role,
       createdAt: raw.created_at,
       updatedAt: raw.updated_at,
+      hasPassword: raw.has_password,
+      googleLinkedAt: raw.google_linked_at,
     };
   }
 
