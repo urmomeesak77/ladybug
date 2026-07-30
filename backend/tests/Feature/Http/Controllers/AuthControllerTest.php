@@ -227,6 +227,91 @@ class AuthControllerTest extends TestCase {
         $this->assertNotNull($disabled->fresh()->disabled_at);
     }
 
+    public function test_login_on_a_passwordless_account_is_refused_with_the_generic_401(): void {
+        // contracts/password-login-invariant.md §1: users.password lost NOT NULL in 017,
+        // so "every account has a password" is now behaviour rather than structure.
+        // Hash::check() fails closed on a null stored hash, so Auth::attempt() cannot
+        // succeed — asserted here rather than assumed, because a framework upgrade that
+        // changed it must fail loudly (research D6).
+        User::factory()->googleOnly()->create(['email' => 'ada@example.com']);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'anything']);
+
+        $response->assertStatus(401);
+        $response->assertExactJson(['message' => 'These credentials do not match our records.']);
+        $this->assertGuest();
+    }
+
+    public function test_the_passwordless_401_is_byte_identical_to_a_wrong_password_401(): void {
+        // SC-008: the login form must not become an oracle for which accounts are
+        // Google-only. Both paths run the same Auth::attempt() call, so there is no
+        // timing branch either.
+        User::factory()->googleOnly()->create(['email' => 'google-only@example.com']);
+        User::factory()->create(['email' => 'has-password@example.com']);
+
+        $passwordless = $this->postJson('/api/login', ['email' => 'google-only@example.com', 'password' => 'anything']);
+        $wrongPassword = $this->postJson('/api/login', ['email' => 'has-password@example.com', 'password' => 'anything']);
+
+        $this->assertSame($wrongPassword->getStatusCode(), $passwordless->getStatusCode());
+        $this->assertSame($wrongPassword->getContent(), $passwordless->getContent());
+        $this->assertSame(
+            array_keys($wrongPassword->headers->all()),
+            array_keys($passwordless->headers->all()),
+        );
+        $this->assertSame(
+            $wrongPassword->headers->get('Content-Type'),
+            $passwordless->headers->get('Content-Type'),
+        );
+    }
+
+    public function test_login_on_a_passwordless_account_never_reaches_the_disabled_403(): void {
+        // §2: the disabled 403 still runs only AFTER credentials verify, and a
+        // passwordless account's credentials never verify — so it cannot be told apart
+        // from any other bad-credential attempt.
+        $actor = User::factory()->admin()->create();
+        $target = User::factory()->googleOnly()->create(['email' => 'ada@example.com']);
+        app(UserAdminService::class)->disable($actor, $target->hash);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'anything']);
+
+        $response->assertStatus(401);
+        $response->assertExactJson(['message' => 'These credentials do not match our records.']);
+    }
+
+    public function test_login_on_a_passwordless_account_refuses_an_empty_password_at_validation(): void {
+        // Guard 1 of FR-020: LoginRequest still requires the field, so an empty password
+        // is a 422 and never reaches Auth::attempt() at all.
+        User::factory()->googleOnly()->create(['email' => 'ada@example.com']);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => '']);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('password');
+        $this->assertGuest();
+    }
+
+    public function test_login_on_a_passwordless_account_refuses_an_absent_password(): void {
+        User::factory()->googleOnly()->create(['email' => 'ada@example.com']);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com']);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('password');
+        $this->assertGuest();
+    }
+
+    public function test_login_on_a_passwordless_account_refuses_a_null_password(): void {
+        // An explicit null is the same as absent to the `required` rule — asserted so
+        // the three shapes in §1's table are all covered, not just the two obvious ones.
+        User::factory()->googleOnly()->create(['email' => 'ada@example.com']);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => null]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('password');
+        $this->assertGuest();
+    }
+
     public function test_login_rejects_a_malformed_request(): void {
         $response = $this->postJson('/api/login', ['email' => 'not-an-email', 'password' => '']);
 

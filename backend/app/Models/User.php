@@ -10,6 +10,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -80,6 +81,16 @@ class User extends Authenticatable implements MustVerifyEmail {
      */
     public function comments(): HasMany {
         return $this->hasMany(Comment::class);
+    }
+
+    /**
+     * The Google link for this account, or null when it has none. Constrained to
+     * provider = 'google' so a second provider added later cannot be mistaken for
+     * one — the `provider` column exists precisely to keep that door open
+     * (data-model §1).
+     */
+    public function googleIdentity(): HasOne {
+        return $this->hasOne(UserIdentity::class)->where('provider', 'google');
     }
 
     /**
