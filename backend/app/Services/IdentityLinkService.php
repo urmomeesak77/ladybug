@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\UserIdentity;
 use App\Support\GoogleIdentity;
 use App\Utils\Str;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -40,6 +41,25 @@ class IdentityLinkService {
             throw new OAuthFailure(OAuthFailure::UNVERIFIED_EMAIL);
         }
 
+        try {
+            return $this->attempt($identity);
+        }
+        catch (UniqueConstraintViolationException) {
+            // Research D8's concurrency backstop. The locks below serialize two flows
+            // sharing a connection; two flows on two connections can still both find
+            // nothing and both insert, and the unique indexes (D7) are what turns that
+            // into a caught error rather than a duplicate account or a second link.
+            //
+            // The whole transaction is re-run rather than the statement retried, so the
+            // half-built account of the losing attempt goes back with it — and re-run
+            // exactly once, because a second violation is no longer a lost race but a
+            // genuine fault, and looping on it would hang the request instead.
+            return $this->attempt($identity);
+        }
+    }
+
+    /** One run of steps 2–6 under one transaction. */
+    private function attempt(GoogleIdentity $identity): User {
         return DB::transaction(fn (): User => $this->resolveLocked($identity));
     }
 
@@ -75,11 +95,49 @@ class IdentityLinkService {
             return $user;
         }
 
-        // Steps 4–5 (US3) — the address collision: the account holding this address
-        // gains the link, unless it is disabled or already linked elsewhere.
+        // Step 4: the address collision. Locked exactly like the link above, so two
+        // flows arriving on one address serialize rather than race — and reached only
+        // because step 2 found nothing, which is what keeps a linked account off this
+        // path forever after (FR-009).
+        $holder = User::where('email', $identity->email)->lockForUpdate()->first();
+
+        if ($holder !== null) {
+            return $this->attach($holder, $identity);
+        }
 
         // Step 6: nobody here by either door, so this is a new person.
         return $this->create($identity);
+    }
+
+    /**
+     * Step 5: the account already holding this Google-confirmed address gains the link
+     * and signs in — one person, one account, two doors (FR-011).
+     *
+     * The only writes on this path are the link insert and, conditionally, the
+     * verification stamp (FR-015). The password, the role, the rating, the disabled
+     * state, the uploads and the comments are not part of the rule and are not touched,
+     * which is what makes SC-004 — the original password still signs in afterwards —
+     * true by construction rather than by a test that happens to pass.
+     */
+    private function attach(User $user, GoogleIdentity $identity): User {
+        // (US5) the disabled guard on this path lands with the story that owns it, and
+        // must sit here — above the first write, so a refusal changes nothing.
+
+        // FR-012, US3 AS6: one account, one Google account. Re-pointing an existing link
+        // would hand whoever arrived second the keys to an account that is not theirs.
+        if ($user->googleIdentity !== null) {
+            throw new OAuthFailure(OAuthFailure::ALREADY_LINKED);
+        }
+
+        $this->link($user, $identity);
+
+        // US3 AS4: conditional, because the stamp records when the address was FIRST
+        // confirmed — an unconditional call would quietly rewrite it on every sign-in.
+        if (! $user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+        }
+
+        return $user;
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Role;
+use App\Models\Comment;
 use App\Models\Trashpost;
 use App\Models\User;
 use App\Models\UserIdentity;
@@ -122,6 +123,14 @@ final class GoogleAuthControllerTest extends TestCase {
         // from accounts.google.com.
         $this->postJson('/api/logout', [], ['Origin' => 'http://localhost'])->assertOk();
         $this->app['auth']->forgetGuards();
+        // The sign-out ran `auth:sanctum`, whose middleware calls shouldUse() and leaves
+        // the TOKEN guard as this process's ambient default — which has neither login()
+        // nor attempt(). A real browser never sees that: every request boots its own
+        // container with the configured default. Put it back so whatever runs next
+        // behaves the way it does in production rather than the way this process left it.
+        // Named literally, because shouldUse() OVERWRITES `auth.defaults.guard` — reading
+        // the config back would just hand it the value the middleware already put there.
+        $this->app['auth']->shouldUse('web');
     }
 
     // ------------------------------------------------------------- the start route
@@ -394,6 +403,142 @@ final class GoogleAuthControllerTest extends TestCase {
         // which is why an outage at Google cannot log anybody out.
         $response->assertOk()->assertJsonPath('data.email', 'visitor@example.com');
         Http::assertSentCount(1);
+    }
+
+    // ------------------------------------------------- US3: AS1 the address collision
+
+    /**
+     * A password account already holding the address the claim carries, with contents
+     * and non-default columns so "unchanged" means something.
+     */
+    private function accountHoldingTheAddress(): User {
+        return User::factory()->create([
+            'name' => 'Ada Lovelace',
+            'email' => 'visitor@example.com',
+            'rating' => 7,
+        ]);
+    }
+
+    public function test_a_google_address_already_on_an_account_signs_into_that_account(): void {
+        $this->fakeGoogle();
+        $existing = $this->accountHoldingTheAddress();
+
+        $this->completeFlow()->assertRedirect(self::FRONTEND . '/');
+
+        // FR-011: Google confirmed the address, so the account holding it is theirs —
+        // one person, one account, and now two ways in.
+        $this->assertSame($existing->id, Auth::guard('web')->id());
+        $this->assertSame(1, User::count());
+        $this->assertSame($existing->id, UserIdentity::sole()->user_id);
+    }
+
+    // ------------------------------------------------- US3: AS2 the password survives
+
+    public function test_the_linked_accounts_original_password_still_signs_it_in(): void {
+        $this->fakeGoogle();
+        $existing = $this->accountHoldingTheAddress();
+        $hash = $existing->password;
+
+        $this->completeFlow();
+        $this->signOut();
+        $response = $this->postJson('/api/login', [
+            'email' => 'visitor@example.com',
+            'password' => 'password',
+        ], ['Origin' => 'http://localhost']);
+
+        // SC-004: linking adds a door, it does not close the one that was already there.
+        $response->assertOk()->assertJsonPath('data.email', 'visitor@example.com');
+        $this->assertSame($hash, User::sole()->password);
+    }
+
+    public function test_the_link_changes_nothing_else_about_the_account(): void {
+        $this->fakeGoogle();
+        $existing = $this->accountHoldingTheAddress();
+        $post = Trashpost::factory()->create(['user_id' => $existing->id]);
+        $comment = Comment::factory()->for($post)->create(['user_id' => $existing->id]);
+
+        $this->completeFlow();
+
+        // FR-015, INV-6: the account's role, standing and contents are not part of the
+        // linking rule, so the visitor signs in and finds everything where they left it.
+        $stored = User::sole();
+        $this->assertSame('Ada Lovelace', $stored->name);
+        $this->assertSame($existing->hash, $stored->hash);
+        $this->assertSame(Role::Member, $stored->role);
+        $this->assertSame(7, $stored->rating);
+        $this->assertSame($existing->id, $post->fresh()->user_id);
+        $this->assertSame($existing->id, $comment->fresh()->user_id);
+    }
+
+    // ---------------------------------------------- US3: AS3 recognition is by subject
+
+    public function test_a_later_flow_with_a_changed_address_still_lands_in_the_linked_account(): void {
+        Http::fake([
+            self::TOKEN_URL => Http::sequence()
+                ->push(['id_token' => $this->idToken()])
+                ->push(['id_token' => $this->idToken(['email' => 'moved@example.com'])]),
+        ]);
+        $existing = $this->accountHoldingTheAddress();
+
+        $this->completeFlow();
+        $this->signOut();
+        $this->completeFlow();
+
+        // FR-009: the link now answers the question, so the collision rule is never
+        // re-entered — and the second flow's address, which matches nobody, creates
+        // nothing.
+        $this->assertSame($existing->id, Auth::guard('web')->id());
+        $this->assertSame(1, User::count());
+        $this->assertSame(1, UserIdentity::count());
+    }
+
+    // ------------------------------------------ US3: AS4 an unverified account is linked
+
+    public function test_an_unverified_account_is_linked_and_verified_at_once(): void {
+        $this->fakeGoogle();
+        $existing = User::factory()->unverified()->create(['email' => 'visitor@example.com']);
+
+        $this->completeFlow()->assertRedirect(self::FRONTEND . '/');
+
+        // The confirmation e-mail this account was waiting on asks for exactly the proof
+        // Google has just supplied, so waiting for it as well would be theatre.
+        $this->assertNotNull(User::sole()->email_verified_at);
+        $this->assertSame($existing->id, UserIdentity::sole()->user_id);
+    }
+
+    // ----------------------------------------- US3: AS5 an unconfirmed address is refused
+
+    public function test_an_unconfirmed_address_never_reaches_the_account_holding_it(): void {
+        $this->fakeGoogle(['email_verified' => false]);
+        $existing = $this->accountHoldingTheAddress();
+
+        $response = $this->completeFlow();
+
+        // FR-005 is the guard the whole auto-link stands on: without it anyone could
+        // claim a stranger's address at an identity provider and inherit their account.
+        $response->assertRedirect(self::FRONTEND . '/login?error=unverified_email');
+        $this->assertFalse(Auth::guard('web')->check());
+        $this->assertSame(0, UserIdentity::count());
+        $this->assertNull($existing->fresh()->googleIdentity);
+    }
+
+    // ------------------------------------------ US3: AS6 one account, one Google account
+
+    public function test_a_second_google_account_on_one_address_is_refused(): void {
+        $this->fakeGoogle(['sub' => 'a-second-subject']);
+        $existing = $this->accountHoldingTheAddress();
+        $original = UserIdentity::factory()->for($existing)->create(['provider_user_id' => 'the-first-subject']);
+
+        $response = $this->completeFlow();
+
+        // FR-012: re-pointing the link would hand whoever arrived second the keys to
+        // somebody else's account, so the refusal comes before any write.
+        $response->assertRedirect(self::FRONTEND . '/login?error=already_linked');
+        $this->assertFalse(Auth::guard('web')->check());
+        $this->assertSame(1, UserIdentity::count());
+        $stored = UserIdentity::sole();
+        $this->assertSame($original->id, $stored->id);
+        $this->assertSame('the-first-subject', $stored->provider_user_id);
     }
 
     // ----------------------------------------------------------------- the token call

@@ -6,12 +6,18 @@ namespace Tests\Unit\Services;
 
 use App\Enums\Role;
 use App\Exceptions\OAuthFailure;
+use App\Models\Comment;
+use App\Models\Trashpost;
 use App\Models\User;
 use App\Models\UserIdentity;
 use App\Services\IdentityLinkService;
 use App\Support\GoogleIdentity;
+use Illuminate\Database\Events\TransactionRolledBack;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use PDOException;
 use Tests\TestCase;
 
 /**
@@ -177,6 +183,160 @@ final class IdentityLinkServiceTest extends TestCase {
         $this->assertSame($user->id, UserIdentity::sole()->user_id);
     }
 
+    // -------------------------------------------- steps 4-5: the address collision
+
+    /**
+     * An ordinary password account holding the address the claim carries. Everything
+     * about it is deliberately non-default, so a test asserting "unchanged" is asserting
+     * that the real values survived rather than that two defaults happen to match.
+     */
+    private function passwordAccount(): User {
+        return User::factory()->create([
+            'name' => 'Ada Lovelace',
+            'email' => 'visitor@example.com',
+            'rating' => 42,
+        ]);
+    }
+
+    public function test_an_address_already_on_an_account_resolves_to_that_account(): void {
+        $existing = $this->passwordAccount();
+
+        $user = $this->service()->resolve($this->identity());
+
+        // FR-011: one person, one account, two doors. Google has confirmed the address,
+        // so the account holding it is theirs and a second one would be a duplicate.
+        $this->assertSame($existing->id, $user->id);
+        $this->assertSame(1, User::count());
+    }
+
+    public function test_the_collision_attaches_the_link_to_the_existing_account(): void {
+        $existing = $this->passwordAccount();
+
+        $this->service()->resolve($this->identity());
+
+        $link = UserIdentity::sole();
+        $this->assertSame($existing->id, $link->user_id);
+        $this->assertSame('google', $link->provider);
+        $this->assertSame(self::SUB, $link->provider_user_id);
+    }
+
+    public function test_the_collision_leaves_the_password_byte_for_byte_unchanged(): void {
+        $existing = $this->passwordAccount();
+        $hash = $existing->password;
+
+        $this->service()->resolve($this->identity());
+
+        // FR-015, SC-004: linking adds a second door, it does not close the first. The
+        // stored hash is compared byte for byte because a rehash would still verify.
+        $this->assertSame($hash, User::sole()->password);
+    }
+
+    public function test_the_collision_leaves_the_rest_of_the_account_unchanged(): void {
+        $existing = $this->passwordAccount();
+
+        $this->service()->resolve($this->identity(name: 'A Renamed Visitor'));
+
+        // FR-015: the only writes on this path are the link insert and, conditionally,
+        // the verification stamp. Nothing Google sends overwrites the stored profile.
+        $stored = User::sole();
+        $this->assertSame('Ada Lovelace', $stored->name);
+        $this->assertSame($existing->hash, $stored->hash);
+        $this->assertSame($existing->role, $stored->role);
+        $this->assertSame(42, $stored->rating);
+        $this->assertNull($stored->disabled_at);
+        $this->assertNull($stored->disabled_by);
+    }
+
+    public function test_the_collision_leaves_the_accounts_memes_and_comments_alone(): void {
+        $existing = $this->passwordAccount();
+        $post = Trashpost::factory()->create(['user_id' => $existing->id]);
+        $comment = Comment::factory()->for($post)->create(['user_id' => $existing->id]);
+
+        $this->service()->resolve($this->identity());
+
+        // INV-6: the account's contents are not part of the linking rule at all — the
+        // visitor signs in and finds everything exactly where they left it.
+        $this->assertSame($existing->id, $post->fresh()->user_id);
+        $this->assertSame($existing->id, $comment->fresh()->user_id);
+        $this->assertSame(1, Trashpost::count());
+        $this->assertSame(1, Comment::count());
+    }
+
+    public function test_an_unverified_account_is_verified_by_the_link(): void {
+        User::factory()->unverified()->create(['email' => 'visitor@example.com']);
+
+        $user = $this->service()->resolve($this->identity());
+
+        // US3 AS4: the address was waiting on a confirmation e-mail that Google has now
+        // made redundant — it just confirmed the very same address.
+        $this->assertTrue($user->hasVerifiedEmail());
+        $this->assertNotNull(User::sole()->email_verified_at);
+    }
+
+    public function test_an_already_verified_account_keeps_its_original_stamp(): void {
+        $this->travel(-2)->days();
+        $existing = $this->passwordAccount();
+        $verifiedAt = $existing->email_verified_at;
+        $this->travelBack();
+
+        $this->service()->resolve($this->identity());
+
+        // data-model.md §3: the stamp records when the address was FIRST confirmed, so
+        // the write is conditional rather than unconditional (FR-015).
+        $this->assertNotNull($verifiedAt);
+        $this->assertTrue($verifiedAt->equalTo(User::sole()->email_verified_at));
+    }
+
+    public function test_an_account_already_linked_to_another_google_account_is_refused(): void {
+        $existing = $this->passwordAccount();
+        UserIdentity::factory()->for($existing)->create(['provider_user_id' => 'the-first-subject']);
+
+        try {
+            $this->service()->resolve($this->identity(sub: 'a-second-subject'));
+            $this->fail('Expected a second Google account on one Ladybug account to be refused.');
+        }
+        catch (OAuthFailure $failure) {
+            // FR-012, US3 AS6: one account, one Google account. Silently re-pointing the
+            // link would hand whoever arrived second the keys to somebody else's account.
+            $this->assertSame(OAuthFailure::ALREADY_LINKED, $failure->failureCode);
+        }
+    }
+
+    public function test_the_already_linked_refusal_leaves_the_original_link_untouched(): void {
+        $existing = $this->passwordAccount();
+        $original = UserIdentity::factory()->for($existing)->create(['provider_user_id' => 'the-first-subject']);
+
+        try {
+            $this->service()->resolve($this->identity(sub: 'a-second-subject'));
+        }
+        catch (OAuthFailure) {
+            // Asserted by the test above; here only the refusal's blast radius matters.
+        }
+
+        // The refusal precedes the write, so the account that was already linked is not
+        // even touched, let alone re-pointed.
+        $this->assertSame(1, UserIdentity::count());
+        $stored = UserIdentity::sole();
+        $this->assertSame($original->id, $stored->id);
+        $this->assertSame('the-first-subject', $stored->provider_user_id);
+    }
+
+    public function test_an_unconfirmed_address_does_not_verify_the_account_holding_it(): void {
+        User::factory()->unverified()->create(['email' => 'visitor@example.com']);
+
+        try {
+            $this->service()->resolve($this->identity(verified: false));
+        }
+        catch (OAuthFailure) {
+            // The code is asserted by the step-1 tests above.
+        }
+
+        // FR-005, US3 AS5: the collision branch is never entered, so an unconfirmed
+        // claim cannot even hand a stranger's account a verification it never earned.
+        $this->assertNull(User::sole()->email_verified_at);
+        $this->assertSame(0, UserIdentity::count());
+    }
+
     // ------------------------------------------------------ step 6: the new visitor
 
     public function test_a_brand_new_visitor_gets_exactly_one_account(): void {
@@ -255,5 +415,104 @@ final class IdentityLinkServiceTest extends TestCase {
         $this->assertNotSame($first->id, $second->id);
         $this->assertSame(2, User::count());
         $this->assertSame(2, UserIdentity::count());
+    }
+
+    // ------------------------------------ the concurrency backstop (research D8)
+
+    /** Link inserts still to be refused the way a lost race would refuse them. */
+    private int $doomedInserts = 0;
+
+    /** The account the competing flow committed while ours was rolling back. */
+    private ?User $racer = null;
+
+    /**
+     * Refuse the next $times link inserts exactly as the driver refuses one whose
+     * subject a competing flow inserted first.
+     *
+     * The race cannot be staged for real in this suite: there is a single sqlite
+     * :memory: connection, so there is no second connection to commit a competing row
+     * from, and a row written on ours would be rolled back with our own transaction.
+     * The driver's half of the race is therefore played by a model listener at the exact
+     * statement the driver would have failed. Nothing about the service is stubbed —
+     * which account it returns and how many rows exist afterwards are entirely its own.
+     */
+    private function doomTheLinkInsert(int $times): void {
+        $this->doomedInserts = $times;
+        UserIdentity::creating([$this, 'refuseTheDoomedInsert']);
+    }
+
+    public function refuseTheDoomedInsert(): void {
+        if ($this->doomedInserts <= 0) {
+            return;
+        }
+
+        $this->doomedInserts--;
+
+        throw new UniqueConstraintViolationException(
+            'sqlite',
+            'insert into "user_identities" ("user_id", "provider", "provider_user_id") values (?, ?, ?)',
+            [],
+            new PDOException('UNIQUE constraint failed: user_identities.provider, user_identities.provider_user_id'),
+        );
+    }
+
+    /**
+     * The other half of the race: the competing flow commits its account and link at the
+     * one moment our transaction is no longer holding the rows — as it rolls back.
+     */
+    private function letARacerWin(): void {
+        Event::listen(TransactionRolledBack::class, [$this, 'commitTheRacer']);
+    }
+
+    public function commitTheRacer(): void {
+        if ($this->racer !== null) {
+            return;
+        }
+
+        $this->racer = User::factory()->googleOnly()->create(['email' => 'visitor@example.com']);
+        UserIdentity::factory()->for($this->racer)->create(['provider_user_id' => self::SUB]);
+    }
+
+    public function test_a_lost_insert_race_resolves_to_the_account_the_winner_created(): void {
+        $this->doomTheLinkInsert(1);
+        $this->letARacerWin();
+
+        $user = $this->service()->resolve($this->identity());
+
+        // The re-run finds the link the winner committed and takes the returning-visitor
+        // path, so the loser of the race signs INTO the account rather than beside it.
+        $this->assertNotNull($this->racer);
+        $this->assertSame($this->racer->id, $user->id);
+    }
+
+    public function test_a_lost_insert_race_leaves_exactly_one_account_and_one_link(): void {
+        $this->doomTheLinkInsert(1);
+        $this->letARacerWin();
+
+        $this->service()->resolve($this->identity());
+
+        // US4 AS5: at most one account, at most one session — the half-built account the
+        // first attempt created went back with its transaction.
+        $this->assertSame(1, User::count());
+        $this->assertSame(1, UserIdentity::count());
+        $this->assertSame(self::SUB, UserIdentity::sole()->provider_user_id);
+    }
+
+    public function test_the_re_resolution_is_attempted_exactly_once(): void {
+        $this->doomTheLinkInsert(2);
+
+        try {
+            $this->service()->resolve($this->identity());
+            $this->fail('Expected a second constraint violation to be reported rather than retried.');
+        }
+        catch (UniqueConstraintViolationException) {
+            // A second violation is not a lost race any more; it is a genuine fault, and
+            // retrying it forever would turn one bad row into a hung request.
+            $this->assertSame(0, $this->doomedInserts);
+        }
+
+        // Both attempts rolled back whole, so a refused sign-in leaves nothing behind.
+        $this->assertSame(0, User::count());
+        $this->assertSame(0, UserIdentity::count());
     }
 }
