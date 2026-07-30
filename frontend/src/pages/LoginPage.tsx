@@ -5,6 +5,7 @@ import type { Location } from 'react-router-dom';
 
 import AuthField from '../components/AuthField';
 import BusyButton from '../components/BusyButton';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthForm } from '../hooks/useAuthForm';
 import { useNotice } from '../hooks/useNotice';
@@ -98,6 +99,15 @@ function LoginPage() {
         </fieldset>
         <p className="auth-form__link"><Link to="/register">No account? Register here....</Link></p>
       </form>
+      <div className="auth-alt">
+        {/* The separation is the WORD "or", not a rule: FR-026 requires the two methods
+            be distinguished by text, which a styled divider alone does not do. */}
+        <span className="auth-alt__label">or</span>
+        {/* The same location.state.from the password path reads above. Clicking is a
+            full-page navigation, which destroys router state, so the blocked
+            destination has to make the round trip as ?redirect= (FR-006). */}
+        <GoogleSignInButton redirectTo={(location.state as { from?: Location } | null)?.from?.pathname} />
+      </div>
     </section>
   );
 }
