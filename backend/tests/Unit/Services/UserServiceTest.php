@@ -46,6 +46,16 @@ class UserServiceTest extends TestCase {
         $this->assertNotSame($first->hash, $second->hash);
     }
 
+    public function test_it_renames_a_user_and_persists_the_new_name(): void {
+        $service = new UserService();
+        $user = $service->create($this->data());
+
+        $renamed = $service->rename($user, 'Grace Hopper');
+
+        $this->assertSame('Grace Hopper', $renamed->name);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Grace Hopper']);
+    }
+
     public function test_it_finds_a_user_by_the_sha1_digest_of_their_email(): void {
         $service = new UserService();
         $created = $service->create($this->data(['email' => 'ada@example.com']));

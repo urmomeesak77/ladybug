@@ -115,6 +115,17 @@ export class AuthApi {
     }
   }
 
+  // Change the signed-in account's display name. A name another account already holds
+  // comes back as a 422 field error, exactly like registration's taken e-mail.
+  static async updateName(name: string): Promise<AuthResult> {
+    try {
+      const response = await AuthApi.sendJson('PATCH', '/api/user', { name });
+      return await AuthApi.interpret(response, 200);
+    } catch {
+      return { ok: false, kind: 'network' };
+    }
+  }
+
   // Fulfill a verification link (008): the signature was computed server-side over the
   // relative API URL, so the components pass through untouched. 403 covers tampered,
   // expired, and cross-account links alike — the server does not distinguish (FR-004).
@@ -182,9 +193,13 @@ export class AuthApi {
   }
 
   private static async postJson(path: string, body: unknown): Promise<Response> {
+    return AuthApi.sendJson('POST', path, body);
+  }
+
+  private static async sendJson(method: string, path: string, body: unknown): Promise<Response> {
     const token = await Csrf.ensure();
     return fetch(`${Api.base()}${path}`, {
-      method: 'POST',
+      method,
       credentials: 'include',
       headers: {
         Accept: 'application/json',

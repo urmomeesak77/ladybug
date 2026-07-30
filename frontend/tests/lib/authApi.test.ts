@@ -234,6 +234,47 @@ describe('logout', () => {
   });
 });
 
+describe('updateName', () => {
+  it('PATCHes the new name through the CSRF-aware path and returns the saved user', async () => {
+    withXsrfCookie();
+    const mock = stubFetch({ ok: true, status: 200, json: async () => ({ data: { ...rawUser, name: 'Grace' } }) });
+
+    const result = await AuthApi.updateName('Grace');
+
+    const [url, init] = mock.mock.calls[0] as FetchArgs;
+    expect(url).toMatch(/\/api\/user$/);
+    expect(init.method).toBe('PATCH');
+    expect(init.credentials).toBe('include');
+    expect((init.headers as Record<string, string>)['X-XSRF-TOKEN']).toBe('tok+123');
+    expect(init.body).toBe(JSON.stringify({ name: 'Grace' }));
+    expect(result).toEqual({ ok: true, user: AuthApi.mapUser({ ...rawUser, name: 'Grace' }) });
+  });
+
+  it('maps a 422 to the field errors that explain the refusal', async () => {
+    withXsrfCookie();
+    stubFetch({
+      ok: false,
+      status: 422,
+      json: async () => ({ errors: { name: ['That name is already taken.'] } }),
+    });
+
+    expect(await AuthApi.updateName('Grace')).toEqual({
+      ok: false,
+      kind: 'validation',
+      errors: { name: ['That name is already taken.'] },
+    });
+  });
+
+  it('reports a network failure when the request throws', async () => {
+    withXsrfCookie();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }));
+
+    expect(await AuthApi.updateName('Grace')).toEqual({ ok: false, kind: 'network' });
+  });
+});
+
 describe('verifyEmail', () => {
   const input = { hash: 'abc123', expires: '1767225600', signature: 'deadbeef' };
 

@@ -36,6 +36,18 @@ class UserService {
     }
 
     /**
+     * Change an account's display name. Uniqueness is enforced upstream by
+     * UpdateProfileRequest; the attribute is assigned explicitly rather than filled so
+     * nothing else in the request body can ride along into the row.
+     */
+    public function rename(User $user, string $name): User {
+        $user->name = $name;
+        $user->save();
+
+        return $user;
+    }
+
+    /**
      * Resolve the account a verification link points at: the link's {hash}
      * segment is sha1 of the recipient's email, mirrored in the indexed
      * email_sha1 column so no session is needed to find the account.

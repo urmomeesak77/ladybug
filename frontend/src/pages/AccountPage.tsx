@@ -1,30 +1,22 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
+import AccountNameForm from '../components/AccountNameForm';
 import BusyButton from '../components/BusyButton';
 import { useAuth } from '../hooks/useAuth';
 import { useNotice } from '../hooks/useNotice';
 import { AuthApi } from '../lib/authApi';
 import { AuthModel } from '../lib/authModel';
 
-// The logged-in user's profile (name + email + verification status) plus a Log out
-// control. Verification status is words in the details list — never color alone
+// The logged-in user's profile: an editable display name plus email and verification
+// status. Verification status is words in the details list — never color alone
 // (FR-008, Principle IV) — and only an unverified account gets the resend action.
+// Logging out lives in the left menu, which is on every page, so it is not repeated here.
 // RequireAuth gates the route, so a user is always present by the time this
 // renders; the null guard only satisfies the type narrowing.
 function AccountPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { show } = useNotice();
-  const navigate = useNavigate();
   const [resending, setResending] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  async function handleLogout(): Promise<void> {
-    setLoggingOut(true);
-    await logout();
-    setLoggingOut(false);
-    navigate('/');
-  }
 
   async function handleResend(): Promise<void> {
     setResending(true);
@@ -40,9 +32,8 @@ function AccountPage() {
   return (
     <section className="account">
       <h1>Your account</h1>
+      <AccountNameForm name={user.name} />
       <dl className="account__details">
-        <dt>Name</dt>
-        <dd>{user.name}</dd>
         <dt>Email</dt>
         <dd>{user.email}</dd>
         <dt>Email verification</dt>
@@ -59,9 +50,6 @@ function AccountPage() {
           </BusyButton>
         )
         : null}
-      <BusyButton className="account__logout" busy={loggingOut} onClick={() => void handleLogout()}>
-        Log out
-      </BusyButton>
     </section>
   );
 }

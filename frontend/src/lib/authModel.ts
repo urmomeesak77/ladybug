@@ -1,4 +1,4 @@
-import type { AuthUser, FieldErrors, ResendResult, VerifyEmailInput, VerifyEmailResult } from './authApi';
+import type { AuthResult, AuthUser, FieldErrors, ResendResult, VerifyEmailInput, VerifyEmailResult } from './authApi';
 
 export type AuthStatus = 'unknown' | 'anonymous' | 'authenticated';
 
@@ -94,6 +94,22 @@ export class AuthModel {
       return 'Email and password';
     }
     return user.hasPassword ? 'Google and email/password' : 'Google';
+  }
+
+  // Why a name change was refused, in one sentence. The server's own field message wins
+  // when it sent one (it knows about names already taken); the rest are the generic
+  // fallbacks the auth forms use.
+  static nameUpdateError(result: AuthResult): string {
+    if (result.ok) {
+      return '';
+    }
+    if (result.kind === 'validation') {
+      return result.errors.name?.join('\n') ?? 'That name cannot be used.';
+    }
+    if (result.kind === 'auth') {
+      return 'Please log in again to change your name.';
+    }
+    return 'Something went wrong. Please check your connection and try again.';
   }
 
   // Extract a verification link's components from the route param + query. Any missing

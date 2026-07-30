@@ -178,6 +178,36 @@ describe('verifyViewState', () => {
   });
 });
 
+describe('nameUpdateError', () => {
+  it('passes the server field message through (e.g. a taken name)', () => {
+    expect(AuthModel.nameUpdateError({
+      ok: false,
+      kind: 'validation',
+      errors: { name: ['That name is already taken.'] },
+    })).toBe('That name is already taken.');
+  });
+
+  it('falls back to a generic refusal when the 422 named no field', () => {
+    expect(AuthModel.nameUpdateError({ ok: false, kind: 'validation', errors: {} }))
+      .toBe('That name cannot be used.');
+  });
+
+  it('asks a signed-out user to log in again', () => {
+    expect(AuthModel.nameUpdateError({ ok: false, kind: 'auth' }))
+      .toBe('Please log in again to change your name.');
+  });
+
+  it('reports a retryable failure for anything else', () => {
+    expect(AuthModel.nameUpdateError({ ok: false, kind: 'network' }))
+      .toBe('Something went wrong. Please check your connection and try again.');
+  });
+
+  it('has no message for a success', () => {
+    const user = { hash: 'usr0000001', name: 'Ada' } as never;
+    expect(AuthModel.nameUpdateError({ ok: true, user })).toBe('');
+  });
+});
+
 describe('resendFeedback', () => {
   it('confirms a sent message', () => {
     expect(AuthModel.resendFeedback({ ok: true })).toBe('Verification link sent. Check your inbox.');

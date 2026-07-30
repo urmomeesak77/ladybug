@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import NoticeProvider from '../../src/components/NoticeProvider';
@@ -30,12 +30,6 @@ const ada: AuthUser = {
   updatedAt: '2026-01-01T00:00:00Z',
 };
 
-// Surfaces the current route in the DOM so navigation side effects are observable.
-function LocationProbe() {
-  const location = useLocation();
-  return <output data-testid="location">{location.pathname}</output>;
-}
-
 // Lets a test hold the resend request open to observe the in-flight UI state.
 function deferredResend() {
   type Result = Awaited<ReturnType<typeof AuthApi.resendVerification>>;
@@ -44,44 +38,41 @@ function deferredResend() {
   return { promise, resolve };
 }
 
-function renderAccount(user: AuthUser | null, logoutResult: Promise<void> = Promise.resolve()) {
-  const logout = vi.fn().mockReturnValue(logoutResult);
+function renderAccount(user: AuthUser | null) {
   const value: AuthContextValue = {
     status: 'authenticated',
     user,
     register: vi.fn(),
     login: vi.fn(),
-    logout,
+    logout: vi.fn(),
     refresh: vi.fn(),
   };
   const { container } = render(
     <MemoryRouter initialEntries={['/account']}>
       <AuthContext.Provider value={value}>
         <NoticeProvider>
-          <LocationProbe />
           <AccountPage />
         </NoticeProvider>
       </AuthContext.Provider>
     </MemoryRouter>,
   );
-  return { container, logout };
+  return { container };
 }
 
 describe('AccountPage', () => {
-  it('shows the profile name and email', () => {
+  it('shows the profile name in an editable field and the email as text', () => {
     renderAccount(ada);
 
-    expect(screen.getByText('Ada')).toBeTruthy();
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Ada');
     expect(screen.getByText('ada@example.com')).toBeTruthy();
   });
 
-  it('logs out and navigates home', async () => {
-    const { logout } = renderAccount(ada);
+  // Logging out lives in the left menu, which is present on every page — the account
+  // page no longer repeats it.
+  it('offers no log out control', () => {
+    renderAccount(ada);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
-
-    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/'));
-    expect(logout).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Log out' })).toBeNull();
   });
 
   it('renders nothing when no user is present (type guard)', () => {
@@ -121,23 +112,6 @@ describe('AccountPage', () => {
 
     expect(await screen.findByText('Verification link sent. Check your inbox.')).toBeTruthy();
     expect(button.getAttribute('aria-busy')).toBeNull();
-  });
-
-  it('shows a busy spinner on Log out while the request runs', async () => {
-    let finish!: () => void;
-    const pending = new Promise<void>((res) => { finish = res; });
-    renderAccount(ada, pending);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
-
-    const button = screen.getByRole('button', { name: 'Log out' });
-    await waitFor(() => expect(button.getAttribute('aria-busy')).toBe('true'));
-    expect(button.querySelector('.busy-button__spinner')).not.toBeNull();
-    expect((button as HTMLButtonElement).disabled).toBe(true);
-
-    finish();
-
-    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/'));
   });
 
   it('states a verified email and offers no resend control', () => {

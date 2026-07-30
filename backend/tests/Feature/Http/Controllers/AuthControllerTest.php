@@ -407,6 +407,64 @@ class AuthControllerTest extends TestCase {
         $this->assertNull($response->json('data.email_verified_at'));
     }
 
+    public function test_it_renames_the_signed_in_account(): void {
+        $user = User::factory()->create(['name' => 'Ada']);
+
+        $response = $this->actingAs($user)->patchJson('/api/user', ['name' => 'Grace']);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.name', 'Grace');
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Grace']);
+    }
+
+    public function test_it_refuses_a_name_another_account_already_holds(): void {
+        User::factory()->create(['name' => 'Grace', 'email' => 'grace@example.com']);
+        $user = User::factory()->create(['name' => 'Ada']);
+
+        $response = $this->actingAs($user)->patchJson('/api/user', ['name' => 'Grace']);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('errors.name.0', 'That name is already taken.');
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Ada']);
+    }
+
+    public function test_it_accepts_the_accounts_own_current_name_unchanged(): void {
+        // The uniqueness check ignores the requester's own row, so re-saving the same
+        // name is a no-op success rather than a collision with itself.
+        $user = User::factory()->create(['name' => 'Ada']);
+
+        $this->actingAs($user)->patchJson('/api/user', ['name' => 'Ada'])->assertOk();
+    }
+
+    public function test_it_requires_a_name_to_rename(): void {
+        $user = User::factory()->create(['name' => 'Ada']);
+
+        $response = $this->actingAs($user)->patchJson('/api/user', ['name' => '']);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('name');
+    }
+
+    public function test_it_ignores_other_fields_submitted_with_the_rename(): void {
+        // Only the name is editable here: role, email and verification state are not
+        // reachable through this endpoint (Principle VI).
+        $user = User::factory()->create(['name' => 'Ada', 'email' => 'ada@example.com']);
+
+        $this->actingAs($user)->patchJson('/api/user', [
+            'name' => 'Grace',
+            'email' => 'root@example.com',
+            'role' => 'superuser',
+        ])->assertOk();
+
+        $user->refresh();
+        $this->assertSame('ada@example.com', $user->email);
+        $this->assertSame('member', $user->role->value);
+    }
+
+    public function test_rename_is_rejected_for_an_anonymous_request(): void {
+        $this->patchJson('/api/user', ['name' => 'Grace'])->assertStatus(401);
+    }
+
     public function test_user_never_exposes_its_own_rating(): void {
         // FR-022: an account cannot read its own rating either — knowing the exact
         // distance to the auto-activation threshold is itself the moderation signal.

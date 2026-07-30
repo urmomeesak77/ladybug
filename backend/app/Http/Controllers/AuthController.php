@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
+use App\Http\Requests\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
@@ -92,6 +93,18 @@ class AuthController extends Controller {
         if ($user === null) {
             return response()->json(['data' => null]);
         }
+
+        return (new UserResource($user))->response();
+    }
+
+    /**
+     * Change the signed-in account's display name (route is behind auth:sanctum, so the
+     * account edited is always the requester's own — there is no target parameter to
+     * point at somebody else's). Returns the refreshed profile; a taken or missing name
+     * is a 422 from UpdateProfileRequest.
+     */
+    public function updateProfile(UpdateProfileRequest $request): JsonResponse {
+        $user = $this->users->rename($request->user(), $request->validated()['name']);
 
         return (new UserResource($user))->response();
     }

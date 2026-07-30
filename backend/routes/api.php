@@ -80,6 +80,11 @@ Route::post('/login', [AuthController::class, 'login'])
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('api.auth.logout');
 // Public on purpose: returns the user when authenticated, else {data:null} (FR-005).
 Route::get('/user', [AuthController::class, 'user'])->name('api.auth.user');
+// Own-account profile edit: the display name only, and only for the signed-in account
+// (no target parameter — the session names the row). A taken name is a 422.
+Route::patch('/user', [AuthController::class, 'updateProfile'])
+    ->middleware('auth:sanctum')
+    ->name('api.auth.profile.update');
 
 // Admin moderation console (010). The whole group is gated by auth:sanctum (guest → 401)
 // then role:admin (member → 403; admin/superuser through) — the boundary protects the
