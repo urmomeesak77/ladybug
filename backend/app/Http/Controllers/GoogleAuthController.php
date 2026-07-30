@@ -82,7 +82,12 @@ class GoogleAuthController extends Controller {
                 $this->google->identityFromCode($this->code($request), (string) $validated['code_verifier']),
             );
 
-            Auth::login($user);
+            // The `web` guard is named rather than left to the ambient default, the same
+            // way AuthController::logout names it. `Auth::login()` resolves whatever guard
+            // was last passed to shouldUse(), and on these two routes that is not ours to
+            // assume: the only guard that owns a cookie session is this one, and the
+            // token guard has no login() at all.
+            Auth::guard('web')->login($user);
             // Rotate the session id after authenticating to prevent session fixation,
             // exactly as AuthController::register and ::login do.
             $request->session()->regenerate();

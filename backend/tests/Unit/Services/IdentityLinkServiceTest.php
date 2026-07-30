@@ -46,6 +46,21 @@ final class IdentityLinkServiceTest extends TestCase {
         return new GoogleIdentity($sub, $email, $verified, $name);
     }
 
+    /**
+     * An account that has already signed in with Google once, and the link that
+     * recognises it. The claim values match self::identity()'s defaults, so a test can
+     * assert either that they were kept or that a changed claim did not overwrite them.
+     */
+    private function returningVisitor(): User {
+        $user = User::factory()->googleOnly()->create([
+            'name' => 'A Visitor',
+            'email' => 'visitor@example.com',
+        ]);
+        UserIdentity::factory()->for($user)->create(['provider_user_id' => self::SUB]);
+
+        return $user;
+    }
+
     // ------------------------------------------------ step 1: the FR-005 email guard
 
     public function test_an_unconfirmed_address_is_refused_before_the_transaction_opens(): void {
@@ -77,6 +92,89 @@ final class IdentityLinkServiceTest extends TestCase {
             $this->assertSame(0, UserIdentity::count());
             $this->assertNull($existing->fresh()->googleIdentity);
         }
+    }
+
+    // ------------------------------------------- steps 2-3: the returning visitor
+
+    public function test_a_returning_visitor_resolves_to_the_same_account(): void {
+        $existing = $this->returningVisitor();
+
+        $user = $this->service()->resolve($this->identity());
+
+        // FR-009: the link is the answer, so no second account and no second link can
+        // appear however many times the same person runs the flow.
+        $this->assertSame($existing->id, $user->id);
+        $this->assertSame(1, User::count());
+        $this->assertSame(1, UserIdentity::count());
+    }
+
+    public function test_a_returning_visitor_is_resolved_without_a_single_write(): void {
+        $this->travel(-2)->days();
+        $existing = $this->returningVisitor();
+        $userUpdatedAt = $existing->updated_at;
+        $linkUpdatedAt = UserIdentity::sole()->updated_at;
+        $this->travelBack();
+
+        $this->service()->resolve($this->identity());
+
+        // Step 3 returns what it found and does nothing else. Both rows were written two
+        // days ago, so any save at all on this path would drag a timestamp up to now.
+        $this->assertTrue($userUpdatedAt->equalTo(User::sole()->updated_at));
+        $this->assertTrue($linkUpdatedAt->equalTo(UserIdentity::sole()->updated_at));
+    }
+
+    public function test_a_changed_name_and_address_still_resolve_to_the_same_account(): void {
+        $existing = $this->returningVisitor();
+
+        $user = $this->service()->resolve($this->identity(email: 'moved@example.com', name: 'A Renamed Visitor'));
+
+        // SC-003: the address is not the identifier. Changing it at Google is a change
+        // to a profile elsewhere, not a change of person.
+        $this->assertSame($existing->id, $user->id);
+        $this->assertSame(1, User::count());
+    }
+
+    public function test_a_changed_claim_is_not_written_over_the_stored_profile(): void {
+        $this->returningVisitor();
+
+        $this->service()->resolve($this->identity(email: 'moved@example.com', name: 'A Renamed Visitor'));
+
+        // Spec Assumptions: Ladybug's copy of the name and address belongs to the
+        // account. Google is a door, not the source of truth for what is behind it.
+        $stored = User::sole();
+        $this->assertSame('visitor@example.com', $stored->email);
+        $this->assertSame('A Visitor', $stored->name);
+    }
+
+    public function test_an_already_verified_account_is_not_verified_a_second_time(): void {
+        $this->travel(-2)->days();
+        $existing = $this->returningVisitor();
+        $verifiedAt = $existing->email_verified_at;
+        $this->travelBack();
+
+        $this->service()->resolve($this->identity());
+
+        // data-model.md §3: the stamp records when the address was FIRST confirmed. A
+        // re-call would quietly rewrite it to now() on every single sign-in.
+        $this->assertTrue($verifiedAt->equalTo(User::sole()->email_verified_at));
+    }
+
+    public function test_a_hard_deleted_account_leaves_its_person_a_new_visitor(): void {
+        $gone = $this->returningVisitor();
+
+        // A hard delete (feature 013 leaves no tombstone) takes the link with it,
+        // because the FK cascades rather than nulling — FR-032.
+        $gone->delete();
+        $this->assertSame(0, UserIdentity::count());
+
+        $user = $this->service()->resolve($this->identity());
+
+        // US5 AS3: step 2 finds nothing, so the same Google account is simply a new
+        // person. An ownerless link would instead refuse them an account forever under
+        // UNIQUE (provider, provider_user_id), which is the whole reason for the cascade.
+        $this->assertNotSame($gone->id, $user->id);
+        $this->assertSame(1, User::count());
+        $this->assertSame($user->id, UserIdentity::sole()->user_id);
     }
 
     // ------------------------------------------------------ step 6: the new visitor

@@ -108,6 +108,22 @@ final class GoogleAuthControllerTest extends TestCase {
         return $response;
     }
 
+    /**
+     * End the session the way the SPA does, so a second flow starts anonymous. Without
+     * the sign-out the start route is the FR-031 no-op and no second flow exists.
+     */
+    private function signOut(): void {
+        // The Origin header is what makes this request stateful, and it is passed per
+        // call rather than set on the test case. Sign-out lives on the `api` group, where
+        // Sanctum starts a session only for a request whose Origin matches
+        // SANCTUM_STATEFUL_DOMAINS — the same research D2 mechanism that is the reason
+        // the two Google routes had to go in web.php instead. Every other request in this
+        // file is deliberately origin-less, because that is how a browser arrives back
+        // from accounts.google.com.
+        $this->postJson('/api/logout', [], ['Origin' => 'http://localhost'])->assertOk();
+        $this->app['auth']->forgetGuards();
+    }
+
     // ------------------------------------------------------------- the start route
 
     public function test_the_start_route_redirects_to_google(): void {
@@ -303,6 +319,81 @@ final class GoogleAuthControllerTest extends TestCase {
         // FR-018: no middleware treats a Google session differently, so a member
         // reaching an admin console is refused exactly as a password member is.
         $this->getJson('/api/admin/users')->assertForbidden();
+    }
+
+    // ------------------------------------------------------- US2: AS1 the return visit
+
+    public function test_a_second_flow_signs_the_same_account_in_again(): void {
+        $this->fakeGoogle();
+        $this->completeFlow();
+        $returning = User::sole()->id;
+
+        $this->signOut();
+        $this->completeFlow()->assertRedirect(self::FRONTEND . '/');
+
+        // FR-009: the second visit is recognised by the link, so it is a sign-IN and not
+        // a second sign-up — one account, one link, however often the flow is run.
+        //
+        // The guard is named here for the same reason the controller names it: the
+        // sign-out above ran `auth:sanctum`, which leaves the token guard as the ambient
+        // default, and the session is the `web` guard's.
+        $this->assertSame($returning, Auth::guard('web')->id());
+        $this->assertSame(1, User::count());
+        $this->assertSame(1, UserIdentity::count());
+    }
+
+    // ------------------------------------------------ US2: AS2 a changed Google profile
+
+    public function test_a_changed_name_and_address_still_land_in_the_same_account(): void {
+        Http::fake([
+            self::TOKEN_URL => Http::sequence()
+                ->push(['id_token' => $this->idToken()])
+                ->push(['id_token' => $this->idToken(['email' => 'moved@example.com', 'name' => 'A Renamed Visitor'])]),
+        ]);
+        $this->completeFlow();
+        $returning = User::sole()->id;
+
+        $this->signOut();
+        $this->completeFlow();
+
+        // SC-003: the `sub` is the identity and the profile claims are not, so renaming
+        // the Google account or moving its address changes nothing here. Ladybug's copy
+        // of the name and address belongs to the account (spec Assumptions) and is left
+        // exactly as it was.
+        $this->assertSame($returning, Auth::guard('web')->id());
+        $this->assertSame(1, User::count());
+        $stored = User::sole();
+        $this->assertSame('visitor@example.com', $stored->email);
+        $this->assertSame('A Visitor', $stored->name);
+    }
+
+    // ------------------------------------------------------- US2: AS3 signing back out
+
+    public function test_a_google_session_is_ended_by_the_ordinary_sign_out(): void {
+        $this->fakeGoogle();
+        $this->completeFlow();
+
+        $this->signOut();
+
+        // FR-018 again from the other end: nothing about this session is special, so the
+        // one sign-out route the SPA already calls ends it.
+        $this->assertFalse(Auth::guard('web')->check());
+        $this->getJson('/api/user')->assertOk()->assertExactJson(['data' => null]);
+    }
+
+    // ------------------------------------------------- US2: AS4 no further provider call
+
+    public function test_the_signed_in_session_needs_no_further_call_to_google(): void {
+        $this->fakeGoogle();
+
+        $this->completeFlow();
+        $response = $this->getJson('/api/user');
+
+        // The session carries the visitor from here on. No token is stored and none is
+        // refreshed, so the provider is contacted once per sign-in and never again —
+        // which is why an outage at Google cannot log anybody out.
+        $response->assertOk()->assertJsonPath('data.email', 'visitor@example.com');
+        Http::assertSentCount(1);
     }
 
     // ----------------------------------------------------------------- the token call

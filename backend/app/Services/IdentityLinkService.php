@@ -46,6 +46,14 @@ class IdentityLinkService {
     /**
      * Steps 2–6, inside one transaction so a second flow started in another tab blocks
      * on the same rows rather than racing them (research D8, US4 AS5).
+     *
+     * The account is read through `?->` and the return guarded on the RESULT being
+     * non-null, rather than on the link being found. A found link always has its account,
+     * because `user_id` is NOT NULL behind a cascading FK — research D8 calls that branch
+     * unreachable — but Eloquent's relation is nullable regardless. Written this way an
+     * ownerless link falls through along the very line the "no link at all" case already
+     * takes, so the method is total with no statement no test can reach, and never a
+     * TypeError on a `User` return type.
      */
     private function resolveLocked(GoogleIdentity $identity): User {
         // Step 2: recognition is by Google's stable `sub`, never by the address.
@@ -54,8 +62,18 @@ class IdentityLinkService {
             ->lockForUpdate()
             ->first();
 
-        // Step 3 (US2) — the returning visitor, and the disabled guard on that path.
-        // Deliberately left for the story that owns it; the branch belongs here.
+        // Step 3: the returning visitor. Once a link exists it is the whole answer and
+        // the e-mail below is never consulted (FR-009, US3 AS3) — which is what makes the
+        // collision rule un-re-enterable and SC-003 true: change the address at Google
+        // and the same `sub` still resolves to the same account.
+        $user = $link?->user;
+
+        // (US5) the disabled guard on this path lands with the story that owns it, and
+        // must sit here — above the return, below the lookup, before any write.
+
+        if ($user !== null) {
+            return $user;
+        }
 
         // Steps 4–5 (US3) — the address collision: the account holding this address
         // gains the link, unless it is disabled or already linked elsewhere.
