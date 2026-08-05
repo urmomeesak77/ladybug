@@ -153,15 +153,15 @@ Scenario 3).
 
 ### Tests for User Story 3 (write first — must fail)
 
-- [ ] T043 [P] [US3] Create `frontend/tests/hooks/useVideoAutoplay.test.tsx`: the hook attaches an `IntersectionObserver` to the given video ref, calls `.play()` when intersecting past a mid-range threshold and `.pause()` when it isn't, and disconnects the observer on unmount (research.md #8, mirrors `Feed.tsx`'s sentinel-observer pattern but toggles repeatedly instead of firing once)
-- [ ] T044 [P] [US3] Extend `frontend/tests/components/MemeMedia.test.tsx`: the video branch starts `muted`; a rendered unmute control toggles `muted` without pausing; a rendered pause control toggles playback; both controls are keyboard-operable and labeled (Principle IV)
-- [ ] T045 [P] [US3] Extend `frontend/tests/e2e/upload.spec.ts` (or a new `frontend/tests/e2e/video-playback.spec.ts`): after uploading a video, scrolling it into view in the feed starts muted playback and scrolling it out pauses it; opening its permalink directly also autoplays muted on load; the poster is visible before playback starts (quickstart Scenario 3)
+- [x] T043 [P] [US3] Create `frontend/tests/hooks/useVideoAutoplay.test.tsx`: the hook attaches an `IntersectionObserver` to the given video ref, calls `.play()` when intersecting past a mid-range threshold and `.pause()` when it isn't, and disconnects the observer on unmount (research.md #8, mirrors `Feed.tsx`'s sentinel-observer pattern but toggles repeatedly instead of firing once)
+- [x] T044 [P] [US3] Extend `frontend/tests/components/MemeMedia.test.tsx`: the video branch starts `muted`; a rendered unmute control toggles `muted` without pausing; a rendered pause control toggles playback; both controls are keyboard-operable and labeled (Principle IV)
+- [x] T045 [P] [US3] Extend `frontend/tests/e2e/upload.spec.ts` (or a new `frontend/tests/e2e/video-playback.spec.ts`): after uploading a video, scrolling it into view in the feed starts muted playback and scrolling it out pauses it; opening its permalink directly also autoplays muted on load; the poster is visible before playback starts (quickstart Scenario 3)
 
 ### Implementation for User Story 3
 
-- [ ] T046 [US3] Create `frontend/src/hooks/useVideoAutoplay.ts`: wraps an `IntersectionObserver` around a given `<video>` ref, calling `.play()`/`.pause()` as it crosses a mid-range visibility threshold (research.md #8) — T043 goes green
-- [ ] T047 [US3] Edit `frontend/src/components/MemeMedia.tsx`: wire the video branch to `useVideoAutoplay`; add a visible, accessible unmute/pause control (FR-008) that toggles `muted`/paused state independently of the autoplay-on-scroll behavior; poster stays the shown element until playback actually starts (Edge Cases: no layout jump) — T044 goes green (depends on T046, T036 from US1)
-- [ ] T048 [P] [US3] Add video-control styles (unmute/pause button, poster/video sizing) to `frontend/src/styles/theme.css` for both light and dark schemes, near the existing `.meme-media`/`.meme-media--video` rules (Principle IV)
+- [x] T046 [US3] Create `frontend/src/hooks/useVideoAutoplay.ts`: wraps an `IntersectionObserver` around a given `<video>` ref, calling `.play()`/`.pause()` as it crosses a mid-range visibility threshold (research.md #8) — T043 goes green
+- [x] T047 [US3] Edit `frontend/src/components/MemeMedia.tsx`: wire the video branch to `useVideoAutoplay`; add a visible, accessible unmute/pause control (FR-008) that toggles `muted`/paused state independently of the autoplay-on-scroll behavior; poster stays the shown element until playback actually starts (Edge Cases: no layout jump) — T044 goes green (depends on T046, T036 from US1)
+- [x] T048 [P] [US3] Add video-control styles (unmute/pause button, poster/video sizing) to `frontend/src/styles/theme.css` for both light and dark schemes, near the existing `.meme-media`/`.meme-media--video` rules (Principle IV)
 
 **Checkpoint**: All three user stories are independently functional — video posts can be uploaded, are correctly rejected when invalid, and play back with autoplay-on-scroll everywhere other posts appear.
 

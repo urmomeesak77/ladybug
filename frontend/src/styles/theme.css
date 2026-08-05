@@ -402,6 +402,41 @@ main {
   margin-inline: auto;
 }
 
+/* Positions the unmute/pause overlay against the video underneath it (US3, FR-008). */
+.meme-media--video-wrap {
+  position: relative;
+}
+
+.meme-media__video-controls {
+  position: absolute;
+  right: var(--space-sm);
+  bottom: var(--space-sm);
+  display: flex;
+  gap: var(--space-xs);
+}
+
+/* A translucent chip over the video frame, not the page background, so a fixed
+   white-on-black contrast reads correctly regardless of the site's light/dark scheme —
+   unlike the token-driven controls elsewhere, this one never sits on --color-surface. */
+.meme-media__video-btn {
+  min-width: 2.25rem;
+  min-height: 2.25rem; /* comfortable touch target (Principle VIII). */
+  padding: var(--space-xs) var(--space-sm);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: #fff;
+  background-color: rgb(0 0 0 / 55%);
+  border: 1px solid rgb(255 255 255 / 40%);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.meme-media__video-btn:hover,
+.meme-media__video-btn:focus-visible {
+  background-color: rgb(0 0 0 / 75%);
+}
+
 /* YouTube embeds keep a 16:9 box and the iframe fills it, scaling with the column. */
 .meme-media--video {
   position: relative;
