@@ -32,6 +32,7 @@ class Trashpost extends Model {
     protected $fillable = [
         'title',
         'file',
+        'poster',
         'type',
         'metadata',
         'comment',

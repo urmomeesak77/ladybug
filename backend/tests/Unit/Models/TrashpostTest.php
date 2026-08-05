@@ -20,7 +20,7 @@ final class TrashpostTest extends TestCase {
         $fillable = (new Trashpost())->getFillable();
 
         $this->assertSame(
-            ['title', 'file', 'type', 'metadata', 'comment'],
+            ['title', 'file', 'poster', 'type', 'metadata', 'comment'],
             $fillable,
         );
     }

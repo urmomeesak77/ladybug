@@ -89,4 +89,18 @@ final class MediaPathTest extends TestCase {
             MediaPath::youtubeThumbnailRelativePath('-bCdEfGhIjK'),
         );
     }
+
+    public function test_is_video_file_accepts_allowlisted_extensions_case_insensitively(): void {
+        $this->assertTrue(MediaPath::isVideoFile('clip.mp4'));
+        $this->assertTrue(MediaPath::isVideoFile('clip.MP4'));
+        $this->assertTrue(MediaPath::isVideoFile('clip.webm'));
+        $this->assertTrue(MediaPath::isVideoFile('clip.WebM'));
+    }
+
+    public function test_is_video_file_rejects_non_video_files(): void {
+        $this->assertFalse(MediaPath::isVideoFile('clip.mov'));
+        $this->assertFalse(MediaPath::isVideoFile('photo.jpg'));
+        $this->assertFalse(MediaPath::isVideoFile('notes.txt'));
+        $this->assertFalse(MediaPath::isVideoFile('noextension'));
+    }
 }

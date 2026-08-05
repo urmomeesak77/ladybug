@@ -24,6 +24,9 @@ final class MediaPath {
     /** Only these are treated as media; anything else (e.g. .gitignore) is a stray. */
     private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
+    /** MOV/AVI/MKV etc. are explicitly excluded (research.md #1 — no server-side transcoding). */
+    private const VIDEO_EXTENSIONS = ['mp4', 'webm'];
+
     /**
      * @return list<string>
      */
@@ -43,6 +46,12 @@ final class MediaPath {
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
         return in_array($ext, self::IMAGE_EXTENSIONS, true);
+    }
+
+    public static function isVideoFile(string $filename): bool {
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        return in_array($ext, self::VIDEO_EXTENSIONS, true);
     }
 
     public static function imageRelativePath(string $size, string $code, string $ext): string {
