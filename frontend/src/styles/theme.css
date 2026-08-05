@@ -540,6 +540,23 @@ main {
   border-radius: var(--radius-md);
 }
 
+.auth-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 20px 0; /* Prototype rhythm: 20px below every control. */
+}
+
+.auth-checkbox input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+}
+
+.auth-checkbox label {
+  color: var(--color-text);
+}
+
 /* Prototype buttons: full-width, outlined, neutral — no filled accent. */
 .auth-form button[type='submit'],
 .account__resend,

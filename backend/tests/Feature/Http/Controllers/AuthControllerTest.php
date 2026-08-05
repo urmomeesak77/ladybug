@@ -9,6 +9,7 @@ use App\Services\UserAdminService;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
 use RuntimeException;
@@ -167,6 +168,27 @@ class AuthControllerTest extends TestCase {
         $this->assertAuthenticated();
     }
 
+    public function test_login_with_remember_true_sets_the_remember_cookie_and_a_seven_day_session_lifetime(): void {
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'ada@example.com',
+            'password' => 'password',
+            'remember' => true,
+        ]);
+
+        $response->assertOk();
+        $response->assertCookie((string) config('remember.cookie'), '1');
+
+        $sessionCookie = $response->getCookie((string) config('session.cookie'), false);
+        $this->assertNotNull($sessionCookie);
+        $this->assertEqualsWithDelta(
+            now()->addMinutes((int) config('remember.lifetime'))->getTimestamp(),
+            $sessionCookie->getExpiresTime(),
+            5,
+        );
+    }
+
     public function test_login_with_remember_false_succeeds(): void {
         User::factory()->create(['email' => 'ada@example.com']);
 
@@ -178,6 +200,77 @@ class AuthControllerTest extends TestCase {
 
         $response->assertOk();
         $this->assertAuthenticated();
+        $response->assertCookieMissing((string) config('remember.cookie'));
+    }
+
+    public function test_login_with_remember_omitted_sets_no_remember_cookie(): void {
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $response = $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password']);
+
+        $response->assertOk();
+        $response->assertCookieMissing((string) config('remember.cookie'));
+    }
+
+    public function test_login_on_a_disabled_account_with_remember_true_still_refuses_and_queues_no_cookie(): void {
+        // Contract §"403": the disabled check runs before the remember-handling (D4), so a
+        // disabled account can never end up with a lingering remember cookie from a login
+        // attempt, even when the attempt asked to be remembered.
+        $actor = User::factory()->admin()->create();
+        $target = User::factory()->create(['email' => 'ada@example.com']);
+        app(UserAdminService::class)->disable($actor, $target->hash);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'ada@example.com',
+            'password' => 'password',
+            'remember' => true,
+        ]);
+
+        $response->assertStatus(403);
+        $response->assertCookieMissing((string) config('remember.cookie'));
+        $this->assertGuest();
+    }
+
+    public function test_logout_after_a_remembered_login_clears_the_remember_cookie(): void {
+        // FR-005/SC-004: manual sign-out ends the session immediately — the 7-day allowance
+        // never overrides an explicit sign-out.
+        $user = User::factory()->create(['email' => 'ada@example.com']);
+        $this->postJson('/api/login', [
+            'email' => 'ada@example.com',
+            'password' => 'password',
+            'remember' => true,
+        ])->assertCookie((string) config('remember.cookie'), '1');
+
+        $response = $this->actingAs($user)->postJson('/api/logout');
+
+        $response->assertOk();
+        $response->assertCookieExpired((string) config('remember.cookie'));
+    }
+
+    public function test_a_remember_cookie_from_one_login_does_not_leak_into_a_separate_logins_response(): void {
+        // FR-007: the "Remember me" choice applies only to the session it was made for. In
+        // production each request boots a fresh application container (research D3), so
+        // Laravel's queued-cookie jar never carries state between two real requests; here we
+        // flush it the same way a fresh container would, then prove OUR code — not a leftover
+        // queue — decides whether the second, unrelated login gets the cookie.
+        User::factory()->create(['email' => 'ada@example.com']);
+        User::factory()->create(['email' => 'grace@example.com']);
+
+        $this->postJson('/api/login', [
+            'email' => 'ada@example.com',
+            'password' => 'password',
+            'remember' => true,
+        ])->assertCookie((string) config('remember.cookie'), '1');
+        Cookie::flushQueuedCookies();
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'grace@example.com',
+            'password' => 'password',
+            'remember' => false,
+        ]);
+
+        $response->assertOk();
+        $response->assertCookieMissing((string) config('remember.cookie'));
     }
 
     public function test_login_with_a_wrong_password_is_rejected_without_disclosure(): void {

@@ -113,7 +113,27 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Login' }));
 
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/'));
-    expect(login).toHaveBeenCalledWith({ email: 'ada@example.com', password: 'Password1' });
+    expect(login).toHaveBeenCalledWith({ email: 'ada@example.com', password: 'Password1', remember: false });
+  });
+
+  it('renders the "Remember me" checkbox unchecked by default', () => {
+    renderLogin(okResult);
+
+    expect(screen.getByLabelText('Remember me')).toHaveProperty('checked', false);
+  });
+
+  it('includes the checked "Remember me" state in the submitted login call', async () => {
+    const login = renderLogin(okResult);
+
+    fillCredentials('ada@example.com', 'Password1');
+    fireEvent.click(screen.getByLabelText('Remember me'));
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+
+    await waitFor(() => expect(login).toHaveBeenCalledWith({
+      email: 'ada@example.com',
+      password: 'Password1',
+      remember: true,
+    }));
   });
 
   it('returns to the location the auth guard blocked once login succeeds', async () => {

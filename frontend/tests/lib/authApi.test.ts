@@ -161,9 +161,20 @@ describe('login', () => {
     withXsrfCookie();
     stubFetch({ ok: true, status: 200, json: async () => ({ data: rawUser }) });
 
-    const result = await AuthApi.login({ email: 'ada@example.com', password: 'Password1' });
+    const result = await AuthApi.login({ email: 'ada@example.com', password: 'Password1', remember: false });
 
     expect(result).toEqual({ ok: true, user: AuthApi.mapUser(rawUser) });
+  });
+
+  it('sends remember straight through in the JSON body', async () => {
+    withXsrfCookie();
+    const mock = stubFetch({ ok: true, status: 200, json: async () => ({ data: rawUser }) });
+
+    await AuthApi.login({ email: 'ada@example.com', password: 'Password1', remember: true });
+
+    const [, init] = mock.mock.calls[0] as FetchArgs;
+    const body = JSON.parse(init.body as string);
+    expect(body.remember).toBe(true);
   });
 
   it('maps a 401 to a (non-disclosing) auth result', async () => {
@@ -174,7 +185,7 @@ describe('login', () => {
       json: async () => ({ message: 'These credentials do not match our records.' }),
     });
 
-    const result = await AuthApi.login({ email: 'ada@example.com', password: 'wrong' });
+    const result = await AuthApi.login({ email: 'ada@example.com', password: 'wrong', remember: false });
 
     expect(result).toEqual({ ok: false, kind: 'auth' });
   });
@@ -183,7 +194,7 @@ describe('login', () => {
     withXsrfCookie();
     stubFetch({ ok: false, status: 403, json: async () => ({ message: 'This account is disabled.' }) });
 
-    const result = await AuthApi.login({ email: 'ada@example.com', password: 'password' });
+    const result = await AuthApi.login({ email: 'ada@example.com', password: 'password', remember: false });
 
     // Distinct from the generic 401 auth failure so the SPA can show the disabled message
     // (FR-013, acceptance scenario 3) instead of "email or password is incorrect".
@@ -194,7 +205,7 @@ describe('login', () => {
     withXsrfCookie();
     stubFetch({ ok: false, status: 422, json: async () => ({ errors: { email: ['The email field is required.'] } }) });
 
-    const result = await AuthApi.login({ email: '', password: 'x' });
+    const result = await AuthApi.login({ email: '', password: 'x', remember: false });
 
     expect(result).toEqual({ ok: false, kind: 'validation', errors: { email: ['The email field is required.'] } });
   });
@@ -205,7 +216,8 @@ describe('login', () => {
       throw new TypeError('Failed to fetch');
     }));
 
-    expect(await AuthApi.login({ email: 'ada@example.com', password: 'x' })).toEqual({ ok: false, kind: 'network' });
+    expect(await AuthApi.login({ email: 'ada@example.com', password: 'x', remember: false }))
+      .toEqual({ ok: false, kind: 'network' });
   });
 });
 

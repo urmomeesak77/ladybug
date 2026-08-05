@@ -35,6 +35,20 @@ final class EnsureAccountEnabledTest extends TestCase {
         $response->assertExactJson(['message' => 'This account is disabled.']);
     }
 
+    public function test_a_disabled_users_next_request_clears_the_remember_cookie(): void {
+        // FR-006: a live-revoked (disabled) account's remember cookie must not survive to be
+        // replayed later — the teardown clears it the same way logout does.
+        $disabled = User::factory()->disabled()->create();
+
+        $response = $this->actingAs($disabled)
+            ->withCredentials()
+            ->withUnencryptedCookie((string) config('remember.cookie'), '1')
+            ->getJson('/api/user');
+
+        $response->assertStatus(401);
+        $response->assertCookieExpired((string) config('remember.cookie'));
+    }
+
     public function test_a_disabled_users_logout_is_answered_401_by_the_middleware(): void {
         // Research D3: the middleware refuses the request before AuthController::logout runs,
         // and has already done the session teardown, so /logout answers 401 rather than its

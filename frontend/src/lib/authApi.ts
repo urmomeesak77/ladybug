@@ -38,7 +38,7 @@ export type RegisterInput = {
   passwordConfirmation: string;
 };
 
-export type LoginInput = { email: string; password: string };
+export type LoginInput = { email: string; password: string; remember: boolean };
 
 // The components of a verification link, forwarded verbatim to the API (008).
 export type VerifyEmailInput = { hash: string; expires: string; signature: string };

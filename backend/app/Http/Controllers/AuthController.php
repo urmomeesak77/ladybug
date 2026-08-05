@@ -9,6 +9,7 @@ use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
 use App\Services\UserService;
+use App\Support\RememberMe;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -64,6 +65,11 @@ class AuthController extends Controller {
             return response()->json(['message' => 'This account is disabled.'], 403);
         }
 
+        if ($request->boolean('remember')) {
+            RememberMe::queue();
+            config(['session.lifetime' => config('remember.lifetime')]);
+        }
+
         // Rotate the session id after authenticating to prevent session fixation.
         $request->session()->regenerate();
 
@@ -72,12 +78,15 @@ class AuthController extends Controller {
 
     /**
      * Log the current user out: revoke the session and rotate the CSRF token so the
-     * cleared session cannot be reused (route is protected by auth:sanctum).
+     * cleared session cannot be reused (route is protected by auth:sanctum), and clear
+     * the remember cookie so the 7-day allowance never overrides an explicit sign-out
+     * (FR-005).
      */
     public function logout(Request $request): JsonResponse {
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        RememberMe::forget();
 
         return response()->json(['message' => 'Logged out.']);
     }

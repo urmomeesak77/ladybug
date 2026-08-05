@@ -54,6 +54,10 @@ function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [formError, setFormError] = useState('');
+  // Never pre-filled from a prior visit (spec Assumption/Edge Case) — plain local state
+  // that resets on every mount, kept outside useAuthForm since that hook is typed over
+  // string-valued fields only (research D5).
+  const [remember, setRemember] = useState(false);
   // This form's own last failure, or the refusal a Google round trip returned with.
   const refusal = useGoogleRefusal(formError);
   const form = useAuthForm<LoginValues>({ email: '', password: '' }, AuthModel.validateLogin);
@@ -65,7 +69,7 @@ function LoginPage() {
       return;
     }
     form.setSubmitting(true);
-    const result = await login(form.values);
+    const result = await login({ ...form.values, remember });
     form.setSubmitting(false);
     if (result.ok) {
       // Return to the location the auth guard blocked, if any (D9) — e.g. an
@@ -98,6 +102,15 @@ function LoginPage() {
         {refusal ? <p className="auth-form__error" role="alert">{refusal}</p> : null}
         <fieldset disabled={form.submitting}>
           <LoginFields form={form} />
+          <div className="auth-checkbox">
+            <input
+              id="remember"
+              type="checkbox"
+              checked={remember}
+              onChange={(event) => setRemember(event.target.checked)}
+            />
+            <label htmlFor="remember">Remember me</label>
+          </div>
           <BusyButton type="submit" busy={form.submitting} disabled={form.hasErrors}>Login</BusyButton>
         </fieldset>
         <p className="auth-form__link"><Link to="/register">No account? Register here....</Link></p>

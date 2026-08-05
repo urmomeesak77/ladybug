@@ -94,7 +94,7 @@ multi-day (but under 7) idle gap.
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`:
+- [x] T010 [P] [US1] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`:
   `login` with `remember: true` and valid credentials returns 200, sets the remember cookie
   (`config('remember.cookie')`), and the response's session cookie carries the 7-day lifetime;
   `remember` omitted/`false` sets no remember cookie (baseline for the US3 checkpoint too); a
@@ -106,28 +106,28 @@ multi-day (but under 7) idle gap.
   (differing account or `remember` choice) — the second response's cookies are unaffected by
   the first (FR-007, cross-session independence — currently only spot-checked manually in
   quickstart.md)
-- [ ] T011 [P] [US1] Extend `frontend/tests/pages/LoginPage.test.tsx`: the "Remember me" checkbox
+- [x] T011 [P] [US1] Extend `frontend/tests/pages/LoginPage.test.tsx`: the "Remember me" checkbox
   renders unchecked by default and its state is included in the submitted `login()` call
-- [ ] T012 [P] [US1] Extend `frontend/tests/lib/authApi.test.ts`: `AuthApi.login` sends
+- [x] T012 [P] [US1] Extend `frontend/tests/lib/authApi.test.ts`: `AuthApi.login` sends
   `remember` straight through in the JSON body
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] In `backend/app/Http/Controllers/AuthController.php::login`, after the existing
+- [x] T013 [US1] In `backend/app/Http/Controllers/AuthController.php::login`, after the existing
   disabled-account check, when `$request->boolean('remember')` call `RememberMe::queue()` and
   `config(['session.lifetime' => config('remember.lifetime')])` before `$request->session()->regenerate()`
   (research D2 step 1, D4)
-- [ ] T014 [US1] In `AuthController::logout`, call `RememberMe::forget()` alongside the existing
+- [x] T014 [US1] In `AuthController::logout`, call `RememberMe::forget()` alongside the existing
   session teardown (FR-005, research D2 step 4)
-- [ ] T015 [US1] In `backend/app/Http/Middleware/EnsureAccountEnabled.php`, call
+- [x] T015 [US1] In `backend/app/Http/Middleware/EnsureAccountEnabled.php`, call
   `RememberMe::forget()` alongside the existing disabled-account teardown (FR-006, research D2
   step 4)
-- [ ] T016 [P] [US1] Extend `backend/tests/Feature/Http/Middleware/EnsureAccountEnabledTest.php`
+- [x] T016 [P] [US1] Extend `backend/tests/Feature/Http/Middleware/EnsureAccountEnabledTest.php`
   to assert the remember cookie is cleared on the disabled-account 401 path
-- [ ] T017 [US1] Add a "Remember me" checkbox to `frontend/src/pages/LoginPage.tsx`: local
+- [x] T017 [US1] Add a "Remember me" checkbox to `frontend/src/pages/LoginPage.tsx`: local
   `useState(false)`, a real visible `<label>` (not `sr-only` — Principle IV), rendered below the
   password field; `handleSubmit` calls `login({ ...form.values, remember })`
-- [ ] T018 [US1] Add `remember: boolean` to `LoginInput` in `frontend/src/lib/authApi.ts` and
+- [x] T018 [US1] Add `remember: boolean` to `LoginInput` in `frontend/src/lib/authApi.ts` and
   pass it straight through in `AuthApi.login`'s JSON body (no new mapping logic — matches every
   other field already there)
 
