@@ -176,11 +176,11 @@ current (pre-feature) behavior.
 
 ### Tests for User Story 3
 
-- [ ] T021 [P] [US3] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`:
+- [x] T021 [P] [US3] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`:
   login with `remember` omitted (and, separately, explicitly `false`) sets only the session
   cookie, at the default `SESSION_LIFETIME` (120 minutes) — no `config('remember.cookie')` in the
   response at all (SC-003)
-- [ ] T022 [P] [US3] Extend `frontend/tests/pages/LoginPage.test.tsx`: the checkbox is unchecked
+- [x] T022 [P] [US3] Extend `frontend/tests/pages/LoginPage.test.tsx`: the checkbox is unchecked
   after remount regardless of a prior login's choice (nothing persists it client-side — spec
   Assumption/Edge Case)
 

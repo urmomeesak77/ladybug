@@ -122,6 +122,19 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('Remember me')).toHaveProperty('checked', false);
   });
 
+  it('never persists a checked "Remember me" across a remount', () => {
+    // Spec Assumption/Edge Case: nothing client-side remembers the choice, so a fresh
+    // page load always starts from the unchecked default, whatever an earlier login chose.
+    renderLogin(okResult);
+    fireEvent.click(screen.getByLabelText('Remember me'));
+    expect(screen.getByLabelText('Remember me')).toHaveProperty('checked', true);
+    cleanup();
+
+    renderLogin(okResult);
+
+    expect(screen.getByLabelText('Remember me')).toHaveProperty('checked', false);
+  });
+
   it('includes the checked "Remember me" state in the submitted login call', async () => {
     const login = renderLogin(okResult);
 

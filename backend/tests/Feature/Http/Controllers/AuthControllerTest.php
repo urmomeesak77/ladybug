@@ -12,6 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Testing\TestResponse;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -201,6 +202,7 @@ class AuthControllerTest extends TestCase {
         $response->assertOk();
         $this->assertAuthenticated();
         $response->assertCookieMissing((string) config('remember.cookie'));
+        $this->assertDefaultSessionLifetime($response);
     }
 
     public function test_login_with_remember_omitted_sets_no_remember_cookie(): void {
@@ -210,6 +212,22 @@ class AuthControllerTest extends TestCase {
 
         $response->assertOk();
         $response->assertCookieMissing((string) config('remember.cookie'));
+        $this->assertDefaultSessionLifetime($response);
+    }
+
+    /**
+     * SC-003: a non-remembered login carries the untouched default SESSION_LIFETIME (120
+     * minutes), never the 7-day `remember.lifetime` — the byte-for-byte baseline US3 exists
+     * to protect.
+     */
+    private function assertDefaultSessionLifetime(TestResponse $response): void {
+        $sessionCookie = $response->getCookie((string) config('session.cookie'), false);
+        $this->assertNotNull($sessionCookie);
+        $this->assertEqualsWithDelta(
+            now()->addMinutes((int) config('session.lifetime'))->getTimestamp(),
+            $sessionCookie->getExpiresTime(),
+            5,
+        );
     }
 
     public function test_login_on_a_disabled_account_with_remember_true_still_refuses_and_queues_no_cookie(): void {
