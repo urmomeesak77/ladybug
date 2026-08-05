@@ -36,7 +36,7 @@ plan.md's Project Structure for the exact file list this feature touches.
 
 **Purpose**: The one new config surface, ahead of everything else that reads it.
 
-- [ ] T001 Create `backend/config/remember.php` returning `lifetime` (minutes, default 10080 via
+- [x] T001 Create `backend/config/remember.php` returning `lifetime` (minutes, default 10080 via
   `REMEMBER_ME_LIFETIME`) and `cookie` (name, default `Str::slug(APP_NAME).'-remember'` via
   `REMEMBER_ME_COOKIE`) — mirrors `config/session.php`'s own pattern (research D6)
 
@@ -49,31 +49,31 @@ story can be implemented or tested until this phase is complete.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 [P] Create `App\Support\RememberMe` in `backend/app/Support/RememberMe.php` with
+- [x] T002 [P] Create `App\Support\RememberMe` in `backend/app/Support/RememberMe.php` with
   static `queue()` (queues the flag cookie via `Cookie::queue()`, value `"1"`,
   `config('remember.lifetime')`) and `forget()` (via `Cookie::forget(config('remember.cookie'))`)
   helpers — matches the existing `App\Support\MediaPath` one-class-of-statics pattern
   (research D2, D6)
-- [ ] T003 [P] Unit tests for `RememberMe::queue()`/`forget()` in
+- [x] T003 [P] Unit tests for `RememberMe::queue()`/`forget()` in
   `backend/tests/Unit/Support/RememberMeTest.php`
-- [ ] T004 [P] Add `'remember' => ['sometimes', 'boolean']` to `rules()` in
+- [x] T004 [P] Add `'remember' => ['sometimes', 'boolean']` to `rules()` in
   `backend/app/Http/Requests/LoginRequest.php` (research D4, data-model.md §3)
-- [ ] T005 Create `App\Http\Middleware\ApplyRememberMeLifetime` in
+- [x] T005 Create `App\Http\Middleware\ApplyRememberMeLifetime` in
   `backend/app/Http/Middleware/ApplyRememberMeLifetime.php` — before the session starts, if
   `$request->hasCookie(config('remember.cookie'))` (presence only, never decrypts — research D3),
   call `config(['session.lifetime' => config('remember.lifetime')])`, then `$next($request)`
-- [ ] T006 [P] Feature test for `ApplyRememberMeLifetime` in
+- [x] T006 [P] Feature test for `ApplyRememberMeLifetime` in
   `backend/tests/Feature/Http/Middleware/ApplyRememberMeLifetimeTest.php` — raises lifetime when
   the flag cookie is present, leaves it untouched when absent
-- [ ] T007 Create `App\Http\Middleware\SlideRememberMeCookie` in
+- [x] T007 Create `App\Http\Middleware\SlideRememberMeCookie` in
   `backend/app/Http/Middleware/SlideRememberMeCookie.php` — after `$next($request)`, if the
   resolved user is authenticated and the flag cookie is present, re-queue it via
   `RememberMe::queue()` so its `Max-Age` resets every authenticated request (research D2 step 3,
   FR-004)
-- [ ] T008 [P] Feature test for `SlideRememberMeCookie` in
+- [x] T008 [P] Feature test for `SlideRememberMeCookie` in
   `backend/tests/Feature/Http/Middleware/SlideRememberMeCookieTest.php` — renews the cookie on an
   authenticated request when present, does nothing when absent or unauthenticated
-- [ ] T009 Register both middleware in `backend/bootstrap/app.php`: prepend
+- [x] T009 Register both middleware in `backend/bootstrap/app.php`: prepend
   `ApplyRememberMeLifetime` to the `api` group *after* `$middleware->statefulApi()` (so it lands
   ahead of Sanctum's own prepended middleware — research D3), and append
   `SlideRememberMeCookie` to the `api` group *after* the existing `EnsureAccountEnabled` (so a
