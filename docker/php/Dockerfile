@@ -40,6 +40,10 @@ RUN docker-php-ext-configure gd --with-jpeg --with-freetype --with-webp \
 RUN docker-php-ext-enable opcache
 COPY opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
 
+# The stock image's upload limits are far under CreatePostRequest's 20 MiB video cap
+# (research.md #5) — without this, a real-sized dev upload is truncated by PHP itself.
+COPY uploads.ini /usr/local/etc/php/conf.d/zz-uploads.ini
+
 # Reuse Composer from its official image rather than installing it by hand.
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
