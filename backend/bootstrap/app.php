@@ -28,6 +28,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // this middleware ahead of Sanctum's own prepended EnsureFrontendRequestsAreStateful.
         $middleware->prependToGroup('api', ApplyRememberMeLifetime::class);
 
+        // Same reasoning applies to the `web` group: Sanctum's SanctumServiceProvider
+        // registers /sanctum/csrf-cookie under `web` (StartSession et al., no ApplyRememberMeLifetime),
+        // and the frontend hits that route directly whenever its XSRF-TOKEN cookie is missing. Without
+        // this, that request would start/read the session at the default 120-minute lifetime and could
+        // silently downgrade or destroy an already-remembered 7-day session.
+        $middleware->prependToGroup('web', ApplyRememberMeLifetime::class);
+
         // Live-session revocation (FR-014): appended AFTER statefulApi so the session is
         // started and $request->user() resolves before it runs. A disabled account's next
         // request is refused and its session torn down (research D3).
