@@ -19,6 +19,6 @@ final class RememberMe {
     }
 
     public static function forget(): void {
-        Cookie::forget(config('remember.cookie'));
+        Cookie::queue(Cookie::forget(config('remember.cookie')));
     }
 }
