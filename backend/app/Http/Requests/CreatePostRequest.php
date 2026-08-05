@@ -29,12 +29,24 @@ class CreatePostRequest extends FormRequest {
             'title' => ['required', 'string', 'max:255'],
             'image' => ['required_without_all:youtube,video', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:10240'],
             'youtube' => ['required_without_all:image,video', 'string', 'max:500'],
-            'video' => ['required_without_all:image,youtube', 'mimetypes:video/mp4,video/webm', 'max:20480', new ValidVideo()],
+            // bail: once the format/size checks fail, skip the ffprobe-based ValidVideo
+            // check so its "unreadable or corrupt" message never conflates with theirs.
+            'video' => ['required_without_all:image,youtube', 'bail', 'mimetypes:video/mp4,video/webm', 'max:20480', new ValidVideo()],
         ];
     }
 
     public function withValidator(Validator $validator): void {
         $validator->after($this->validateExclusivity(...));
+    }
+
+    /**
+     * Laravel's default `max` message reports kilobytes ("20480 kilobytes"); the contract
+     * (contracts/api-posts.md 422 table) calls for the human-facing "20 MB" instead.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array {
+        return ['video.max' => 'The video file must not be greater than 20 MB.'];
     }
 
     /**

@@ -334,6 +334,71 @@ class CreatePostTest extends TestCase {
         $this->assertNull($post->activated_at);
     }
 
+    public function test_rejects_an_unsupported_video_format(): void {
+        // 019 US2: a real-looking but unsupported container (MOV) is rejected by name,
+        // distinct from the size/corrupt-content messages (contracts/api-posts.md 422 table).
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Wrong format',
+            'video' => UploadedFile::fake()->create('clip.mov', 500, 'video/quicktime'),
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('video');
+        // Exactly one message: the ffprobe-based ValidVideo check must not also fire
+        // once the format check already failed (contracts/api-posts.md 422 table —
+        // the format message is not conflated with the corrupt-content message).
+        $errors = $response->json('errors.video');
+        $this->assertCount(1, $errors);
+        $this->assertStringContainsStringIgnoringCase('mp4', $errors[0]);
+        $this->assertStringContainsStringIgnoringCase('webm', $errors[0]);
+        $this->assertDatabaseCount('trashposts', 0);
+    }
+
+    public function test_rejects_a_video_over_the_size_limit(): void {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Too big',
+            'video' => UploadedFile::fake()->create('big.mp4', 20481, 'video/mp4'),
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('video');
+        // Exactly one message: the ffprobe check must not also fire once size failed.
+        $errors = $response->json('errors.video');
+        $this->assertCount(1, $errors);
+        $this->assertStringContainsStringIgnoringCase('20 mb', $errors[0]);
+        $this->assertDatabaseCount('trashposts', 0);
+    }
+
+    public function test_rejects_a_corrupt_video_with_a_distinct_message(): void {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Corrupt clip',
+            'video' => $this->videoUpload('fake-video.mp4', 'video/mp4'),
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('video');
+        // Exactly the corrupt-content message: not conflated with the format message
+        // that would otherwise also fire since ffprobe fails on any non-video content.
+        $this->assertSame(['The video file is unreadable or corrupt.'], $response->json('errors.video'));
+        $this->assertDatabaseCount('trashposts', 0);
+    }
+
+    public function test_rejects_when_both_image_and_video_are_present(): void {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Both',
+            'image' => UploadedFile::fake()->image('m.jpg', 10, 10),
+            'video' => $this->videoUpload('sample.mp4', 'video/mp4'),
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['image', 'video']);
+        $this->assertDatabaseCount('trashposts', 0);
+    }
+
     public function test_an_admin_below_the_threshold_publishes_immediately_and_earns_the_credit(): void {
         // US3: a moderator skips the queue on role alone. A negative rating is the
         // sharpest case — the very account the rating gate would hold back longest.

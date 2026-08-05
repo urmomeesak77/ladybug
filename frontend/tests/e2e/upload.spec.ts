@@ -114,6 +114,28 @@ test.describe('Upload', () => {
     await expect(page).toHaveURL(/\/posts\/[A-Za-z0-9_-]{10}$/);
   });
 
+  test('rejects an unsupported video format and preserves the form', async ({ page }) => {
+    // 019 US2: a wrong-format video is rejected server-side with a distinguishable
+    // message, and the member's in-progress title survives the rejection (FR-007).
+    const email = uniqueEmail();
+    await register(page, email);
+    await verify(page, email);
+    await page.goto('/upload');
+
+    await page.getByRole('tab', { name: 'Video' }).click();
+    await page.getByLabel('Title').fill('My rejected clip');
+    await page.getByLabel('Video file').setInputFiles({
+      name: 'clip.mov',
+      mimeType: 'video/quicktime',
+      buffer: Buffer.from('not a real video file'),
+    });
+    await page.getByRole('button', { name: 'Post' }).click();
+
+    await expect(page.getByRole('alert')).toContainText(/mp4|webm/i);
+    await expect(page).toHaveURL('/upload');
+    await expect(page.getByLabel('Title')).toHaveValue('My rejected clip');
+  });
+
   test('a moderator activates a pending upload and it reaches the feed', async ({ page }) => {
     // Register + verify + upload, an out-of-band role promotion, a reload, then the
     // moderation round-trip — well past the default 30s budget.
