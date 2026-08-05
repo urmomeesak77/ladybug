@@ -3,10 +3,11 @@ import type { ReactNode } from 'react';
 import { useTabsKeyboard } from '../hooks/useTabsKeyboard';
 import type { UploadMode } from '../lib/uploadModel';
 
-// The two media choices, in display order. Image is first, so it is the default selection.
+// The three media choices, in display order. Image is first, so it is the default selection.
 const TABS: { id: UploadMode; label: string }[] = [
   { id: 'image', label: 'Image' },
   { id: 'youtube', label: 'YouTube' },
+  { id: 'video', label: 'Video' },
 ];
 
 // The upload form's media-type chooser: a WAI-ARIA tablist ("Image" default, "YouTube")

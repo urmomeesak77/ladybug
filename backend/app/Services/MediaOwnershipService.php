@@ -14,24 +14,58 @@ use App\Support\MediaPath;
  */
 class MediaOwnershipService {
     /**
-     * Every file the meme owns outright: all image size variants of its stored file, plus
-     * its YouTube thumbnail only when no other post (trashed included) shares it —
-     * thumbnails are stored once per video id, and yanking a shared one would break the
-     * sharing posts' rendering.
+     * Every file the meme owns outright: for a video post, its single video file plus every
+     * poster size variant (contracts/media-layout-video.md "Ownership"); for any other post,
+     * all image size variants of its stored file — plus, either way, its YouTube thumbnail
+     * only when no other post (trashed included) shares it, since thumbnails are stored once
+     * per video id and yanking a shared one would break the sharing posts' rendering.
      *
      * @return list<string>
      */
     public function ownedPaths(Trashpost $post): array {
+        $paths = $post->type === 'video' ? $this->videoPaths($post) : $this->imagePaths($post);
+        if ($post->youtube_thumbnail !== null && !$this->thumbnailShared($post)) {
+            $paths[] = $post->youtube_thumbnail;
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function imagePaths(Trashpost $post): array {
+        if ($post->file === null) {
+            return [];
+        }
+        $code = pathinfo($post->file, PATHINFO_FILENAME);
+        $ext = pathinfo($post->file, PATHINFO_EXTENSION);
+        $paths = [];
+        foreach (MediaPath::imageSizes() as $size) {
+            $paths[] = MediaPath::imageRelativePath($size, $code, $ext);
+        }
+
+        return $paths;
+    }
+
+    /**
+     * A video post's own video file plus every poster size variant — no sharing check, since
+     * each upload's poster is derived from its own hash and never shared across posts.
+     *
+     * @return list<string>
+     */
+    private function videoPaths(Trashpost $post): array {
         $paths = [];
         if ($post->file !== null) {
             $code = pathinfo($post->file, PATHINFO_FILENAME);
             $ext = pathinfo($post->file, PATHINFO_EXTENSION);
-            foreach (MediaPath::imageSizes() as $size) {
-                $paths[] = MediaPath::imageRelativePath($size, $code, $ext);
-            }
+            $paths[] = MediaPath::videoRelativePath($code, $ext);
         }
-        if ($post->youtube_thumbnail !== null && !$this->thumbnailShared($post)) {
-            $paths[] = $post->youtube_thumbnail;
+        if ($post->poster !== null) {
+            $posterCode = pathinfo($post->poster, PATHINFO_FILENAME);
+            foreach (MediaPath::imageSizes() as $size) {
+                $paths[] = MediaPath::imageRelativePath($size, $posterCode, 'jpg');
+            }
         }
 
         return $paths;

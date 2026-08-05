@@ -9,6 +9,7 @@ function makeRaw(overrides: Partial<RawPost> = {}): RawPost {
     hash: 'abc1234567',
     title: 'A funny meme',
     youtube: null,
+    video: null,
     default: 'https://cdn.example/x/default.jpg',
     sizes: [
       { url: 'https://cdn.example/x/small.jpg', width: 320 },
@@ -104,6 +105,60 @@ describe('mapPost', () => {
   it('yields kind "none" when there is no youtube and no image source', () => {
     const post = FeedModel.mapPost(
       makeRaw({ youtube: null, default: null, sizes: [], original: null }),
+    );
+
+    expect(post.media.kind).toBe('none');
+  });
+
+  it('derives a video variant with the same poster fields an equivalent image post would have', () => {
+    const withVideo = FeedModel.mapPost(
+      makeRaw({ video: 'https://cdn.example/x/clip.mp4' }),
+    );
+    const withoutVideo = FeedModel.mapPost(makeRaw({ video: null }));
+
+    expect(withVideo.media.kind).toBe('video');
+    if (withVideo.media.kind === 'video' && withoutVideo.media.kind === 'image') {
+      expect(withVideo.media.src).toBe(withoutVideo.media.src);
+      expect(withVideo.media.srcset).toBe(withoutVideo.media.srcset);
+      expect(withVideo.media.sizes).toBe(withoutVideo.media.sizes);
+      expect(withVideo.media.alt).toBe(withoutVideo.media.alt);
+      expect(withVideo.media.width).toBe(withoutVideo.media.width);
+      expect(withVideo.media.height).toBe(withoutVideo.media.height);
+      expect(withVideo.media.videoSrc).toBe('https://cdn.example/x/clip.mp4');
+    } else {
+      throw new Error('expected video and image media');
+    }
+  });
+
+  it('checks raw.video before youtube/image, per research.md item 8', () => {
+    const post = FeedModel.mapPost(
+      makeRaw({ video: 'https://cdn.example/x/clip.mp4', youtube: 'https://youtu.be/dQw4w9WgXcQ' }),
+    );
+
+    expect(post.media.kind).toBe('video');
+  });
+
+  it('derives mime video/mp4 for a .mp4 url and video/webm for a .webm url', () => {
+    const mp4 = FeedModel.mapPost(makeRaw({ video: 'https://cdn.example/x/clip.mp4' }));
+    const webm = FeedModel.mapPost(makeRaw({ video: 'https://cdn.example/x/clip.webm' }));
+
+    if (mp4.media.kind === 'video' && webm.media.kind === 'video') {
+      expect(mp4.media.mime).toBe('video/mp4');
+      expect(webm.media.mime).toBe('video/webm');
+    } else {
+      throw new Error('expected video media');
+    }
+  });
+
+  it('falls back to kind "none" when video is set but no poster source can be derived', () => {
+    const post = FeedModel.mapPost(
+      makeRaw({
+        video: 'https://cdn.example/x/clip.mp4',
+        youtube: null,
+        default: null,
+        sizes: [],
+        original: null,
+      }),
     );
 
     expect(post.media.kind).toBe('none');

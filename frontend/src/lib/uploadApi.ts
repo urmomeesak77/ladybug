@@ -19,6 +19,13 @@ export class UploadApi {
     return UploadApi.send(form, false);
   }
 
+  static uploadVideo(input: { title: string; file: File }): Promise<UploadResult> {
+    const form = new FormData();
+    form.set('title', input.title);
+    form.set('video', input.file);
+    return UploadApi.send(form, false);
+  }
+
   static uploadYoutube(input: { title: string; youtube: string }): Promise<UploadResult> {
     const body = JSON.stringify({ title: input.title, youtube: input.youtube });
     return UploadApi.send(body, true);

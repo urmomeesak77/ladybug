@@ -37,6 +37,21 @@ describe('uploadApi', () => {
     expect(init?.body).toBeInstanceOf(FormData);
   });
 
+  it('sends a video field on a video upload', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse(201, { data: { hash: 'vid1234567' } }),
+    );
+
+    const file = new File(['x'], 'm.mp4', { type: 'video/mp4' });
+    const result = await UploadApi.uploadVideo({ title: 'hi', file });
+
+    expect(result).toEqual({ ok: true, hash: 'vid1234567' });
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBeInstanceOf(FormData);
+    expect((init?.body as FormData).get('video')).toBe(file);
+  });
+
   it('sends youtube submissions as JSON', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse(201, { data: { hash: 'zzz1234567' } }),
@@ -73,6 +88,13 @@ describe('uploadApi', () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
     const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
     const result = await UploadApi.uploadImage({ title: '', file });
+    expect(result).toEqual({ ok: false, kind: 'network' });
+  });
+
+  it('maps a network rejection to a network failure for a video upload', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+    const file = new File(['x'], 'm.mp4', { type: 'video/mp4' });
+    const result = await UploadApi.uploadVideo({ title: '', file });
     expect(result).toEqual({ ok: false, kind: 'network' });
   });
 });

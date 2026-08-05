@@ -59,4 +59,46 @@ describe('UploadMediaField', () => {
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(input.getAttribute('aria-describedby')).toBe('image-error');
   });
+
+  it('renders a file picker limited to the accepted video types in video mode', () => {
+    render(
+      <UploadMediaField mode="video" youtube="" errors={{}} onFile={vi.fn()} onYoutube={vi.fn()} />,
+    );
+
+    const input = screen.getByLabelText('Video file');
+    expect(input.getAttribute('type')).toBe('file');
+    expect(input.getAttribute('accept')).toBe('video/mp4,video/webm');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('reports the chosen video file, and null when the selection is cleared', () => {
+    const onFile = vi.fn();
+    render(
+      <UploadMediaField mode="video" youtube="" errors={{}} onFile={onFile} onYoutube={vi.fn()} />,
+    );
+    const file = new File(['x'], 'm.mp4', { type: 'video/mp4' });
+
+    fireEvent.change(screen.getByLabelText('Video file'), { target: { files: [file] } });
+    expect(onFile).toHaveBeenLastCalledWith(file);
+
+    fireEvent.change(screen.getByLabelText('Video file'), { target: { files: [] } });
+    expect(onFile).toHaveBeenLastCalledWith(null);
+  });
+
+  it('associates a video error with the file input as an alert', () => {
+    render(
+      <UploadMediaField
+        mode="video"
+        youtube=""
+        errors={{ video: ['Choose a video to upload.'] }}
+        onFile={vi.fn()}
+        onYoutube={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByLabelText('Video file');
+    expect(screen.getByRole('alert').textContent).toBe('Choose a video to upload.');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')).toBe('video-error');
+  });
 });

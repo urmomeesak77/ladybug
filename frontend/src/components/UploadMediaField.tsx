@@ -26,6 +26,27 @@ function UploadMediaField({ mode, youtube, errors, onFile, onYoutube }: {
     );
   }
 
+  if (mode === 'video') {
+    return (
+      <div className="auth-field">
+        <label htmlFor="video">Video file</label>
+        <input
+          id="video"
+          type="file"
+          accept="video/mp4,video/webm"
+          aria-invalid={errors.video ? true : undefined}
+          aria-describedby={errors.video ? 'video-error' : undefined}
+          onChange={(event) => onFile(event.target.files?.[0] ?? null)}
+        />
+        {errors.video ? (
+          <span id="video-error" className="auth-field__error" role="alert">
+            {errors.video[0]}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="auth-field">
       <label htmlFor="image">Image file</label>

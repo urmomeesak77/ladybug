@@ -55,6 +55,11 @@ class AdminTrashpostResource extends JsonResource {
             // (with size variants), so fall back to the stored 100-variant.
             return $this->youtubeThumbnailUrl() ?? $this->imageThumbnailUrl();
         }
+        if ($this->type === 'video') {
+            // `file` is the video's own filename for this type — the thumbnail is the
+            // generated poster instead (contracts/api-posts.md "GET /api/admin/posts").
+            return $this->posterThumbnailUrl();
+        }
 
         return $this->imageThumbnailUrl();
     }
@@ -87,6 +92,25 @@ class AdminTrashpostResource extends JsonResource {
         $code = pathinfo($this->file, PATHINFO_FILENAME);
         $ext = pathinfo($this->file, PATHINFO_EXTENSION);
         $relativePath = MediaPath::imageRelativePath(self::THUMBNAIL_SIZE, $code, $ext);
+
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+
+        return $disk->exists($relativePath) ? $disk->url($relativePath) : null;
+    }
+
+    /**
+     * The stored poster's 100-size variant public URL for a video post, else null (→ UI
+     * placeholder). Mirrors imageThumbnailUrl()'s shape but is keyed on `poster`, always
+     * `.jpg`, since `file` holds the video's own filename for this type.
+     */
+    private function posterThumbnailUrl(): ?string {
+        if ($this->poster === null) {
+            return null;
+        }
+
+        $code = pathinfo($this->poster, PATHINFO_FILENAME);
+        $relativePath = MediaPath::imageRelativePath(self::THUMBNAIL_SIZE, $code, 'jpg');
 
         /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
         $disk = Storage::disk('public');

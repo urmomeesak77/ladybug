@@ -23,6 +23,17 @@ describe('UploadModel.validate', () => {
     expect(UploadModel.validate('youtube', { title: 'T', file: null, youtube: 'x' })).toEqual({});
   });
 
+  it('requires a file in video mode', () => {
+    expect(UploadModel.validate('video', { title: 'T', file: null, youtube: '' })).toEqual({
+      video: ['Choose a video to upload.'],
+    });
+  });
+
+  it('passes when a title and a video file are present', () => {
+    const file = new File(['x'], 'm.mp4', { type: 'video/mp4' });
+    expect(UploadModel.validate('video', { title: 'T', file, youtube: '' })).toEqual({});
+  });
+
   it('requires a title', () => {
     const file = new File(['x'], 'm.jpg', { type: 'image/jpeg' });
     const errors = UploadModel.validate('image', { title: '', file, youtube: '' });
@@ -53,5 +64,15 @@ describe('UploadModel.submit', () => {
 
     expect(spy).toHaveBeenCalledWith({ title: '', youtube: 'dQw4w9WgXcQ' });
     expect(result).toEqual({ ok: true, hash: 'zzz1234567' });
+  });
+
+  it('routes video mode to UploadApi.uploadVideo', async () => {
+    const spy = vi.spyOn(UploadApi, 'uploadVideo').mockResolvedValue({ ok: true, hash: 'vid1234567' });
+    const file = new File(['x'], 'm.mp4', { type: 'video/mp4' });
+
+    const result = await UploadModel.submit('video', { title: 't', file, youtube: '' });
+
+    expect(spy).toHaveBeenCalledWith({ title: 't', file });
+    expect(result).toEqual({ ok: true, hash: 'vid1234567' });
   });
 });

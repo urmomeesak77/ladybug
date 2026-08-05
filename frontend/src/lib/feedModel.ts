@@ -6,6 +6,7 @@ export type RawPost = {
   hash: string;
   title: string | null;
   youtube: string | null;
+  video: string | null;
   default: string | null;
   sizes: ImageSize[] | null;
   original: string | null;
@@ -21,10 +22,21 @@ export type ImageSize = { url: string; width: number };
 
 export type ImageDimensions = { width: number; height: number };
 
-export type FeedMediaKind = 'image' | 'youtube' | 'none';
+export type FeedMediaKind = 'image' | 'video' | 'youtube' | 'none';
 
 export type FeedMedia =
   | { kind: 'image'; src: string; srcset: string; sizes: string; alt: string; width?: number; height?: number }
+  | {
+      kind: 'video';
+      src: string;
+      srcset: string;
+      sizes: string;
+      alt: string;
+      width?: number;
+      height?: number;
+      videoSrc: string;
+      mime: string;
+    }
   | { kind: 'youtube'; embedUrl: string; title: string }
   | { kind: 'none' };
 
@@ -122,7 +134,31 @@ export class FeedModel {
       .join(', ');
   }
 
+  // Video src → MIME sniff, from the URL's extension alone (no server round trip). Anything
+  // that is not a recognized .webm is served as video/mp4 — the only other extension the
+  // backend ever writes (TrashpostVideoProcessor::extensionFor), never a transcode.
+  private static videoMime(videoSrc: string): string {
+    return videoSrc.toLowerCase().endsWith('.webm') ? 'video/webm' : 'video/mp4';
+  }
+
   private static deriveMedia(raw: RawPost): FeedMedia {
+    if (raw.video) {
+      const posterSrc = FeedModel.pickImageSource(raw);
+      if (posterSrc) {
+        const dimensions = FeedModel.parseDimensions(raw.metadata);
+        return {
+          kind: 'video',
+          src: posterSrc,
+          srcset: FeedModel.buildSrcset(raw.sizes, raw.original, dimensions?.width ?? null),
+          sizes: IMAGE_SIZES,
+          alt: raw.title ?? GENERIC_ALT,
+          width: dimensions?.width,
+          height: dimensions?.height,
+          videoSrc: raw.video,
+          mime: FeedModel.videoMime(raw.video),
+        };
+      }
+    }
     const embedUrl = Youtube.toEmbedUrl(raw.youtube);
     if (embedUrl) {
       return { kind: 'youtube', embedUrl, title: raw.title ?? GENERIC_ALT };

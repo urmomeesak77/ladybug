@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Services\TrashpostImageService;
+use App\Support\MediaPath;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin \App\Models\Trashpost
@@ -33,6 +35,7 @@ class TrashpostResource extends JsonResource {
             'title' => $this->title,
             'type' => $this->type,
             'file' => $this->file,
+            'video' => $this->videoUrl(),
             'youtube' => $this->youtube,
             'username' => $this->authorName(),
             'metadata' => $this->metadata,
@@ -55,6 +58,25 @@ class TrashpostResource extends JsonResource {
      */
     private function authorName(): ?string {
         return $this->user?->name ?? $this->username;
+    }
+
+    /**
+     * The playable video file's public URL for a video post, else null. `original`/
+     * `default`/`sizes` describe the poster (via TrashpostImageService, unchanged); this is
+     * the one new field naming the actual video (contracts/api-posts.md 201 response).
+     */
+    private function videoUrl(): ?string {
+        if ($this->type !== 'video' || $this->file === null) {
+            return null;
+        }
+
+        $code = pathinfo($this->file, PATHINFO_FILENAME);
+        $ext = pathinfo($this->file, PATHINFO_EXTENSION);
+
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+
+        return $disk->url(MediaPath::videoRelativePath($code, $ext));
     }
 
     /**

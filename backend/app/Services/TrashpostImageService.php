@@ -17,15 +17,19 @@ class TrashpostImageService {
      * numeric `sizes` (widest-first). Only sizes whose file actually exists on the
      * public disk are emitted — the API never points at a missing or fabricated file.
      *
+     * A video post's `file` holds the video's own filename (not an image); its `poster`
+     * — always `.jpg` — is what these fields describe instead (data-model.md, research.md
+     * #4), so the code/ext pair is resolved from the right column per type.
+     *
      * @return array{original: string|null, default: string|null, sizes: list<array{url: string, width: int}>}
      */
     public function imageData(Trashpost $post): array {
-        if ($post->file === null) {
+        $source = $post->type === 'video' ? $this->posterSource($post) : $this->fileSource($post);
+        if ($source === null) {
             return ['original' => null, 'default' => null, 'sizes' => []];
         }
 
-        $code = pathinfo($post->file, PATHINFO_FILENAME);
-        $ext = pathinfo($post->file, PATHINFO_EXTENSION);
+        [$code, $ext] = $source;
         $urls = $this->existingSizeUrls($code, $ext);
         $sizes = $this->numericSizes($urls);
 
@@ -34,6 +38,28 @@ class TrashpostImageService {
             'default' => $this->defaultUrl($urls, $sizes),
             'sizes' => $sizes,
         ];
+    }
+
+    /**
+     * @return array{0: string, 1: string}|null
+     */
+    private function fileSource(Trashpost $post): ?array {
+        if ($post->file === null) {
+            return null;
+        }
+
+        return [pathinfo($post->file, PATHINFO_FILENAME), pathinfo($post->file, PATHINFO_EXTENSION)];
+    }
+
+    /**
+     * @return array{0: string, 1: string}|null
+     */
+    private function posterSource(Trashpost $post): ?array {
+        if ($post->poster === null) {
+            return null;
+        }
+
+        return [pathinfo($post->poster, PATHINFO_FILENAME), 'jpg'];
     }
 
     /**

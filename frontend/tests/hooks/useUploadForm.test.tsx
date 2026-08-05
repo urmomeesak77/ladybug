@@ -73,6 +73,35 @@ describe('useUploadForm', () => {
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/posts/newpost001'));
   });
 
+  it('drops a stale video error when switching to image, not just the binary image<->youtube pair', async () => {
+    const { result } = renderHook(() => useUploadForm(), { wrapper });
+
+    // Raise an error on the video field, then switch away from video to image — a mode
+    // pairing the old binary "next==='image' ? 'youtube' : 'image'" lookup never covered
+    // (it only ever cleared 'image' or 'youtube', never 'video').
+    act(() => result.current.setMode('video'));
+    act(() => result.current.setTitle('T'));
+    await act(() => result.current.submit());
+    expect(result.current.errors.video?.[0]).toMatch(/choose a video/i);
+
+    act(() => result.current.setMode('image'));
+
+    expect(result.current.errors.video).toBeUndefined();
+  });
+
+  it('drops a stale video error when switching to youtube as well', async () => {
+    const { result } = renderHook(() => useUploadForm(), { wrapper });
+
+    act(() => result.current.setMode('video'));
+    act(() => result.current.setTitle('T'));
+    await act(() => result.current.submit());
+    expect(result.current.errors.video?.[0]).toMatch(/choose a video/i);
+
+    act(() => result.current.setMode('youtube'));
+
+    expect(result.current.errors.video).toBeUndefined();
+  });
+
   it('submits a YouTube post through the youtube endpoint', async () => {
     const uploadYoutube = vi
       .spyOn(UploadApi, 'uploadYoutube')

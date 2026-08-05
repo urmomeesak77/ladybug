@@ -58,4 +58,20 @@ final class MediaOwnershipServiceTest extends TestCase {
 
         $this->assertSame([], $this->service()->ownedPaths($post));
     }
+
+    public function test_owned_paths_for_a_video_post_lists_the_video_file_and_poster_variants(): void {
+        $post = Trashpost::factory()->create([
+            'type' => 'video', 'file' => 'abc.mp4', 'poster' => 'abc.jpg',
+        ]);
+
+        $paths = $this->service()->ownedPaths($post);
+
+        $this->assertContains(MediaPath::videoRelativePath('abc', 'mp4'), $paths);
+        foreach (MediaPath::imageSizes() as $size) {
+            $this->assertContains(MediaPath::imageRelativePath($size, 'abc', 'jpg'), $paths);
+        }
+        $this->assertCount(count(MediaPath::imageSizes()) + 1, $paths);
+        // The old image-`file`-keyed paths (as if `file` were an image) must not appear.
+        $this->assertNotContains(MediaPath::imageRelativePath('100', 'abc', 'mp4'), $paths);
+    }
 }

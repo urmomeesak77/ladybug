@@ -393,6 +393,15 @@ main {
   margin-inline: auto;
 }
 
+/* video has no built-in max-width reset the way <img> does (theme.css:70) — add one so a
+   raw <video> element never overflows its card. */
+.meme-media__video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin-inline: auto;
+}
+
 /* YouTube embeds keep a 16:9 box and the iframe fills it, scaling with the column. */
 .meme-media--video {
   position: relative;

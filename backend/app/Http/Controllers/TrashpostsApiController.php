@@ -45,8 +45,9 @@ class TrashpostsApiController extends Controller {
      * authentication; the service activates the post so it appears in the feed.
      */
     public function store(CreatePostRequest $request): JsonResponse {
-        // CreatePostRequest guarantees exactly one of image/youtube; a null id means image.
-        $youtubeId = $request->hasFile('image')
+        // CreatePostRequest guarantees exactly one of image/youtube/video; a null id
+        // means the upload is an image or a video, neither of which carries a YouTube id.
+        $youtubeId = $request->hasFile('image') || $request->hasFile('video')
             ? null
             : Youtube::extractId((string) $request->input('youtube'));
 
@@ -55,6 +56,7 @@ class TrashpostsApiController extends Controller {
             $request->input('title'),
             $request->file('image'),
             $youtubeId,
+            $request->file('video'),
         );
 
         return (new TrashpostResource($post))->response()->setStatusCode(201);

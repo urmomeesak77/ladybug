@@ -28,6 +28,7 @@ class TrashpostService {
         private readonly YoutubeThumbnailService $thumbnails = new YoutubeThumbnailService(),
         private readonly RatingService $rating = new RatingService(),
         private readonly PageMetaService $meta = new PageMetaService(),
+        private readonly TrashpostVideoProcessor $videos = new TrashpostVideoProcessor(),
     ) {
     }
 
@@ -93,13 +94,16 @@ class TrashpostService {
      * step once the media exists (FR-015): both media branches then reach the same single
      * decision point, and a post is never briefly live with no file behind it.
      */
-    public function createPost(User $user, ?string $title, ?UploadedFile $image, ?string $youtubeId): Trashpost {
+    public function createPost(User $user, ?string $title, ?UploadedFile $image, ?string $youtubeId, ?UploadedFile $video = null): Trashpost {
         // Read the uploader's standing BEFORE the post exists, so the credit this very
         // upload may earn cannot push its own author over the threshold (FR-020).
         $autoActivate = $this->rating->shouldAutoActivate($user);
         $post = $this->reserve($user, $title, $youtubeId);
         if ($image !== null) {
             $this->attachImage($post, $image);
+        }
+        if ($video !== null) {
+            $this->attachVideo($post, $video);
         }
         if ($youtubeId !== null) {
             // Fetch the still while the video id is fresh — one post, one request —
@@ -186,6 +190,23 @@ class TrashpostService {
         }
         catch (Throwable $e) {
             $this->images->discard($post->hash, $image);
+            $post->forceDelete();
+            throw $e;
+        }
+    }
+
+    /**
+     * Write the video + poster files for a reserved post and record them on the row. Mirrors
+     * attachImage() exactly: on failure the reserved row and any files already written are
+     * removed, and the failure is rethrown.
+     */
+    private function attachVideo(Trashpost $post, UploadedFile $video): void {
+        try {
+            $post->fill($this->videos->process($video, $post->hash));
+            $post->save();
+        }
+        catch (Throwable $e) {
+            $this->videos->discard($post->hash, $video);
             $post->forceDelete();
             throw $e;
         }

@@ -30,6 +30,26 @@ function MemeMedia({ media, linkTo }: { media: FeedMedia; linkTo?: string }) {
     );
   }
 
+  if (media.kind === 'video') {
+    // Playback wiring only (poster + native controls) — autoplay-on-scroll and the custom
+    // unmute control land in a later phase. muted+playsInline keep the element eligible for
+    // a future autoplay without ever triggering a browser autoplay-blocked warning now, even
+    // though nothing here auto-plays yet.
+    return (
+      <video
+        className="meme-media meme-media__video"
+        poster={media.src}
+        muted
+        playsInline
+        controls
+        width={media.width}
+        height={media.height}
+      >
+        <source src={media.videoSrc} type={media.mime} />
+      </video>
+    );
+  }
+
   if (media.kind === 'image' && !isBroken) {
     const image = (
       <img

@@ -282,6 +282,58 @@ class CreatePostTest extends TestCase {
         $this->getJson('/api/posts')->assertOk()->assertJsonCount(0, 'data');
     }
 
+    /** A real video fixture presented as an upload, mirroring webpUpload(). */
+    private function videoUpload(string $fixture, string $mime): UploadedFile {
+        $tmp = tempnam(sys_get_temp_dir(), 'video');
+        copy(dirname(__DIR__, 3) . "/fixtures/{$fixture}", $tmp);
+
+        return new UploadedFile($tmp, $fixture, $mime, null, true);
+    }
+
+    public function test_a_trusted_mp4_upload_creates_an_activated_video_post(): void {
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD);
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'My clip',
+            'video' => $this->videoUpload('sample.mp4', 'video/mp4'),
+        ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.type', 'video');
+        $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
+        $this->assertNotNull($post->poster);
+        $this->assertNotNull($post->activated_at);
+    }
+
+    public function test_a_trusted_webm_upload_creates_an_activated_video_post(): void {
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD);
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'My webm clip',
+            'video' => $this->videoUpload('sample.webm', 'video/webm'),
+        ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.type', 'video');
+        $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
+        $this->assertNotNull($post->poster);
+        $this->assertNotNull($post->activated_at);
+    }
+
+    public function test_a_below_threshold_video_upload_is_created_pending(): void {
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Pending clip',
+            'video' => $this->videoUpload('sample.mp4', 'video/mp4'),
+        ]);
+
+        $response->assertCreated();
+        $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
+        $this->assertSame('video', $post->type);
+        $this->assertNull($post->activated_at);
+    }
+
     public function test_an_admin_below_the_threshold_publishes_immediately_and_earns_the_credit(): void {
         // US3: a moderator skips the queue on role alone. A negative rating is the
         // sharpest case — the very account the rating gate would hold back longest.

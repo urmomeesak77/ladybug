@@ -5,6 +5,8 @@ import type { FieldErrors } from '../lib/authApi';
 import type { UploadMode } from '../lib/uploadModel';
 import { UploadModel } from '../lib/uploadModel';
 
+const ALL_MODES: UploadMode[] = ['image', 'youtube', 'video'];
+
 // State + submit flow for the upload form. Keeps UploadPage to presentation only. The pure
 // decisions (validation, endpoint dispatch) live in lib/uploadModel; this is the React glue.
 export function useUploadForm() {
@@ -17,14 +19,16 @@ export function useUploadForm() {
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Switch the active media tab and drop the departed input's stale field error, so an error
-  // raised against (say) the image field cannot linger once the YouTube tab hides that input.
+  // Switch the active media tab and drop every departed input's stale field error, so an
+  // error raised against (say) the image field cannot linger once a different tab hides
+  // that input — field names already equal mode names, so this is just "every mode but
+  // the one we're switching to."
   function changeMode(next: UploadMode): void {
     setMode(next);
-    const departed = next === 'image' ? 'youtube' : 'image';
-    if (errors[departed]) {
+    const departed = ALL_MODES.filter((candidate) => candidate !== next);
+    if (departed.some((field) => errors[field])) {
       const remaining = { ...errors };
-      delete remaining[departed];
+      departed.forEach((field) => delete remaining[field]);
       setErrors(remaining);
     }
   }

@@ -98,4 +98,30 @@ describe('MemeMedia', () => {
 
     expect(container.innerHTML).toBe('');
   });
+
+  it('renders a <video> with a poster and a single matching <source> for video media', () => {
+    const { container } = render(
+      <MemeMedia
+        media={{
+          kind: 'video',
+          src: '/img/800/a/abc.jpg',
+          srcset: '',
+          sizes: '(min-width: 80rem) 80rem, 100vw',
+          alt: 'Funny clip',
+          width: 800,
+          height: 400,
+          videoSrc: '/video/a/clip.mp4',
+          mime: 'video/mp4',
+        }}
+      />,
+    );
+
+    const video = container.querySelector('video');
+    expect(video).not.toBeNull();
+    expect(video?.getAttribute('poster')).toBe('/img/800/a/abc.jpg');
+    const sources = video?.querySelectorAll('source');
+    expect(sources).toHaveLength(1);
+    expect(sources?.[0].getAttribute('src')).toBe('/video/a/clip.mp4');
+    expect(sources?.[0].getAttribute('type')).toBe('video/mp4');
+  });
 });

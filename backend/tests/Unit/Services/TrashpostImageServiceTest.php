@@ -133,4 +133,32 @@ final class TrashpostImageServiceTest extends TestCase {
         // The src fallback stays 800; the large sizes are served through srcset, not default.
         $this->assertSame($this->urlFor('800'), $this->service()->imageData($this->imagePost())['default']);
     }
+
+    /**
+     * A video post's `file` holds the video's own filename (a non-image extension); its
+     * poster — always `.jpg` — is what original/default/sizes must describe (data-model.md,
+     * research.md #4). Ignoring `file` for a video post and resolving from `poster` instead
+     * is the fix under test here.
+     */
+    private function videoPost(): Trashpost {
+        return new Trashpost(['type' => 'video', 'file' => self::CODE . '.mp4', 'poster' => self::CODE . '.jpg']);
+    }
+
+    public function test_a_video_post_resolves_image_data_from_its_poster_not_its_file(): void {
+        $this->putSize('original');
+        $this->putSize('800');
+        $this->putSize('300');
+
+        $data = $this->service()->imageData($this->videoPost());
+
+        $this->assertSame($this->urlFor('original'), $data['original']);
+        $this->assertSame($this->urlFor('800'), $data['default']);
+        $this->assertSame([800, 300], array_column($data['sizes'], 'width'));
+    }
+
+    public function test_a_video_post_without_a_poster_returns_empty_image_data(): void {
+        $data = $this->service()->imageData(new Trashpost(['type' => 'video', 'file' => self::CODE . '.mp4', 'poster' => null]));
+
+        $this->assertSame(['original' => null, 'default' => null, 'sizes' => []], $data);
+    }
 }

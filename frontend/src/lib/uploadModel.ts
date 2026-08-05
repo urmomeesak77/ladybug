@@ -2,7 +2,7 @@ import { UploadApi } from './uploadApi';
 import type { UploadResult } from './uploadApi';
 import type { FieldErrors } from './authApi';
 
-export type UploadMode = 'image' | 'youtube';
+export type UploadMode = 'image' | 'youtube' | 'video';
 
 export type UploadValues = { title: string; file: File | null; youtube: string };
 
@@ -20,6 +20,9 @@ export class UploadModel {
     if (mode === 'image' && values.file === null) {
       errors.image = ['Choose an image to upload.'];
     }
+    if (mode === 'video' && values.file === null) {
+      errors.video = ['Choose a video to upload.'];
+    }
     return errors;
   }
 
@@ -27,6 +30,9 @@ export class UploadModel {
   static submit(mode: UploadMode, values: UploadValues): Promise<UploadResult> {
     if (mode === 'image') {
       return UploadApi.uploadImage({ title: values.title, file: values.file as File });
+    }
+    if (mode === 'video') {
+      return UploadApi.uploadVideo({ title: values.title, file: values.file as File });
     }
     return UploadApi.uploadYoutube({ title: values.title, youtube: values.youtube });
   }
