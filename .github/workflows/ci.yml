@@ -51,6 +51,12 @@ jobs:
       - name: Install gifsicle + imagemagick
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gifsicle imagemagick
 
+      # ffmpeg (bundles ffprobe): video decode validation + poster-frame
+      # extraction (App\Support\FfmpegVideo) — owner-approved 2026-08-05,
+      # research.md #2. Shelled out to by the video upload unit/feature tests.
+      - name: Install ffmpeg
+        run: sudo apt-get install -y --no-install-recommends ffmpeg
+
       # WebP read/write (App\Support\ImageFile) needs GD built with WebP; the
       # setup-php GD normally includes it — fail loudly here if it ever does not.
       - name: Assert GD WebP support

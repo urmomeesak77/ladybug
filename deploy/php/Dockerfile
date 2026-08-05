@@ -40,11 +40,13 @@ FROM php:8.3-fpm
 # Same system libraries and animated-media resizers as the dev image: gifsicle for
 # animated GIFs, imagemagick (`convert`) for animated WebP -- GD reads only the first
 # frame, so resizing either in PHP would flatten it. libwebp-dev enables GD's WebP
-# read/write. No git/unzip: Composer already ran in the vendor stage.
+# read/write. ffmpeg (bundles ffprobe) backs video decode validation + poster-frame
+# extraction (owner-approved 2026-08-05, research.md #2). No git/unzip: Composer
+# already ran in the vendor stage.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libzip-dev libpng-dev libjpeg62-turbo-dev libfreetype6-dev libwebp-dev \
-        gifsicle imagemagick \
+        gifsicle imagemagick ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 RUN docker-php-ext-configure gd --with-jpeg --with-freetype --with-webp \

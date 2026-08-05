@@ -3,15 +3,17 @@
 # production image (FR-009).
 FROM php:8.3-cli
 
-# System libraries required to build the bundled PHP extensions below, plus two
+# System libraries required to build the bundled PHP extensions below, plus
 # approved animated-media resizers (GD only reads the first frame, so resizing in
 # PHP would flatten them): gifsicle for animated GIFs, and imagemagick (`convert`)
 # for animated WebP (owner-approved 2026-07-22). libwebp-dev enables GD's WebP
-# read/write for static WebP (--with-webp below).
+# read/write for static WebP (--with-webp below). ffmpeg (bundles ffprobe) backs
+# video decode validation + poster-frame extraction (owner-approved 2026-08-05,
+# research.md #2).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git unzip libzip-dev libpng-dev libjpeg62-turbo-dev libfreetype6-dev libwebp-dev \
-        gifsicle imagemagick \
+        gifsicle imagemagick ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # pdo_mysql: app database driver. zip: composer dist installs. bcmath:
