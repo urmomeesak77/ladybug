@@ -12,10 +12,10 @@ use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
- * Exercises `SlideRememberMeCookie` in isolation: it is not yet registered
- * globally (that's T009), so this test mounts it on a throwaway probe route.
- * It only re-queues the remember cookie when a user was resolved AND the
- * flag cookie was already present on the incoming request.
+ * Exercises `SlideRememberMeCookie` in isolation on a throwaway probe route, so its
+ * own branches are proven independently of the surrounding `api` pipeline it is also
+ * registered into (`bootstrap/app.php`). It only re-queues the remember cookie when a
+ * user was resolved AND the flag cookie was already present on the incoming request.
  */
 final class SlideRememberMeCookieTest extends TestCase {
     use RefreshDatabase;
@@ -41,8 +41,9 @@ final class SlideRememberMeCookieTest extends TestCase {
         // No auth:sanctum here on purpose: that guard would 401 an anonymous request BEFORE
         // $next($request) ever reaches SlideRememberMeCookie, which would only prove the guard
         // rejects guests — not that SlideRememberMeCookie itself declines to slide for a null
-        // user. This route mirrors the real T009 shape, where the middleware sits on the whole
-        // `api` group unconditionally, including public routes an anonymous request can reach.
+        // user. This route mirrors the real registration in bootstrap/app.php, where the
+        // middleware sits on the whole `api` group unconditionally, including public routes an
+        // anonymous request can reach.
         Route::middleware([AddQueuedCookiesToResponse::class, SlideRememberMeCookie::class])
             ->get('/api/_test/slide-remember-me-guest', static fn () => response()->json(['ok' => true]));
     }

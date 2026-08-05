@@ -9,8 +9,9 @@ use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
- * Exercises `ApplyRememberMeLifetime` in isolation: it is not yet registered
- * globally (that's T009), so this test mounts it on a throwaway probe route.
+ * Exercises `ApplyRememberMeLifetime` in isolation on a throwaway probe route, so its
+ * own branches are proven independently of the surrounding `api`/`web` pipeline it is
+ * also registered into (`bootstrap/app.php`).
  */
 final class ApplyRememberMeLifetimeTest extends TestCase {
     /**

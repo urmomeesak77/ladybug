@@ -15,8 +15,8 @@ use Symfony\Component\HttpFoundation\Response;
  * `EncryptCookies`), so the session lifetime is raised *before* the session is started/read
  * for this request. Because it executes ahead of `EncryptCookies`, it cannot decrypt the
  * cookie's value even if it wanted to — but it doesn't need to: the cookie carries no secret
- * or identity, only its *presence* matters (see research.md decision D3). Registration into
- * `bootstrap/app.php` is a separate task (T009) — do not edit `bootstrap/app.php` here.
+ * or identity, only its *presence* matters (see research.md decision D3). Registered as a
+ * prepend on both the `api` and `web` groups in `bootstrap/app.php`.
  */
 final class ApplyRememberMeLifetime {
     /**

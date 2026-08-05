@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
  * Max-Age resets with each activity. Without this step, the 7-day window would
  * count from login time (FR-004 violation); with it, the window slides to start
  * from the last authenticated activity (decision D2 from research.md).
- * Registration and middleware ordering is handled by T009, not this task.
+ * Registered as an append on the `api` group in `bootstrap/app.php`.
  */
 final class SlideRememberMeCookie {
     /**
