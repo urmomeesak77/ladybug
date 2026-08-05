@@ -152,11 +152,11 @@ new production code is expected.
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] Add a test to `backend/tests/Feature/Http/Middleware/ApplyRememberMeLifetimeTest.php`
+- [x] T019 [P] [US2] Add a test to `backend/tests/Feature/Http/Middleware/ApplyRememberMeLifetimeTest.php`
   (or a sibling test) proving that once the remembered session's idle time exceeds
   `config('remember.lifetime')`, the next request finds no valid session (matches today's expired-
   session behavior — no remember-specific "still half-alive" state, per data-model.md §4)
-- [ ] T020 [P] [US2] Extend `backend/tests/Feature/Http/Middleware/SlideRememberMeCookieTest.php`:
+- [x] T020 [P] [US2] Extend `backend/tests/Feature/Http/Middleware/SlideRememberMeCookieTest.php`:
   an authenticated request partway through the window re-queues the cookie with a fresh full-length
   `Max-Age`, so a subsequent gap that would have exceeded the *original* window from login still
   finds the session valid (Acceptance Scenario 2 — the sliding restart)

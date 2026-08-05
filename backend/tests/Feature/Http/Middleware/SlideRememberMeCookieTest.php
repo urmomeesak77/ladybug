@@ -65,6 +65,30 @@ final class SlideRememberMeCookieTest extends TestCase {
             ->assertCookie((string) config('remember.cookie'), '1', false);
     }
 
+    public function test_the_renewed_cookie_carries_a_fresh_full_length_max_age(): void {
+        // US2 Acceptance Scenario 2 (the sliding restart): the re-queued cookie's own
+        // Max-Age must be a full config('remember.lifetime') window counted from THIS
+        // request, not a leftover shorter remainder from whenever it was first queued —
+        // otherwise the flag cookie itself would still lapse 7 days after login even
+        // during unbroken daily use (research D2's rationale for needing this middleware
+        // at all).
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)
+            ->withCredentials()
+            ->withUnencryptedCookie((string) config('remember.cookie'), '1')
+            ->getJson('/api/_test/slide-remember-me');
+
+        $response->assertOk();
+        $cookie = $response->getCookie((string) config('remember.cookie'), false);
+        $this->assertNotNull($cookie);
+        $this->assertEqualsWithDelta(
+            now()->addMinutes((int) config('remember.lifetime'))->getTimestamp(),
+            $cookie->getExpiresTime(),
+            5,
+        );
+    }
+
     public function test_authenticated_without_flag_cookie_does_not_slide(): void {
         $user = User::factory()->create();
 
