@@ -23,7 +23,13 @@ final class SlideRememberMeCookie {
     public function handle(Request $request, Closure $next): Response {
         $response = $next($request);
 
-        if ($request->user() !== null && $request->hasCookie(config('remember.cookie'))) {
+        // Explicitly the 'web' guard, not $request->user()'s ambient default: routes behind
+        // `auth:sanctum` (e.g. logout) switch the request's default guard to 'sanctum' before
+        // the controller runs (Authenticate::shouldUse), and that guard independently caches
+        // its own resolved user. AuthController::logout()/EnsureAccountEnabled only log out
+        // 'web', so checking the default guard here would still see a stale authenticated user
+        // and re-queue the cookie logout just cleared (FR-005/SC-004).
+        if ($request->user('web') !== null && $request->hasCookie(config('remember.cookie'))) {
             RememberMe::queue();
         }
 

@@ -265,6 +265,40 @@ class AuthControllerTest extends TestCase {
         $response->assertCookieExpired((string) config('remember.cookie'));
     }
 
+    public function test_logout_clears_the_remember_cookie_when_the_request_actually_carries_it(): void {
+        // Regression: the test above uses actingAs(), which authenticates the request
+        // without ever attaching a real incoming remember cookie — so it never exercises
+        // SlideRememberMeCookie's after-phase. A genuine browser round trip DOES carry the
+        // cookie on /api/logout, and that route sits behind auth:sanctum, which switches
+        // the request's default guard to 'sanctum' (Authenticate::shouldUse) before the
+        // controller runs. AuthController::logout() only logs out the 'web' guard, so a
+        // same-request check via the (now-default) 'sanctum' guard still sees an
+        // authenticated user and would undo RememberMe::forget() (FR-005/SC-004).
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $login = $this->postJson('/api/login', [
+            'email' => 'ada@example.com',
+            'password' => 'password',
+            'remember' => true,
+        ]);
+        $login->assertCookie((string) config('remember.cookie'), '1');
+
+        $sessionCookie = $login->getCookie((string) config('session.cookie'), false);
+        $rememberCookie = $login->getCookie((string) config('remember.cookie'), false);
+
+        // postJson() never attaches cookies unless withCredentials() is enabled (it defaults
+        // to false) — without it, this "second request" would silently carry no cookies at
+        // all and prove nothing, same blind spot that hid this bug from every other test here.
+        $response = $this
+            ->withCredentials()
+            ->withUnencryptedCookie($sessionCookie->getName(), $sessionCookie->getValue())
+            ->withUnencryptedCookie($rememberCookie->getName(), $rememberCookie->getValue())
+            ->postJson('/api/logout');
+
+        $response->assertOk();
+        $response->assertCookieExpired((string) config('remember.cookie'));
+    }
+
     public function test_a_remember_cookie_from_one_login_does_not_leak_into_a_separate_logins_response(): void {
         // FR-007: the "Remember me" choice applies only to the session it was made for. In
         // production each request boots a fresh application container (research D3), so

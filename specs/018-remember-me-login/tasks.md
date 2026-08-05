@@ -193,10 +193,10 @@ slide, then expire on true inactivity; non-remembered sessions are provably unch
 
 **Purpose**: Final verification across all stories.
 
-- [ ] T023 [P] Run the manual scenarios in `specs/018-remember-me-login/quickstart.md` (US1, US2,
+- [x] T023 [P] Run the manual scenarios in `specs/018-remember-me-login/quickstart.md` (US1, US2,
   US3, and the four edge-case spot-checks — manual sign-out, disabled account, cross-device
   independence, checkbox never pre-filled) against the running Docker stack
-- [ ] T024 Confirm the ≥90% Clover/coverage gate still passes for both stacks (Constitution
+- [x] T024 Confirm the ≥90% Clover/coverage gate still passes for both stacks (Constitution
   Principle VII) — `docker compose exec backend php artisan test --coverage` and
   `npm run test -- --coverage` (frontend)
 
