@@ -37,6 +37,14 @@ final class SlideRememberMeCookieTest extends TestCase {
         // real registration), so the test supplies it directly.
         Route::middleware(['auth:sanctum', AddQueuedCookiesToResponse::class, SlideRememberMeCookie::class])
             ->get('/api/_test/slide-remember-me', static fn () => response()->json(['ok' => true]));
+
+        // No auth:sanctum here on purpose: that guard would 401 an anonymous request BEFORE
+        // $next($request) ever reaches SlideRememberMeCookie, which would only prove the guard
+        // rejects guests — not that SlideRememberMeCookie itself declines to slide for a null
+        // user. This route mirrors the real T009 shape, where the middleware sits on the whole
+        // `api` group unconditionally, including public routes an anonymous request can reach.
+        Route::middleware([AddQueuedCookiesToResponse::class, SlideRememberMeCookie::class])
+            ->get('/api/_test/slide-remember-me-guest', static fn () => response()->json(['ok' => true]));
     }
 
     public function test_authenticated_with_flag_cookie_slides_the_cookie(): void {
@@ -66,11 +74,14 @@ final class SlideRememberMeCookieTest extends TestCase {
     }
 
     public function test_unauthenticated_with_flag_cookie_does_not_slide(): void {
+        // Hits the guest-reachable probe (no auth:sanctum) so the request actually reaches
+        // SlideRememberMeCookie::handle() with $request->user() === null, proving the
+        // middleware itself — not just an auth guard upstream of it — declines to slide.
         $response = $this->withCredentials()
             ->withUnencryptedCookie((string) config('remember.cookie'), '1')
-            ->getJson('/api/_test/slide-remember-me');
+            ->getJson('/api/_test/slide-remember-me-guest');
 
-        $response->assertUnauthorized()
+        $response->assertOk()
             ->assertCookieMissing((string) config('remember.cookie'));
     }
 }
