@@ -52,7 +52,7 @@ class AuthController extends Controller {
      * down; re-enabling restores sign-in with the same credentials (FR-013/FR-015).
      */
     public function login(LoginRequest $request): JsonResponse {
-        if (! Auth::attempt($request->validated())) {
+        if (! Auth::attempt($request->credentials())) {
             return response()->json(['message' => 'These credentials do not match our records.'], 401);
         }
 

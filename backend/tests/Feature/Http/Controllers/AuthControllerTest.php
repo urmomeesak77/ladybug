@@ -150,6 +150,36 @@ class AuthControllerTest extends TestCase {
         );
     }
 
+    public function test_login_with_remember_true_succeeds(): void {
+        // Regression guard: Auth::attempt() must only ever see email/password. Feeding it
+        // the whole validated() payload (which now also carries `remember`) throws against
+        // real MySQL, since EloquentUserProvider turns every non-password key into a
+        // `->where()` clause and `remember` is not a users column (sqlite masks this).
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'ada@example.com',
+            'password' => 'password',
+            'remember' => true,
+        ]);
+
+        $response->assertOk();
+        $this->assertAuthenticated();
+    }
+
+    public function test_login_with_remember_false_succeeds(): void {
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'ada@example.com',
+            'password' => 'password',
+            'remember' => false,
+        ]);
+
+        $response->assertOk();
+        $this->assertAuthenticated();
+    }
+
     public function test_login_with_a_wrong_password_is_rejected_without_disclosure(): void {
         User::factory()->create(['email' => 'ada@example.com']);
 

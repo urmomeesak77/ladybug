@@ -31,4 +31,14 @@ class LoginRequest extends FormRequest {
             'remember' => ['sometimes', 'boolean'],
         ];
     }
+
+    /**
+     * Only the two fields Auth::attempt() should ever see — validated() now also carries
+     * `remember`, which must never reach the credential lookup (it isn't a users column).
+     *
+     * @return array<string, string>
+     */
+    public function credentials(): array {
+        return $this->safe()->only(['email', 'password']);
+    }
 }
