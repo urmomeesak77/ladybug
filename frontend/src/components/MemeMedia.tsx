@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { Dispatch, RefObject, SetStateAction } from 'react';
+import type { CSSProperties, Dispatch, RefObject, SetStateAction } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useVideoAutoplay } from '../hooks/useVideoAutoplay';
@@ -7,6 +7,7 @@ import type { FeedMedia } from '../lib/feedModel';
 
 type VideoFeedMedia = Extract<FeedMedia, { kind: 'video' }>;
 type YoutubeFeedMedia = Extract<FeedMedia, { kind: 'youtube' }>;
+type ScrubStyle = CSSProperties & { '--video-progress'?: string };
 
 // Flat 24x24 currentColor path glyphs, same style as moderation/ActionGlyph.tsx's play/pause
 // shapes (play/pause paths are identical); mute/unmute are the standard Material Design
@@ -48,6 +49,14 @@ function togglePlayback(videoRef: RefObject<HTMLVideoElement | null>): void {
   }
 }
 
+function seekTo(videoRef: RefObject<HTMLVideoElement | null>, time: number): void {
+  const video = videoRef.current;
+  if (!video) {
+    return;
+  }
+  video.currentTime = time;
+}
+
 // A video post's playback: autoplay-on-scroll (useVideoAutoplay) starts/pauses it muted as
 // it crosses the visibility threshold (FR-008); the poster stays shown until a frame actually
 // paints, so there is no layout jump either way. playsInline keeps playback eligible inline on
@@ -55,6 +64,8 @@ function togglePlayback(videoRef: RefObject<HTMLVideoElement | null>): void {
 function VideoMedia({ media }: { media: VideoFeedMedia }) {
   const [muted, setMuted] = useState(true);
   const [paused, setPaused] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   useVideoAutoplay(videoRef);
 
@@ -69,6 +80,8 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
         loop
         onPlay={() => setPaused(false)}
         onPause={() => setPaused(true)}
+        onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
+        onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
         width={media.width}
         height={media.height}
       >
@@ -91,6 +104,17 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
         >
           <VideoGlyph name={paused ? 'play' : 'pause'} />
         </button>
+        <input
+          type="range"
+          className="meme-media__video-scrub"
+          aria-label="Seek"
+          min={0}
+          max={duration}
+          step="any"
+          value={currentTime}
+          onChange={(event) => seekTo(videoRef, Number(event.target.value))}
+          style={{ '--video-progress': `${duration > 0 ? (currentTime / duration) * 100 : 0}%` } as ScrubStyle}
+        />
       </div>
     </div>
   );
