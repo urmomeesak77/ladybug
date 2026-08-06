@@ -139,6 +139,21 @@ class CreatePostTest extends TestCase {
         $response->assertJsonPath('data.youtube', 'dQw4w9WgXcQ');
     }
 
+    public function test_authenticated_shorts_upload_is_accepted_and_flagged_as_a_short(): void {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'My short',
+            'youtube' => 'https://www.youtube.com/shorts/dQw4w9WgXcQ',
+        ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.type', 'youtube');
+        // The raw URL is still discarded down to the bare id; only the shape is remembered.
+        $response->assertJsonPath('data.youtube', 'dQw4w9WgXcQ');
+        $response->assertJsonPath('data.youtube_is_short', true);
+    }
+
     public function test_unverified_user_cannot_create_post(): void {
         $user = User::factory()->unverified()->create();
 
@@ -197,6 +212,40 @@ class CreatePostTest extends TestCase {
             'youtube' => 'https://example.com/x',
         ]);
         $response->assertStatus(422)->assertJsonValidationErrors('youtube');
+    }
+
+    public function test_rejects_a_link_that_merely_mentions_shorts(): void {
+        // Widening the pattern for /shorts/ must not turn the word "shorts" into a
+        // pass: only a real /shorts/{11-char-id} path is a Short.
+        $user = User::factory()->create();
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Not a short',
+            'youtube' => 'https://example.com/i-love-shorts',
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('youtube');
+        $response->assertJsonPath('errors.youtube.0', 'Enter a valid YouTube link.');
+        $this->assertDatabaseCount('trashposts', 0);
+    }
+
+    public function test_a_regular_youtube_link_is_still_accepted_and_not_flagged_as_a_short(): void {
+        $user = User::factory()->create();
+
+        $watch = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Regular watch link',
+            'youtube' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        ]);
+        $watch->assertCreated();
+        $watch->assertJsonPath('data.youtube', 'dQw4w9WgXcQ');
+        $watch->assertJsonPath('data.youtube_is_short', false);
+
+        $short = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Regular youtu.be link',
+            'youtube' => 'https://youtu.be/dQw4w9WgXcQ',
+        ]);
+        $short->assertCreated();
+        $short->assertJsonPath('data.youtube', 'dQw4w9WgXcQ');
+        $short->assertJsonPath('data.youtube_is_short', false);
     }
 
     public function test_upload_is_rate_limited_after_too_many_attempts(): void {
@@ -264,6 +313,23 @@ class CreatePostTest extends TestCase {
 
         $response->assertCreated();
         $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
+        $this->assertNotNull($post->youtube_thumbnail);
+        Storage::disk('public')->assertExists($post->youtube_thumbnail);
+    }
+
+    public function test_a_pending_shorts_uploads_thumbnail_stays_on_the_public_disk(): void {
+        // US3: the thumbnail pipeline is keyed only on the extracted video id, so a Shorts
+        // upload must produce the same stored still as any other YouTube post.
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD - 1);
+
+        $response = $this->actingAs($user)->postJson('/api/posts', [
+            'title' => 'Pending short',
+            'youtube' => 'https://www.youtube.com/shorts/dQw4w9WgXcQ',
+        ]);
+
+        $response->assertCreated();
+        $post = Trashpost::where('hash', $response->json('data.hash'))->firstOrFail();
+        $this->assertTrue($post->youtube_is_short);
         $this->assertNotNull($post->youtube_thumbnail);
         Storage::disk('public')->assertExists($post->youtube_thumbnail);
     }

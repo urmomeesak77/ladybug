@@ -94,11 +94,11 @@ class TrashpostService {
      * step once the media exists (FR-015): both media branches then reach the same single
      * decision point, and a post is never briefly live with no file behind it.
      */
-    public function createPost(User $user, ?string $title, ?UploadedFile $image, ?string $youtubeId, ?UploadedFile $video = null): Trashpost {
+    public function createPost(User $user, ?string $title, ?UploadedFile $image, ?string $youtubeId, ?UploadedFile $video = null, bool $isShort = false): Trashpost {
         // Read the uploader's standing BEFORE the post exists, so the credit this very
         // upload may earn cannot push its own author over the threshold (FR-020).
         $autoActivate = $this->rating->shouldAutoActivate($user);
-        $post = $this->reserve($user, $title, $youtubeId);
+        $post = $this->reserve($user, $title, $youtubeId, $isShort);
         if ($image !== null) {
             $this->attachImage($post, $image);
         }
@@ -152,7 +152,7 @@ class TrashpostService {
      * Persist the row that claims a public hash, retrying on the unique-constraint
      * collision (same pattern as UserService::create).
      */
-    private function reserve(User $user, ?string $title, ?string $youtubeId): Trashpost {
+    private function reserve(User $user, ?string $title, ?string $youtubeId, bool $isShort): Trashpost {
         for ($attempt = 1; ; $attempt++) {
             // Identity and ownership are assigned explicitly, never mass-assigned —
             // $fillable stays limited to content fields so no future controller can
@@ -164,6 +164,7 @@ class TrashpostService {
             $post->username = $user->name;
             $post->type = $youtubeId === null ? null : 'youtube';
             $post->youtube = $youtubeId;
+            $post->youtube_is_short = $isShort;
             try {
                 $post->save();
 

@@ -82,6 +82,7 @@ class Trashpost extends Model {
      */
     protected function casts(): array {
         return [
+            'youtube_is_short' => 'boolean',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'activated_at' => 'datetime',

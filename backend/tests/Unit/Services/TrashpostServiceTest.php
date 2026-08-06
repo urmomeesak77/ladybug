@@ -214,6 +214,23 @@ final class TrashpostServiceTest extends TestCase {
         $this->assertDatabaseHas('trashposts', ['hash' => $post->hash]);
     }
 
+    public function test_create_post_persists_the_shorts_flag_when_told_the_link_was_a_short(): void {
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD);
+
+        $post = $this->service()->createPost($user, 'My short', null, 'dQw4w9WgXcQ', isShort: true);
+
+        $this->assertTrue($post->youtube_is_short);
+        $this->assertDatabaseHas('trashposts', ['hash' => $post->hash, 'youtube_is_short' => true]);
+    }
+
+    public function test_create_post_defaults_the_shorts_flag_to_false(): void {
+        $user = $this->memberAt(RatingService::TRUST_THRESHOLD);
+
+        $post = $this->service()->createPost($user, 'My meme', null, 'dQw4w9WgXcQ');
+
+        $this->assertFalse($post->youtube_is_short);
+    }
+
     public function test_create_post_retries_when_the_minted_hash_collides(): void {
         Trashpost::factory()->create(['hash' => 'taken12345']);
         $user = User::factory()->create();

@@ -173,10 +173,13 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
   );
 }
 
-// YouTube ⇒ sanitized <iframe> built only from the parsed embed URL (Principle VI).
+// YouTube ⇒ sanitized <iframe> built only from the parsed embed URL (Principle VI). A
+// Shorts-sourced post swaps the wide box for a 9:16 one so the vertical clip fills it
+// instead of being letterboxed between two black pillars (FR-005).
 function YoutubeMedia({ media }: { media: YoutubeFeedMedia }) {
+  const vertical = media.isShort ? ' meme-media--video-vertical' : '';
   return (
-    <div className="meme-media meme-media--video">
+    <div className={`meme-media meme-media--video${vertical}`}>
       <iframe
         className="meme-media__iframe"
         src={media.embedUrl}

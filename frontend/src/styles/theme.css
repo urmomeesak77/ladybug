@@ -596,6 +596,16 @@ main {
   aspect-ratio: 16 / 9;
 }
 
+/* A Shorts embed is vertical: 9:16 instead of 16:9. max-width caps how tall a full-width
+   box would grow on a wide column (a 9:16 box at 80rem wide would be taller than any
+   screen), and collapses to the full card width on narrow viewports; margin-inline centers
+   it inside the card, whose width is deliberately unchanged from any other post's. */
+.meme-media--video.meme-media--video-vertical {
+  aspect-ratio: 9 / 16;
+  max-width: min(100%, 26rem);
+  margin-inline: auto;
+}
+
 .meme-media__iframe {
   position: absolute;
   inset: 0;

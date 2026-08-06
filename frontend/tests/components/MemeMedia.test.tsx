@@ -93,7 +93,12 @@ describe('MemeMedia', () => {
   it('does not wrap youtube media in a link', () => {
     render(
       <MemeMedia
-        media={{ kind: 'youtube', embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ', title: 'Song' }}
+        media={{
+          kind: 'youtube',
+          embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          title: 'Song',
+          isShort: false,
+        }}
         linkTo="/posts/abc1234567"
       />,
       { wrapper: MemoryRouter },
@@ -113,13 +118,50 @@ describe('MemeMedia', () => {
   it('renders a sanitized iframe for youtube media', () => {
     render(
       <MemeMedia
-        media={{ kind: 'youtube', embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ', title: 'Song' }}
+        media={{
+          kind: 'youtube',
+          embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          title: 'Song',
+          isShort: false,
+        }}
       />,
     );
 
     const iframe = document.querySelector('iframe');
     expect(iframe?.getAttribute('src')).toBe('https://www.youtube.com/embed/dQw4w9WgXcQ');
     expect(iframe?.getAttribute('title')).toBe('Song');
+  });
+
+  it('marks a shorts embed as vertical', () => {
+    const { container } = render(
+      <MemeMedia
+        media={{
+          kind: 'youtube',
+          embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          title: 'Short',
+          isShort: true,
+        }}
+      />,
+    );
+
+    const wrap = container.querySelector('.meme-media--video');
+    expect(wrap?.classList.contains('meme-media--video-vertical')).toBe(true);
+  });
+
+  it('leaves a regular youtube embed in the wide box', () => {
+    const { container } = render(
+      <MemeMedia
+        media={{
+          kind: 'youtube',
+          embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          title: 'Song',
+          isShort: false,
+        }}
+      />,
+    );
+
+    const wrap = container.querySelector('.meme-media--video');
+    expect(wrap?.classList.contains('meme-media--video-vertical')).toBe(false);
   });
 
   it('renders nothing for a post with no media', () => {

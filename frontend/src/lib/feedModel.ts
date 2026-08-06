@@ -6,6 +6,7 @@ export type RawPost = {
   hash: string;
   title: string | null;
   youtube: string | null;
+  youtube_is_short: boolean;
   video: string | null;
   default: string | null;
   sizes: ImageSize[] | null;
@@ -37,7 +38,7 @@ export type FeedMedia =
       videoSrc: string;
       mime: string;
     }
-  | { kind: 'youtube'; embedUrl: string; title: string }
+  | { kind: 'youtube'; embedUrl: string; title: string; isShort: boolean }
   | { kind: 'none' };
 
 export type FeedPost = {
@@ -161,7 +162,14 @@ export class FeedModel {
     }
     const embedUrl = Youtube.toEmbedUrl(raw.youtube);
     if (embedUrl) {
-      return { kind: 'youtube', embedUrl, title: raw.title ?? GENERIC_ALT };
+      // `?? false` covers a response that predates the field, which must render wide
+      // rather than in an undefined-driven half state (same guard as `comment_count`).
+      return {
+        kind: 'youtube',
+        embedUrl,
+        title: raw.title ?? GENERIC_ALT,
+        isShort: raw.youtube_is_short ?? false,
+      };
     }
     const src = FeedModel.pickImageSource(raw);
     if (src) {

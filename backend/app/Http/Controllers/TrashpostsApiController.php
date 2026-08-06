@@ -51,12 +51,17 @@ class TrashpostsApiController extends Controller {
             ? null
             : Youtube::extractId((string) $request->input('youtube'));
 
+        // Asked of the RAW input, which is the only place the Shorts shape survives —
+        // extraction keeps just the bare id (Principle VI) and throws the URL away.
+        $isShort = $youtubeId !== null && Youtube::isShort((string) $request->input('youtube'));
+
         $post = $this->service->createPost(
             $request->user(),
             $request->input('title'),
             $request->file('image'),
             $youtubeId,
             $request->file('video'),
+            $isShort,
         );
 
         return (new TrashpostResource($post))->response()->setStatusCode(201);

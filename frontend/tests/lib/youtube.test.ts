@@ -22,6 +22,15 @@ describe('toEmbedUrl', () => {
     expect(Youtube.toEmbedUrl(`https://www.youtube.com/embed/${ID}`)).toBe(EMBED);
   });
 
+  it('parses a shorts URL', () => {
+    expect(Youtube.toEmbedUrl(`https://www.youtube.com/shorts/${ID}`)).toBe(EMBED);
+  });
+
+  it('parses a shorts URL on any host form, with or without query params', () => {
+    expect(Youtube.toEmbedUrl(`https://m.youtube.com/shorts/${ID}`)).toBe(EMBED);
+    expect(Youtube.toEmbedUrl(`https://youtube.com/shorts/${ID}?feature=share`)).toBe(EMBED);
+  });
+
   it('accepts a bare 11-char video id', () => {
     expect(Youtube.toEmbedUrl(ID)).toBe(EMBED);
   });

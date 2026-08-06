@@ -37,6 +37,7 @@ class TrashpostResource extends JsonResource {
             'file' => $this->file,
             'video' => $this->videoUrl(),
             'youtube' => $this->youtube,
+            'youtube_is_short' => (bool) $this->youtube_is_short,
             'username' => $this->authorName(),
             'metadata' => $this->metadata,
             'created_at' => $this->created_at,

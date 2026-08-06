@@ -9,6 +9,7 @@ function makeRaw(overrides: Partial<RawPost> = {}): RawPost {
     hash: 'abc1234567',
     title: 'A funny meme',
     youtube: null,
+    youtube_is_short: false,
     video: null,
     default: 'https://cdn.example/x/default.jpg',
     sizes: [
@@ -50,6 +51,39 @@ describe('mapPost', () => {
     if (post.media.kind === 'youtube') {
       expect(post.media.embedUrl).toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
       expect(post.media.title.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('maps a shorts post to youtube media flagged as a short', () => {
+    const post = FeedModel.mapPost(
+      makeRaw({ youtube: 'dQw4w9WgXcQ', youtube_is_short: true }),
+    );
+
+    expect(post.media.kind).toBe('youtube');
+    if (post.media.kind === 'youtube') {
+      expect(post.media.isShort).toBe(true);
+    }
+  });
+
+  it('maps a regular youtube post as not a short', () => {
+    const post = FeedModel.mapPost(makeRaw({ youtube: 'dQw4w9WgXcQ' }));
+
+    expect(post.media.kind).toBe('youtube');
+    if (post.media.kind === 'youtube') {
+      expect(post.media.isShort).toBe(false);
+    }
+  });
+
+  it('treats an absent youtube_is_short field as not a short', () => {
+    // A response from a backend that predates the field must not yield `undefined`.
+    const raw = makeRaw({ youtube: 'dQw4w9WgXcQ' });
+    delete (raw as Partial<RawPost>).youtube_is_short;
+
+    const post = FeedModel.mapPost(raw);
+
+    expect(post.media.kind).toBe('youtube');
+    if (post.media.kind === 'youtube') {
+      expect(post.media.isShort).toBe(false);
     }
   });
 

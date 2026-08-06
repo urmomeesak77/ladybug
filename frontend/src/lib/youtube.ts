@@ -9,6 +9,7 @@ const URL_PATTERNS = [
   /[?&]v=([A-Za-z0-9_-]{11})/, // watch?v=ID
   /youtu\.be\/([A-Za-z0-9_-]{11})/, // youtu.be/ID
   /\/embed\/([A-Za-z0-9_-]{11})/, // /embed/ID
+  /\/shorts\/([A-Za-z0-9_-]{11})/, // /shorts/ID
 ];
 
 export class Youtube {
