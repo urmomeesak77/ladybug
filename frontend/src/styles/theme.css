@@ -488,53 +488,106 @@ main {
 
 /* Thin video-style scrub bar. The webkit track's two-tone gradient reads --video-progress
    (set inline per-frame from currentTime/duration); Firefox gets the same effect for free
-   via ::-moz-range-progress, which fills automatically up to the current value. */
+   via ::-moz-range-progress, which fills automatically up to the current value. The "to be
+   played" portion is a neutral mid-gray (not tied to light/dark) so it stays legible over
+   both the video and the page background without needing its own theme override. The thumb
+   swaps between the two theme colors (dark-on-light in light mode, light-on-dark in dark
+   mode) — one of the pair always contrasts against the video underneath it, the other
+   against the page background it can spill onto for narrower/portrait videos. */
 .meme-media__video-scrub {
+  /* Chrome only hands the thumb's rendering over to our ::-webkit-slider-thumb rule below
+     once the *host* input also opts out of native appearance — appearance:none on just the
+     pseudo-element is silently ignored, leaving Chrome's native thumb (wrong size, no
+     border, positioned for its own default track) drawn on top instead. */
+  appearance: none;
+  -webkit-appearance: none;
   width: 100%;
   margin: 0;
-  height: 0.9rem; /* generous hit area even though the visible track is thin (Principle VIII) */
+  padding: 0;
+  border: none;
+  background: none;
+  height: 14px; /* generous hit area even though the visible track is thin (Principle VIII) */
   cursor: pointer;
-  accent-color: #fff;
+  accent-color: rgb(0 0 0 / 50%);
 }
 
 .meme-media__video-scrub::-webkit-slider-runnable-track {
-  height: 0.25rem;
+  height: 4px;
+  border: none;
   border-radius: var(--radius-md);
   background: linear-gradient(
     to right,
-    rgb(255 255 255 / 90%) var(--video-progress, 0%),
-    rgb(255 255 255 / 30%) var(--video-progress, 0%)
+    rgb(0 0 0 / 50%) var(--video-progress, 0%),
+    rgb(128 128 128 / 45%) var(--video-progress, 0%)
   );
 }
 
 .meme-media__video-scrub::-webkit-slider-thumb {
   appearance: none;
-  width: 0.75rem;
-  height: 0.75rem;
-  margin-top: -0.25rem;
+  box-sizing: border-box; /* keeps the border inside the declared size so it stays exactly 12px */
+  width: 12px;
+  height: 12px;
+  /* margin-top on a webkit range thumb offsets from the *track's* top edge, not the
+     input's — confirmed by sampling actual rendered pixels: with margin-top:0 the thumb's
+     top edge landed exactly on the track's top edge instead of straddling it. The track
+     itself is auto-centered within the input by the browser, so anchoring the thumb to the
+     track with (track height − thumb height) / 2 centers it on the track and, transitively,
+     on the input — regardless of how tall the input is. */
+  margin-top: -4px;
   border-radius: 50%;
-  background: #fff;
-  border: 1px solid rgb(0 0 0 / 40%);
+  background: #b3b3b3;
+  border: 2px solid #000;
 }
 
 .meme-media__video-scrub::-moz-range-track {
-  height: 0.25rem;
+  height: 4px;
+  border: none;
   border-radius: var(--radius-md);
-  background: rgb(255 255 255 / 30%);
+  background: rgb(128 128 128 / 45%);
 }
 
 .meme-media__video-scrub::-moz-range-progress {
-  height: 0.25rem;
+  height: 4px;
+  border: none;
   border-radius: var(--radius-md);
-  background: rgb(255 255 255 / 90%);
+  background: rgb(0 0 0 / 50%);
 }
 
 .meme-media__video-scrub::-moz-range-thumb {
-  width: 0.75rem;
-  height: 0.75rem;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #fff;
-  border: 1px solid rgb(0 0 0 / 40%);
+  background: #b3b3b3;
+  border: 2px solid #000;
+}
+
+@media (prefers-color-scheme: dark) {
+  .meme-media__video-scrub {
+    accent-color: #fff;
+  }
+
+  .meme-media__video-scrub::-webkit-slider-runnable-track {
+    background: linear-gradient(
+      to right,
+      #fff var(--video-progress, 0%),
+      rgb(128 128 128 / 45%) var(--video-progress, 0%)
+    );
+  }
+
+  .meme-media__video-scrub::-webkit-slider-thumb {
+    background: #fff;
+    border-color: #000;
+  }
+
+  .meme-media__video-scrub::-moz-range-progress {
+    background: #fff;
+  }
+
+  .meme-media__video-scrub::-moz-range-thumb {
+    background: #fff;
+    border-color: #000;
+  }
 }
 
 /* YouTube embeds keep a 16:9 box and the iframe fills it, scaling with the column. */
