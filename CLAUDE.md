@@ -282,5 +282,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/019-video-upload/plan.md` (feature: Video Upload).
+`specs/021-gif-viewport-autoplay/plan.md` (feature: Animated Image Viewport Autoplay).
 <!-- SPECKIT END -->
