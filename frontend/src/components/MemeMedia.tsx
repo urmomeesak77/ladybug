@@ -8,6 +8,27 @@ import type { FeedMedia } from '../lib/feedModel';
 type VideoFeedMedia = Extract<FeedMedia, { kind: 'video' }>;
 type YoutubeFeedMedia = Extract<FeedMedia, { kind: 'youtube' }>;
 
+// Flat 24x24 currentColor path glyphs, same style as moderation/ActionGlyph.tsx's play/pause
+// shapes (play/pause paths are identical); mute/unmute are the standard Material Design
+// volume_off/volume_up glyphs. Decorative only — the button's aria-label carries the
+// accessible name (Principle IV).
+const VIDEO_CONTROL_GLYPHS: Record<'play' | 'pause' | 'mute' | 'unmute', string> = {
+  play: 'M8 5v14l11-7z',
+  pause: 'M6 19h4V5H6v14zm8-14v14h4V5h-4z',
+  unmute:
+    'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z',
+  mute:
+    'M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z',
+};
+
+function VideoGlyph({ name }: { name: keyof typeof VIDEO_CONTROL_GLYPHS }) {
+  return (
+    <svg className="meme-media__video-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d={VIDEO_CONTROL_GLYPHS[name]} />
+    </svg>
+  );
+}
+
 function toggleMuted(setMuted: Dispatch<SetStateAction<boolean>>): void {
   setMuted((value) => !value);
 }
@@ -54,11 +75,21 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
         <source src={media.videoSrc} type={media.mime} />
       </video>
       <div className="meme-media__video-controls">
-        <button type="button" className="meme-media__video-btn" onClick={() => toggleMuted(setMuted)}>
-          {muted ? 'Unmute' : 'Mute'}
+        <button
+          type="button"
+          className="meme-media__video-btn"
+          aria-label={muted ? 'Unmute' : 'Mute'}
+          onClick={() => toggleMuted(setMuted)}
+        >
+          <VideoGlyph name={muted ? 'unmute' : 'mute'} />
         </button>
-        <button type="button" className="meme-media__video-btn" onClick={() => togglePlayback(videoRef)}>
-          {paused ? 'Play' : 'Pause'}
+        <button
+          type="button"
+          className="meme-media__video-btn"
+          aria-label={paused ? 'Play' : 'Pause'}
+          onClick={() => togglePlayback(videoRef)}
+        >
+          <VideoGlyph name={paused ? 'play' : 'pause'} />
         </button>
       </div>
     </div>

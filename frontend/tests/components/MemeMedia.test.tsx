@@ -193,4 +193,15 @@ describe('MemeMedia', () => {
     expect(screen.getByRole('button', { name: 'Unmute' })).toBeInstanceOf(HTMLButtonElement);
     expect(screen.getByRole('button', { name: 'Play' })).toBeInstanceOf(HTMLButtonElement);
   });
+
+  it('renders the mute and play controls as icon-only buttons with no visible text', () => {
+    render(<MemeMedia media={videoMedia} />);
+
+    const unmuteBtn = screen.getByRole('button', { name: 'Unmute' });
+    const playBtn = screen.getByRole('button', { name: 'Play' });
+    expect(unmuteBtn.textContent).toBe('');
+    expect(playBtn.textContent).toBe('');
+    expect(unmuteBtn.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    expect(playBtn.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+  });
 });
