@@ -161,6 +161,20 @@ describe('MemeMedia', () => {
     expect(screen.getByRole('button', { name: 'Mute' })).toBeInstanceOf(HTMLButtonElement);
   });
 
+  it('shows the muted-speaker icon while muted and the volume icon once unmuted', () => {
+    render(<MemeMedia media={videoMedia} />);
+
+    // The muted-speaker glyph is the only one of the two with a diagonal slash (path
+    // data containing "4.27"); the volume glyph has no such slash.
+    const iconPath = () => screen.getByRole('button', { name: 'Unmute' }).querySelector('path');
+    expect(iconPath()?.getAttribute('d')).toContain('4.27');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unmute' }));
+
+    const unmutedIconPath = screen.getByRole('button', { name: 'Mute' }).querySelector('path');
+    expect(unmutedIconPath?.getAttribute('d')).not.toContain('4.27');
+  });
+
   it('the pause control toggles playback', () => {
     const { container } = render(<MemeMedia media={videoMedia} />);
     const video = container.querySelector('video') as HTMLVideoElement;

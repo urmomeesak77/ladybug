@@ -96,7 +96,7 @@ function VideoControls({
           aria-label={muted ? 'Unmute' : 'Mute'}
           onClick={onToggleMuted}
         >
-          <VideoGlyph name={muted ? 'unmute' : 'mute'} />
+          <VideoGlyph name={muted ? 'mute' : 'unmute'} />
         </button>
         <button
           type="button"

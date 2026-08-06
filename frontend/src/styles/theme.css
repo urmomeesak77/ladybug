@@ -418,7 +418,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm) var(--space-sm);
+  padding: var(--space-xs) var(--space-sm) 0;
   opacity: 0;
   /* Slow fade-out: this is the resting state a hover/tap/focus reveal transitions back to.
      pointer-events: none while hidden so the invisible strip can't swallow/mis-fire the
@@ -506,7 +506,7 @@ main {
   padding: 0;
   border: none;
   background: none;
-  height: 14px; /* generous hit area even though the visible track is thin (Principle VIII) */
+  height: 8px; /* hit area taller than the visible track, but tight enough to sit flush against the video's bottom edge (Principle VIII) */
   cursor: pointer;
   accent-color: rgb(0 0 0 / 50%);
 }
