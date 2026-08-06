@@ -192,7 +192,7 @@ and has no format-specific logic (research.md R5); this task is the proof.
   the full card width at 9:16. The signed-in steps (the `/upload` form itself, admin console
   activation view) are covered by the feature tests at the HTTP layer; the new CSS adds no color
   tokens, so light/dark is unchanged by construction.
-- [ ] T023 Dispatch the `commit-quality-verifier` subagent on the staged diff; commit only on PASS
+- [X] T023 Dispatch the `commit-quality-verifier` subagent on the staged diff; commit only on PASS
   (Constitution, conventions, ≥90% coverage, Principle VI security, minimal-deps).
 
 ---
