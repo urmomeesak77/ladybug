@@ -393,6 +393,25 @@ main {
   margin-inline: auto;
 }
 
+/* An animated post swaps its <img> for a <canvas> we drive frame by frame (021). A canvas
+   inherits none of the UA/global <img> reset (theme.css:70), so it has to be restated here
+   or the decoded frame would overflow its card at full pixel width. */
+.meme-media__canvas {
+  max-width: 100%;
+  display: block;
+  height: auto;
+  margin-inline: auto;
+}
+
+/* The density-correction equivalent. An <img> with a w-descriptor srcset does NOT lay out
+   at its chosen variant's pixel width — the browser corrects it to the `sizes` width — but
+   a canvas lays out at its attribute width, which would shrink the post by half whenever a
+   small variant was selected. Applied only when the <img> had a real srcset; with an empty
+   one the <img> rendered at its intrinsic width and width:auto matches it. */
+.meme-media__canvas--fluid {
+  width: 100%;
+}
+
 /* video has no built-in max-width reset the way <img> does (theme.css:70) — add one so a
    raw <video> element never overflows its card. */
 .meme-media__video {

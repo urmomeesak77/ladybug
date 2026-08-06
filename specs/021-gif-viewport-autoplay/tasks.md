@@ -40,12 +40,12 @@ Frontend source is `frontend/src/`, tests mirror it under `frontend/tests/`.
 `frontend/package.json` and `backend/composer.json` MUST stay byte-identical (FR-015,
 Principle I, research R14).
 
-- [ ] T001 [P] Add a small animated GIF fixture at `backend/tests/fixtures/animated.gif` (a
+- [X] T001 [P] Add a small animated GIF fixture at `backend/tests/fixtures/animated.gif` (a
       few frames, a few KB, genuinely multi-frame with a `NETSCAPE2.0` loop block) for the
       Playwright spec's GIF half of FR-006/SC-006; `backend/tests/fixtures/animated.webp`
       already exists from 014 and is reused as-is. Fixture only — no backend code, no
       backend test change (research R12).
-- [ ] T002 [P] Add the `.meme-media__canvas` rule **and its `--fluid` modifier** to
+- [X] T002 [P] Add the `.meme-media__canvas` rule **and its `--fluid` modifier** to
       `frontend/src/styles/theme.css` next to the existing `.meme-media__image` rule
       (theme.css:391):
       - `.meme-media__canvas { max-width: 100%; display: block; height: auto;
@@ -76,7 +76,7 @@ document that at the top of the file, citing research R15, so it does not read a
 
 ### `AnimatedImage` — support gate, candidate filter, probe, delay clamp
 
-- [ ] T003 [P] Write failing unit tests in `frontend/tests/lib/animatedImage.test.ts` covering
+- [X] T003 [P] Write failing unit tests in `frontend/tests/lib/animatedImage.test.ts` covering
       the contract in contracts/frontend-playback.md §`lib/animatedImage.ts`: `isSupported()`
       false when `ImageDecoder` is absent from `window` and true when stubbed;
       `isCandidate()` true for `.gif`/`.webp` URLs (incl. query strings) and false for
@@ -87,7 +87,7 @@ document that at the top of the file, citing research R15, so it does not read a
       for a non-candidate URL; `frameDelayMs()` returning `duration/1000` for normal values
       and `100` for `null`, `NaN`, `Infinity`, `0` and anything `< 20 ms` (research R6).
       Stub `ImageDecoder` and `fetch` with `vi.stubGlobal` (research R11) — no new test dep.
-- [ ] T004 Implement class `AnimatedImage` (static methods only) in
+- [X] T004 Implement class `AnimatedImage` (static methods only) in
       `frontend/src/lib/animatedImage.ts` to the contract, making T003 pass: the
       `'ImageDecoder' in window` + `ImageDecoder.isTypeSupported(mime)` gate (research R2),
       the extension pre-filter (research R3 stage 1), `fetch(url, { cache: 'force-cache' })`
@@ -98,7 +98,7 @@ document that at the top of the file, citing research R15, so it does not read a
 
 ### `AnimationRegistry` — LRU(12) sessions + page-lifetime positions
 
-- [ ] T005 [P] Write failing unit tests in `frontend/tests/lib/animationRegistry.test.ts`
+- [X] T005 [P] Write failing unit tests in `frontend/tests/lib/animationRegistry.test.ts`
       covering contracts §`lib/animationRegistry.ts` guarantees 1–5 and data-model.md §2–§3:
       `position()` returns `{ frameIndex: 0, loopsDone: 0, isFinished: false }` for an unseen
       URL and allocates no session (purity); `savePosition`/`position` round-trip;
@@ -115,7 +115,7 @@ document that at the top of the file, citing research R15, so it does not read a
       the least-recently-used of all*; with all 12 pinned, the 13th acquire still evicts the
       LRU so `sessions.size` never exceeds 12 (guarantee 1 wins); `unpin` returns a session
       to the eviction pool; `unpin` of an unknown URL is a no-op.
-- [ ] T006 Implement class `AnimationRegistry` (static) in
+- [X] T006 Implement class `AnimationRegistry` (static) in
       `frontend/src/lib/animationRegistry.ts` to the contract, making T005 pass: module-level
       `positions: Map<string, FramePosition>` (uncapped, page lifetime) and
       `sessions: Map<string, PlaybackSession | Promise<PlaybackSession>>` capped at a
@@ -128,7 +128,7 @@ document that at the top of the file, citing research R15, so it does not read a
       Delegates decode setup to `AnimatedImage.probe` (T004). Export the `FramePosition` and
       `PlaybackSession` types from this module (data-model.md §1–§2) — colocated types, per
       the project's no-`types/`-dir convention.
-- [ ] T007 [P] Write failing unit tests in `frontend/tests/lib/animationPlayer.test.ts` under
+- [X] T007 [P] Write failing unit tests in `frontend/tests/lib/animationPlayer.test.ts` under
       `vi.useFakeTimers()`, covering contracts §`lib/animationPlayer.ts` guarantees 1–7:
       `start()` draws the remembered frame and schedules the next after
       `AnimatedImage.frameDelayMs`; `stop()` clears the timer, persists
@@ -145,7 +145,7 @@ document that at the top of the file, citing research R15, so it does not read a
       `unpin` spies, including the unpin on the finished-playback stop, so a play-once meme
       cannot hold a pin forever, data-model invariant 6). Stub the canvas
       2D context via `vi.spyOn(HTMLCanvasElement.prototype, 'getContext')` (research R11).
-- [ ] T008 Implement class `AnimationPlayer` (instance) in
+- [X] T008 Implement class `AnimationPlayer` (instance) in
       `frontend/src/lib/animationPlayer.ts` to the contract, making T007 pass:
       `constructor(url, canvas)`, `start()`, `stop()`, `get isPlaying()`; a `setTimeout`
       chain (never `requestAnimationFrame` — research R6) that draws frame *i*, kicks off the
@@ -158,7 +158,7 @@ document that at the top of the file, citing research R15, so it does not read a
 
 ### Visibility and glue hooks
 
-- [ ] T009 [P] Write failing tests in `frontend/tests/hooks/useInViewport.test.tsx` following
+- [X] T009 [P] Write failing tests in `frontend/tests/hooks/useInViewport.test.tsx` following
       the captured-mock-observer pattern of the existing
       `frontend/tests/hooks/useVideoAutoplay.test.tsx`: `isVisible` true when
       `intersectionRatio >= 0.5` (test (a), the same constant video uses); `isVisible` true
@@ -176,7 +176,7 @@ document that at the top of the file, citing research R15, so it does not read a
       `useVideoAutoplay`, which acts on `isIntersecting` alone and would keep playing.
       Comment the test with the reason (research R5) so a future reader does not "fix" it
       into parity.
-- [ ] T010 Implement `useInViewport(node)` in `frontend/src/hooks/useInViewport.ts` returning
+- [X] T010 Implement `useInViewport(node)` in `frontend/src/hooks/useInViewport.ts` returning
       `{ isVisible, isNear }` to the contract, making T009 pass — two IntersectionObservers,
       the FR-011 dual test, and the `THRESHOLD_LADDER` (`0, 0.02 … 1.0`) constant with a
       comment explaining *why* the ladder exists (research R5: IO only fires at declared
@@ -186,7 +186,7 @@ document that at the top of the file, citing research R15, so it does not read a
       the ratio (rather than `isIntersecting`) is what makes the image stop earlier than a
       video, and that this is intended (FR-004).
       **Do not touch `frontend/src/hooks/useVideoAutoplay.ts`** (FR-004a, SC-010).
-- [ ] T011 Write failing tests in `frontend/tests/hooks/useAnimatedImage.test.tsx` covering
+- [X] T011 Write failing tests in `frontend/tests/hooks/useAnimatedImage.test.tsx` covering
       the behavior table in contracts §`hooks/useAnimatedImage.ts`: no probe,
       `takeover === null` forever **and zero `IntersectionObserver` constructions** when
       `AnimatedImage.isSupported()` is false (FR-012, SC-009); the same — no probe, **zero
@@ -206,7 +206,7 @@ document that at the top of the file, citing research R15, so it does not read a
       hiding a playing post ⇒ `stop()` with the position persisted; unhiding while still
       visible ⇒ `start()` resuming on the held frame, never frame 0.
       Call `AnimationRegistry.reset()` between cases.
-- [ ] T012 Implement `useAnimatedImage(src)` in `frontend/src/hooks/useAnimatedImage.ts`
+- [X] T012 Implement `useAnimatedImage(src)` in `frontend/src/hooks/useAnimatedImage.ts`
       returning `{ setNode, takeover, isPlaying }` to the contract, making T011 pass — the
       callback ref shared by both `<img>` and `<canvas>`, `useInViewport` (T010) for the two
       visibility signals, `AnimationRegistry` (T006) for acquisition, `AnimationPlayer`
