@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -225,25 +224,16 @@ describe('MemeMedia', () => {
   it('dragging the scrub bar seeks the video', () => {
     const { container } = render(<MemeMedia media={videoMedia} />);
     const video = container.querySelector('video') as HTMLVideoElement;
-    const scrub = screen.getByRole('slider', { name: 'Seek' }) as HTMLInputElement;
+    Object.defineProperty(video, 'currentTime', { value: 0, configurable: true, writable: true });
+    const scrub = screen.getByRole('slider', { name: 'Seek' });
 
-    // Mock currentTime so we can verify our seekTo function works
-    let currentTimeValue = 0;
-    Object.defineProperty(video, 'currentTime', {
-      get() {
-        return currentTimeValue;
-      },
-      set(value: number) {
-        currentTimeValue = value;
-      },
-      configurable: true,
-    });
+    // Set duration first so the range input's max attribute is >= 45,
+    // otherwise jsdom clamps the change event value to max
+    Object.defineProperty(video, 'duration', { value: 120, configurable: true });
+    fireEvent.loadedMetadata(video);
 
-    // Test the onChange handler logic directly by setting the scrub value
-    // and calling the handler (simulating what fireEvent.change should do)
-    const newValue = '45';
-    // Manually invoke what the onChange handler does: call seekTo with the new value
-    video.currentTime = Number(newValue);
+    // Now fire change on the scrub input with the new value
+    fireEvent.change(scrub, { target: { value: '45' } });
 
     expect(video.currentTime).toBe(45);
   });
