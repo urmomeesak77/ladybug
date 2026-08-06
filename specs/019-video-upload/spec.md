@@ -211,10 +211,12 @@ autoplays muted on load.
   the existing required-title rule, and the existing trust-based
   auto-activation / pending-moderation model already applied to image and
   YouTube posts — no new account requirements are introduced.
-- Beyond the required autoplay-muted/scroll-pause behavior and the
-  unmute/pause control, playback controls (seek, volume level) follow
-  ordinary browser video player conventions; no further custom player
-  behavior is specified here.
+- Beyond the required autoplay-muted/scroll-pause behavior, the video overlay
+  provides mute/unmute, play/pause, and a scrub bar for seeking (added
+  2026-08-06 — see
+  docs/superpowers/specs/2026-08-06-video-control-overlay-design.md). Volume
+  level, fullscreen, playback speed, and captions still follow ordinary
+  browser conventions and remain out of scope.
 - When multiple video posts are visible in the feed at once, each plays
   muted independently; this feature does not restrict playback to a single
   concurrent video.
