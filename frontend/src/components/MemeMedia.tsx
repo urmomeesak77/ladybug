@@ -58,6 +58,61 @@ function seekTo(videoRef: RefObject<HTMLVideoElement | null>, time: number): voi
   video.currentTime = time;
 }
 
+// The mute/play icon buttons plus the scrub bar, split out of VideoMedia so that function
+// stays under the project's line limit (docs/CODING_CONVENTIONS.md). Purely presentational —
+// all playback state and handlers live in VideoMedia, passed down as props.
+function VideoControls({
+  muted,
+  paused,
+  currentTime,
+  duration,
+  onToggleMuted,
+  onTogglePlayback,
+  onSeek,
+}: {
+  muted: boolean;
+  paused: boolean;
+  currentTime: number;
+  duration: number;
+  onToggleMuted: () => void;
+  onTogglePlayback: () => void;
+  onSeek: (time: number) => void;
+}) {
+  return (
+    <div className="meme-media__video-controls">
+      <div className="meme-media__video-buttons">
+        <button
+          type="button"
+          className="meme-media__video-btn"
+          aria-label={muted ? 'Unmute' : 'Mute'}
+          onClick={onToggleMuted}
+        >
+          <VideoGlyph name={muted ? 'unmute' : 'mute'} />
+        </button>
+        <button
+          type="button"
+          className="meme-media__video-btn"
+          aria-label={paused ? 'Play' : 'Pause'}
+          onClick={onTogglePlayback}
+        >
+          <VideoGlyph name={paused ? 'play' : 'pause'} />
+        </button>
+      </div>
+      <input
+        type="range"
+        className="meme-media__video-scrub"
+        aria-label="Seek"
+        min={0}
+        max={duration}
+        step="any"
+        value={currentTime}
+        onChange={(event) => onSeek(Number(event.target.value))}
+        style={{ '--video-progress': `${duration > 0 ? (currentTime / duration) * 100 : 0}%` } as ScrubStyle}
+      />
+    </div>
+  );
+}
+
 // A video post's playback: autoplay-on-scroll (useVideoAutoplay) starts/pauses it muted as
 // it crosses the visibility threshold (FR-008); the poster stays shown until a frame actually
 // paints, so there is no layout jump either way. playsInline keeps playback eligible inline on
@@ -92,37 +147,15 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
       >
         <source src={media.videoSrc} type={media.mime} />
       </video>
-      <div className="meme-media__video-controls">
-        <div className="meme-media__video-buttons">
-          <button
-            type="button"
-            className="meme-media__video-btn"
-            aria-label={muted ? 'Unmute' : 'Mute'}
-            onClick={() => toggleMuted(setMuted)}
-          >
-            <VideoGlyph name={muted ? 'unmute' : 'mute'} />
-          </button>
-          <button
-            type="button"
-            className="meme-media__video-btn"
-            aria-label={paused ? 'Play' : 'Pause'}
-            onClick={() => togglePlayback(videoRef)}
-          >
-            <VideoGlyph name={paused ? 'play' : 'pause'} />
-          </button>
-        </div>
-        <input
-          type="range"
-          className="meme-media__video-scrub"
-          aria-label="Seek"
-          min={0}
-          max={duration}
-          step="any"
-          value={currentTime}
-          onChange={(event) => seekTo(videoRef, Number(event.target.value))}
-          style={{ '--video-progress': `${duration > 0 ? (currentTime / duration) * 100 : 0}%` } as ScrubStyle}
-        />
-      </div>
+      <VideoControls
+        muted={muted}
+        paused={paused}
+        currentTime={currentTime}
+        duration={duration}
+        onToggleMuted={() => toggleMuted(setMuted)}
+        onTogglePlayback={() => togglePlayback(videoRef)}
+        onSeek={(time) => seekTo(videoRef, time)}
+      />
     </div>
   );
 }
