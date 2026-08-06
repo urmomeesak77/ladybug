@@ -420,14 +420,32 @@ main {
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-sm) var(--space-sm);
   opacity: 0;
-  /* Slow fade-out: this is the resting state a hover/tap/focus reveal transitions back to. */
+  /* Slow fade-out: this is the resting state a hover/tap/focus reveal transitions back to.
+     pointer-events: none while hidden so the invisible strip can't swallow/mis-fire the
+     first tap on touch (e.g. jump the scrub bar) before the overlay is even visible;
+     re-enabled below once a reveal rule matches. Focus is unaffected — :focus-within
+     reacts to keyboard Tab, which doesn't go through pointer hit-testing. */
+  pointer-events: none;
   transition: opacity 600ms ease-out;
 }
 
-.meme-media--video-wrap:hover .meme-media__video-controls,
+/* Real hover only: on touch, tapping an element applies :hover and it sticks until the
+   user taps elsewhere ("sticky hover"), which would keep the overlay visible forever and
+   defeat the tap auto-hide timer below. Gating on `hover: hover` keeps this rule for mice/
+   trackpads only; touch reveal goes through --controls-visible instead. */
+@media (hover: hover) {
+  .meme-media--video-wrap:hover .meme-media__video-controls {
+    opacity: 1;
+    pointer-events: auto;
+    /* Fast fade-in: this rule's transition governs entering the visible state. */
+    transition: opacity 100ms ease-in;
+  }
+}
+
 .meme-media--video-wrap:focus-within .meme-media__video-controls,
 .meme-media--video-wrap.meme-media--controls-visible .meme-media__video-controls {
   opacity: 1;
+  pointer-events: auto;
   /* Fast fade-in: this rule's transition governs entering the visible state. */
   transition: opacity 100ms ease-in;
 }

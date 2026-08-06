@@ -272,4 +272,48 @@ describe('MemeMedia', () => {
     fireEvent.click(video);
     expect(wrap.classList.contains('meme-media--controls-visible')).toBe(false);
   });
+
+  it('a tap anywhere in the wrapper (not just the video) reveals the overlay', () => {
+    const { container } = render(<MemeMedia media={videoMedia} />);
+    const wrap = container.querySelector('.meme-media--video-wrap') as HTMLElement;
+
+    // Click the wrapper itself, e.g. a side gutter where the video is narrower than the
+    // card — not the <video> element — since the tap-to-reveal handler now lives on the
+    // wrapper (fix for the invisible control strip / gutter taps swallowing/missing taps).
+    fireEvent.click(wrap);
+
+    expect(wrap.classList.contains('meme-media--controls-visible')).toBe(true);
+  });
+
+  it('clicking a control button does not also toggle the overlay off via the wrapper', () => {
+    const { container } = render(<MemeMedia media={videoMedia} />);
+    const wrap = container.querySelector('.meme-media--video-wrap') as HTMLElement;
+
+    fireEvent.click(wrap);
+    expect(wrap.classList.contains('meme-media--controls-visible')).toBe(true);
+
+    // A button click bubbles from inside .meme-media__video-controls, which stops
+    // propagation so it never reaches the wrapper's own tap-to-reveal onClick — otherwise
+    // pressing e.g. Play would immediately re-hide the overlay it was just pressed on.
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+
+    expect(wrap.classList.contains('meme-media--controls-visible')).toBe(true);
+  });
+
+  it('dragging the scrub bar updates its own value immediately (no jitter waiting for timeupdate)', () => {
+    const { container } = render(<MemeMedia media={videoMedia} />);
+    const video = container.querySelector('video') as HTMLVideoElement;
+    Object.defineProperty(video, 'currentTime', { value: 0, configurable: true, writable: true });
+    const scrub = screen.getByRole('slider', { name: 'Seek' }) as HTMLInputElement;
+
+    Object.defineProperty(video, 'duration', { value: 120, configurable: true });
+    fireEvent.loadedMetadata(video);
+
+    // Fire change without a subsequent timeupdate event: a purely video-driven value would
+    // stay stale until timeupdate fires (~4x/sec), which is the jitter this test guards
+    // against — the controlled input's value must reflect the drag right away.
+    fireEvent.change(scrub, { target: { value: '45' } });
+
+    expect(scrub.value).toBe('45');
+  });
 });

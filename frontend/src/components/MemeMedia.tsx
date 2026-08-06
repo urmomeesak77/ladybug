@@ -69,6 +69,7 @@ function VideoControls({
   onToggleMuted,
   onTogglePlayback,
   onSeek,
+  onInteractionStart,
 }: {
   muted: boolean;
   paused: boolean;
@@ -77,9 +78,17 @@ function VideoControls({
   onToggleMuted: () => void;
   onTogglePlayback: () => void;
   onSeek: (time: number) => void;
+  onInteractionStart: () => void;
 }) {
   return (
-    <div className="meme-media__video-controls">
+    // stopPropagation on click: the wrapper's own onClick (tap-to-reveal, MemeMedia.tsx)
+    // would otherwise also fire on every bubbled button/scrub click, immediately re-hiding
+    // (or needlessly re-showing) the overlay right after the control's own action.
+    <div
+      className="meme-media__video-controls"
+      onPointerDown={onInteractionStart}
+      onClick={(event) => event.stopPropagation()}
+    >
       <div className="meme-media__video-buttons">
         <button
           type="button"
@@ -124,11 +133,12 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
   const [duration, setDuration] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   useVideoAutoplay(videoRef);
-  const { tapVisible, toggleTapVisible } = useVideoTapToggle();
+  const { tapVisible, toggleTapVisible, keepTapVisible } = useVideoTapToggle();
 
   return (
     <div
       className={`meme-media meme-media--video-wrap${tapVisible ? ' meme-media--controls-visible' : ''}`}
+      onClick={toggleTapVisible}
     >
       <video
         ref={videoRef}
@@ -141,7 +151,6 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
         onPause={() => setPaused(true)}
         onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
         onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
-        onClick={toggleTapVisible}
         width={media.width}
         height={media.height}
       >
@@ -154,7 +163,11 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
         duration={duration}
         onToggleMuted={() => toggleMuted(setMuted)}
         onTogglePlayback={() => togglePlayback(videoRef)}
-        onSeek={(time) => seekTo(videoRef, time)}
+        onSeek={(time) => {
+          setCurrentTime(time);
+          seekTo(videoRef, time);
+        }}
+        onInteractionStart={keepTapVisible}
       />
     </div>
   );
