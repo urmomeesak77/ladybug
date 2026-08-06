@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -22,6 +22,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 const imageMedia: FeedMedia = {
@@ -236,5 +237,39 @@ describe('MemeMedia', () => {
     fireEvent.change(scrub, { target: { value: '45' } });
 
     expect(video.currentTime).toBe(45);
+  });
+
+  it('a tap on the video reveals the controls overlay and auto-hides it a few seconds later', () => {
+    vi.useFakeTimers();
+    const { container } = render(<MemeMedia media={videoMedia} />);
+    const video = container.querySelector('video') as HTMLVideoElement;
+    const wrap = container.querySelector('.meme-media--video-wrap') as HTMLElement;
+
+    expect(wrap.classList.contains('meme-media--controls-visible')).toBe(false);
+
+    fireEvent.click(video);
+    expect(wrap.classList.contains('meme-media--controls-visible')).toBe(true);
+
+    // Advancing fake timers fires the hook's setTimeout callback, which calls setState
+    // outside any React-managed event; act() is required so that update flushes to the
+    // DOM synchronously before the assertion runs (same pattern as useVideoTapToggle's
+    // own hook test).
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(wrap.classList.contains('meme-media--controls-visible')).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('a second tap on the video hides the overlay immediately', () => {
+    const { container } = render(<MemeMedia media={videoMedia} />);
+    const video = container.querySelector('video') as HTMLVideoElement;
+    const wrap = container.querySelector('.meme-media--video-wrap') as HTMLElement;
+
+    fireEvent.click(video);
+    expect(wrap.classList.contains('meme-media--controls-visible')).toBe(true);
+
+    fireEvent.click(video);
+    expect(wrap.classList.contains('meme-media--controls-visible')).toBe(false);
   });
 });

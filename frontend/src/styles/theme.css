@@ -402,29 +402,54 @@ main {
   margin-inline: auto;
 }
 
-/* Positions the unmute/pause overlay against the video underneath it (US3, FR-008). */
+/* Positions the mute/play/scrub overlay against the video underneath it (US3, FR-008).
+   Desktop hover and keyboard focus reveal it via :hover / :focus-within below; touch has
+   no hover event, so MemeMedia also toggles the --controls-visible modifier on tap
+   (useVideoTapToggle), which auto-clears itself a few seconds after a tap reveals it. */
 .meme-media--video-wrap {
   position: relative;
 }
 
 .meme-media__video-controls {
   position: absolute;
-  right: var(--space-sm);
-  bottom: var(--space-sm);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm) var(--space-sm);
+  opacity: 0;
+  /* Slow fade-out: this is the resting state a hover/tap/focus reveal transitions back to. */
+  transition: opacity 600ms ease-out;
+}
+
+.meme-media--video-wrap:hover .meme-media__video-controls,
+.meme-media--video-wrap:focus-within .meme-media__video-controls,
+.meme-media--video-wrap.meme-media--controls-visible .meme-media__video-controls {
+  opacity: 1;
+  /* Fast fade-in: this rule's transition governs entering the visible state. */
+  transition: opacity 100ms ease-in;
+}
+
+.meme-media__video-buttons {
   display: flex;
   gap: var(--space-xs);
+  align-self: flex-start;
 }
 
 /* A translucent chip over the video frame, not the page background, so a fixed
    white-on-black contrast reads correctly regardless of the site's light/dark scheme —
    unlike the token-driven controls elsewhere, this one never sits on --color-surface. */
 .meme-media__video-btn {
+  width: 2.25rem;
+  height: 2.25rem;
   min-width: 2.25rem;
   min-height: 2.25rem; /* comfortable touch target (Principle VIII). */
-  padding: var(--space-xs) var(--space-sm);
-  font: inherit;
-  font-size: 0.75rem;
-  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #fff;
   background-color: rgb(0 0 0 / 55%);
   border: 1px solid rgb(255 255 255 / 40%);
@@ -435,6 +460,63 @@ main {
 .meme-media__video-btn:hover,
 .meme-media__video-btn:focus-visible {
   background-color: rgb(0 0 0 / 75%);
+}
+
+.meme-media__video-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: currentColor;
+}
+
+/* Thin video-style scrub bar. The webkit track's two-tone gradient reads --video-progress
+   (set inline per-frame from currentTime/duration); Firefox gets the same effect for free
+   via ::-moz-range-progress, which fills automatically up to the current value. */
+.meme-media__video-scrub {
+  width: 100%;
+  margin: 0;
+  height: 0.9rem; /* generous hit area even though the visible track is thin (Principle VIII) */
+  cursor: pointer;
+  accent-color: #fff;
+}
+
+.meme-media__video-scrub::-webkit-slider-runnable-track {
+  height: 0.25rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    to right,
+    rgb(255 255 255 / 90%) var(--video-progress, 0%),
+    rgb(255 255 255 / 30%) var(--video-progress, 0%)
+  );
+}
+
+.meme-media__video-scrub::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: -0.25rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgb(0 0 0 / 40%);
+}
+
+.meme-media__video-scrub::-moz-range-track {
+  height: 0.25rem;
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 30%);
+}
+
+.meme-media__video-scrub::-moz-range-progress {
+  height: 0.25rem;
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 90%);
+}
+
+.meme-media__video-scrub::-moz-range-thumb {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgb(0 0 0 / 40%);
 }
 
 /* YouTube embeds keep a 16:9 box and the iframe fills it, scaling with the column. */

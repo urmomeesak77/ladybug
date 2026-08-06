@@ -3,6 +3,7 @@ import type { CSSProperties, Dispatch, RefObject, SetStateAction } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useVideoAutoplay } from '../hooks/useVideoAutoplay';
+import { useVideoTapToggle } from '../hooks/useVideoTapToggle';
 import type { FeedMedia } from '../lib/feedModel';
 
 type VideoFeedMedia = Extract<FeedMedia, { kind: 'video' }>;
@@ -68,9 +69,12 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
   const [duration, setDuration] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   useVideoAutoplay(videoRef);
+  const { tapVisible, toggleTapVisible } = useVideoTapToggle();
 
   return (
-    <div className="meme-media meme-media--video-wrap">
+    <div
+      className={`meme-media meme-media--video-wrap${tapVisible ? ' meme-media--controls-visible' : ''}`}
+    >
       <video
         ref={videoRef}
         className="meme-media__video"
@@ -82,28 +86,31 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
         onPause={() => setPaused(true)}
         onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
         onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
+        onClick={toggleTapVisible}
         width={media.width}
         height={media.height}
       >
         <source src={media.videoSrc} type={media.mime} />
       </video>
       <div className="meme-media__video-controls">
-        <button
-          type="button"
-          className="meme-media__video-btn"
-          aria-label={muted ? 'Unmute' : 'Mute'}
-          onClick={() => toggleMuted(setMuted)}
-        >
-          <VideoGlyph name={muted ? 'unmute' : 'mute'} />
-        </button>
-        <button
-          type="button"
-          className="meme-media__video-btn"
-          aria-label={paused ? 'Play' : 'Pause'}
-          onClick={() => togglePlayback(videoRef)}
-        >
-          <VideoGlyph name={paused ? 'play' : 'pause'} />
-        </button>
+        <div className="meme-media__video-buttons">
+          <button
+            type="button"
+            className="meme-media__video-btn"
+            aria-label={muted ? 'Unmute' : 'Mute'}
+            onClick={() => toggleMuted(setMuted)}
+          >
+            <VideoGlyph name={muted ? 'unmute' : 'mute'} />
+          </button>
+          <button
+            type="button"
+            className="meme-media__video-btn"
+            aria-label={paused ? 'Play' : 'Pause'}
+            onClick={() => togglePlayback(videoRef)}
+          >
+            <VideoGlyph name={paused ? 'play' : 'pause'} />
+          </button>
+        </div>
         <input
           type="range"
           className="meme-media__video-scrub"
