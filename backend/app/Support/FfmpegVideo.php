@@ -38,6 +38,23 @@ class FfmpegVideo {
         ];
     }
 
+    /**
+     * Lossless stream-copy remux that relocates the moov atom to the front of the file
+     * (research.md #2). Default MP4 muxing — what phone/camera encoders and ffmpeg's own
+     * default `-c copy` both produce — writes moov after mdat; Chrome's demuxer then has
+     * no seek index and every seek collapses to 0 even once the file is fully buffered
+     * (`video.seekable` stays `[0,0]`), while Firefox tolerates the layout. +faststart
+     * fixes this without re-encoding.
+     */
+    public function remuxFaststart(string $srcPath, string $destPath): bool {
+        $process = new Process([
+            'ffmpeg', '-y', '-i', $srcPath, '-c', 'copy', '-movflags', '+faststart', $destPath,
+        ]);
+        $process->run();
+
+        return $process->isSuccessful() && is_file($destPath);
+    }
+
     public function extractPosterFrame(string $srcPath, string $destPath): bool {
         $dir = dirname($destPath);
         if (!is_dir($dir) || !is_writable($dir)) {

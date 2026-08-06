@@ -66,6 +66,23 @@ final class TrashpostVideoProcessorTest extends TestCase {
         }
     }
 
+    /**
+     * sample-nonfaststart.mp4 reproduces a real phone/camera upload: ffmpeg's default
+     * muxing writes the moov atom after mdat, which leaves Chrome unable to seek the
+     * file at all (`video.seekable` stays [0,0] even fully buffered) though Firefox
+     * plays it fine — process() must remux every stored mp4 so scrubbing works everywhere.
+     */
+    public function test_process_stores_the_mp4_with_moov_before_mdat(): void {
+        $processor = new TrashpostVideoProcessor();
+        $upload = $this->fixtureUpload('sample-nonfaststart.mp4', 'video/mp4');
+
+        $processor->process($upload, 'faststarthash');
+
+        $disk = Storage::disk('public');
+        $bytes = (string) file_get_contents($disk->path(MediaPath::videoRelativePath('faststarthash', 'mp4')));
+        $this->assertLessThan(strpos($bytes, 'mdat'), strpos($bytes, 'moov'));
+    }
+
     public function test_process_stores_the_webm_and_its_poster(): void {
         $processor = new TrashpostVideoProcessor();
         $upload = $this->fixtureUpload('sample.webm', 'video/webm');

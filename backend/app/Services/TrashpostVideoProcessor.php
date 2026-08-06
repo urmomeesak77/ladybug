@@ -6,6 +6,8 @@ namespace App\Services;
 
 use App\Support\FfmpegVideo;
 use App\Support\MediaPath;
+use Illuminate\Filesystem\FilesystemAdapter;
+use Illuminate\Http\File as StoredFile;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
@@ -27,10 +29,11 @@ class TrashpostVideoProcessor {
      */
     public function process(UploadedFile $file, string $hash): array {
         $ext = $this->extensionFor($file);
+        /** @var FilesystemAdapter $disk */
         $disk = Storage::disk('public');
 
         $videoRel = MediaPath::videoRelativePath($hash, $ext);
-        $disk->putFileAs(dirname($videoRel), $file, basename($videoRel));
+        $this->storeVideo($file, $ext, $disk, $videoRel);
         $videoPath = $disk->path($videoRel);
 
         $posterOriginalRel = MediaPath::imageRelativePath('original', $hash, 'jpg');
@@ -55,6 +58,34 @@ class TrashpostVideoProcessor {
             'metadata' => $this->metadata($probe, $file),
             'poster' => "{$hash}.jpg",
         ];
+    }
+
+    /**
+     * webm is stored as uploaded. mp4 is remuxed through ffmpeg first (a lossless stream
+     * copy, +faststart — see FfmpegVideo::remuxFaststart) so every stored video is
+     * seekable in Chrome, not just Firefox, regardless of how the source encoder muxed it.
+     */
+    private function storeVideo(UploadedFile $file, string $ext, FilesystemAdapter $disk, string $videoRel): void {
+        if ($ext !== 'mp4') {
+            $disk->putFileAs(dirname($videoRel), $file, basename($videoRel));
+
+            return;
+        }
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'ladybug_video_');
+        unlink($tmpPath);
+        $tmpPath .= '.mp4';
+        try {
+            if (!$this->ffmpeg->remuxFaststart($file->getRealPath(), $tmpPath)) {
+                throw new \RuntimeException('Failed to remux video for faststart playback.');
+            }
+            $disk->putFileAs(dirname($videoRel), new StoredFile($tmpPath), basename($videoRel));
+        }
+        finally {
+            if (is_file($tmpPath)) {
+                unlink($tmpPath);
+            }
+        }
     }
 
     /**

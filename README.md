@@ -17,8 +17,8 @@ backend/    Laravel 12 API (PHP 8.3) + Sanctum, MySQL via Eloquent
 frontend/   React 18 + Vite + TypeScript SPA
 docs/       coding conventions, design specs, UI screenshots
 specs/      Spec Kit feature specs (001-011)
-docker/     Dockerfiles for the dev environment (php)
-docker-compose.yml       dev-only: php 8.3 + mysql 8.0 + node 20
+docker/     Dockerfiles for the dev environment (php, nginx-dev)
+docker-compose.yml       dev-only: php 8.3 + mysql 8.0 + node 20 + nginx
 docker-compose.e2e.yml   isolated, disposable stack for the Playwright e2e suite
 ```
 
@@ -51,11 +51,12 @@ Requires **Docker Desktop** (Compose v2). No local PHP/Node needed.
 docker compose up
 ```
 
-This starts three services pinned to the versions CI uses:
+This starts four services pinned to the versions CI uses:
 
 | Service  | Image / build | Host port | Notes |
 |----------|---------------|-----------|-------|
-| backend  | `docker/php` (PHP 8.3) | `8000` | `php artisan serve`; seeds `.env` + app key on first run |
+| nginx    | `docker/nginx-dev` (`nginx:alpine`) | `8000` | fronts `backend`; serves `/storage/` directly (real HTTP Range support — `php artisan serve` doesn't have any, which breaks Chrome video scrubbing), proxies everything else |
+| backend  | `docker/php` (PHP 8.3) | *(internal only)* | `php artisan serve`; seeds `.env` + app key on first run |
 | mysql    | `mysql:8.0`   | `4444` → 3306 | database `trashdb`, root password `root` (dev only) — all configurable, see below |
 | frontend | `node:20`     | `5173` | Vite dev server |
 

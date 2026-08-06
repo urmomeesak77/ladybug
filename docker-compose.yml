@@ -73,11 +73,26 @@ services:
       # exists so `curl http://localhost:8000/...` can verify the metadata, which
       # is the correct instrument anyway (the point is what happens without JS).
       - ./frontend/index.html:/app/resources/spa/index.html:ro
-    ports:
-      - "127.0.0.1:8000:8000"
+    expose:
+      - "8000"
     depends_on:
       mysql:
         condition: service_healthy
+
+  # Fronts the backend so /storage/ media gets real HTTP Range support (php artisan
+  # serve's built-in static file handling ignores Range headers), matching how
+  # deploy/web/default.conf serves /storage/ in production. Everything else is a
+  # plain reverse proxy to the backend's own dev server -- nginx now owns host port
+  # 8000 (APP_URL / VITE_API_BASE_URL both already point there, so nothing else changes).
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./docker/nginx-dev/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${LADYBUG_DATA_ROOT:-C:/docker_permanent}/ladybug-storage/app/public:/srv/media:ro
+    ports:
+      - "127.0.0.1:8000:80"
+    depends_on:
+      - backend
 
   frontend:
     image: node:20
