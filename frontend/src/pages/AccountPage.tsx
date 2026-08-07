@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import AccountNameForm from '../components/AccountNameForm';
+import AccountPasswordForm from '../components/AccountPasswordForm';
 import BusyButton from '../components/BusyButton';
 import { useAuth } from '../hooks/useAuth';
 import { useNotice } from '../hooks/useNotice';
@@ -33,6 +34,10 @@ function AccountPage() {
     <section className="account">
       <h1>Your account</h1>
       <AccountNameForm name={user.name} />
+      {/* 022/FR-025: the deliberate half of password management, on the page the owner
+          already has — no new address and no new guard. Its state is its own: neither
+          section can clear or block the other. */}
+      <AccountPasswordForm hasPassword={user.hasPassword} />
       <dl className="account__details">
         <dt>Email</dt>
         <dd>{user.email}</dd>

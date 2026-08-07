@@ -947,24 +947,34 @@ main {
   margin-bottom: 20px;
 }
 
-/* The in-place name editor. Its field and button reuse the auth form's shapes so the
-   account page keeps one visual language; only the label is visible here (unlike the
-   auth forms' placeholder-styled fields) because the field arrives pre-filled. */
-.account__name label {
+/* The in-place name editor and the password section below it. Their fields and buttons
+   reuse the auth form's shapes so the account page keeps one visual language; only the
+   labels are visible here (unlike the auth forms' placeholder-styled fields) because the
+   name field arrives pre-filled and the password fields are three of a kind. */
+.account__name label,
+.account__password label {
   display: block;
   font-weight: 600;
   color: var(--color-text-muted);
   margin-bottom: var(--space-xs);
 }
 
-.account__name fieldset {
+.account__name fieldset,
+.account__password fieldset {
   border: 0;
   margin: 0;
   padding: 0;
 }
 
-.account__name fieldset:disabled {
+.account__name fieldset:disabled,
+.account__password fieldset:disabled {
   opacity: 0.5;
+}
+
+/* FR-031: which case the account is in, stated in words above the password fields. */
+.account__note {
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-md);
 }
 
 /* Success is stated in words, in the same slot the error text would occupy. */

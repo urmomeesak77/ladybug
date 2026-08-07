@@ -55,7 +55,9 @@ export type ResendResult =
   | { ok: false; kind: 'rate-limited' }
   | { ok: false; kind: 'network' };
 
-type RawUser = {
+// The API's own spelling of a profile. Exported so the 022 password client can hand a
+// refreshed account straight to `mapUser` instead of keeping a second copy of the shape.
+export type RawUser = {
   hash: string;
   name: string;
   email: string;

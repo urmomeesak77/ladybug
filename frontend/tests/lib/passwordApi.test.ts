@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthApi } from '../../src/lib/authApi';
 import { PasswordApi } from '../../src/lib/passwordApi';
 
 type FetchArgs = [string, RequestInit];
@@ -234,5 +235,128 @@ describe('reset', () => {
     }));
 
     expect(await PasswordApi.reset(input)).toEqual({ ok: false, kind: 'network' });
+  });
+});
+
+// The account page's half (022, US3). Unlike the three above it is authenticated, so the
+// session cookie the shared fetch shape already sends is what names the account.
+describe('changePassword', () => {
+  const raw = {
+    hash: 'usr0000001',
+    name: 'Ada',
+    email: 'ada@example.com',
+    email_verified_at: null,
+    role: 'member' as const,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    has_password: true,
+    google_linked_at: null,
+  };
+  const input = {
+    currentPassword: 'OldPassw0rd',
+    password: 'NewPassw0rd',
+    passwordConfirmation: 'NewPassw0rd',
+  };
+
+  it('puts the credential at its own address under the names the server validates', async () => {
+    withXsrfCookie();
+    const mock = stubFetch({ ok: true, status: 200, json: async () => ({ data: raw }) });
+
+    await PasswordApi.changePassword(input);
+
+    const [url, init] = mock.mock.calls[0] as FetchArgs;
+    expect(url).toMatch(/\/api\/user\/password$/);
+    expect(init.method).toBe('PUT');
+    expect(init.credentials).toBe('include');
+    expect(JSON.parse(init.body as string)).toEqual({
+      current_password: 'OldPassw0rd',
+      password: 'NewPassw0rd',
+      password_confirmation: 'NewPassw0rd',
+    });
+  });
+
+  it('omits the current password entirely when there is none to prove', async () => {
+    // A Google-only account has no stored credential, so the server carries no rule for
+    // the field; sending an empty string would be a value offered where none is asked for.
+    withXsrfCookie();
+    const mock = stubFetch({ ok: true, status: 200, json: async () => ({ data: raw }) });
+
+    await PasswordApi.changePassword({ ...input, currentPassword: '' });
+
+    const [, init] = mock.mock.calls[0] as FetchArgs;
+    expect(JSON.parse(init.body as string)).toEqual({
+      password: 'NewPassw0rd',
+      password_confirmation: 'NewPassw0rd',
+    });
+  });
+
+  it('maps a 200 to the refreshed profile in the shape the SPA speaks', async () => {
+    // Mapped through AuthApi.mapUser rather than a private copy, so a newly gained
+    // password reaches the page as `hasPassword` and the section can change shape.
+    withXsrfCookie();
+    stubFetch({ ok: true, status: 200, json: async () => ({ data: raw }) });
+
+    expect(await PasswordApi.changePassword(input)).toEqual({ ok: true, user: AuthApi.mapUser(raw) });
+  });
+
+  it('maps a 200 with no profile in it to a retryable network result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: true, status: 200, json: async () => ({}) });
+
+    expect(await PasswordApi.changePassword(input)).toEqual({ ok: false, kind: 'network' });
+  });
+
+  it('maps a 422 to a validation result carrying the field errors', async () => {
+    withXsrfCookie();
+    stubFetch({
+      ok: false,
+      status: 422,
+      json: async () => ({ message: 'invalid', errors: { current_password: ['The password is incorrect.'] } }),
+    });
+
+    expect(await PasswordApi.changePassword(input)).toEqual({
+      ok: false,
+      kind: 'validation',
+      errors: { current_password: ['The password is incorrect.'] },
+    });
+  });
+
+  it('maps a 422 with no error envelope to an empty field-error set', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 422, json: async () => ({ message: 'invalid' }) });
+
+    expect(await PasswordApi.changePassword(input)).toEqual({ ok: false, kind: 'validation', errors: {} });
+  });
+
+  it('maps a 401 to an auth result', async () => {
+    // The session died between page load and submit; RequireAuth takes over on the next
+    // render, so the page only has to say so.
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 401, json: async () => ({ message: 'Unauthenticated.' }) });
+
+    expect(await PasswordApi.changePassword(input)).toEqual({ ok: false, kind: 'auth' });
+  });
+
+  it('maps a 429 to a rate-limited result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 429, json: async () => ({ message: 'Too Many Attempts.' }) });
+
+    expect(await PasswordApi.changePassword(input)).toEqual({ ok: false, kind: 'rate-limited' });
+  });
+
+  it('maps any other status to a retryable network result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 500, json: async () => ({}) });
+
+    expect(await PasswordApi.changePassword(input)).toEqual({ ok: false, kind: 'network' });
+  });
+
+  it('maps a thrown fetch to a network result', async () => {
+    withXsrfCookie();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }));
+
+    expect(await PasswordApi.changePassword(input)).toEqual({ ok: false, kind: 'network' });
   });
 });

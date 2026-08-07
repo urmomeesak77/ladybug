@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Controllers;
 
 use App\Models\User;
+use App\Models\UserIdentity;
 use App\Services\UserAdminService;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
 use RuntimeException;
@@ -638,6 +641,211 @@ class AuthControllerTest extends TestCase {
 
     public function test_rename_is_rejected_for_an_anonymous_request(): void {
         $this->patchJson('/api/user', ['name' => 'Grace'])->assertStatus(401);
+    }
+
+    /**
+     * The deliberate half of password management (022, US3): no inbox, no link, no
+     * waiting — the live session is the proof of identity, and the current password is
+     * the proof it is still the owner holding it.
+     */
+    public function test_it_changes_the_signed_in_accounts_password(): void {
+        $user = User::factory()->create(['password' => 'OldPassw0rd']);
+
+        $response = $this->actingAs($user)->putJson('/api/user/password', [
+            'current_password' => 'OldPassw0rd',
+            'password' => 'NewPassw0rd',
+            'password_confirmation' => 'NewPassw0rd',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.has_password', true);
+        $this->assertTrue(Hash::check('NewPassw0rd', $user->fresh()->password));
+    }
+
+    public function test_the_changed_password_replaces_the_old_one_at_the_sign_in_form(): void {
+        $user = User::factory()->create(['email' => 'ada@example.com', 'password' => 'OldPassw0rd']);
+
+        $this->actingAs($user)->putJson('/api/user/password', [
+            'current_password' => 'OldPassw0rd',
+            'password' => 'NewPassw0rd',
+            'password_confirmation' => 'NewPassw0rd',
+        ])->assertOk();
+
+        $this->useWebGuard();
+        $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'OldPassw0rd'])->assertStatus(401);
+        $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'NewPassw0rd'])->assertOk();
+    }
+
+    public function test_it_refuses_a_wrong_current_password_and_echoes_no_password_back(): void {
+        // US3 scenario 3: the refusal names the field, and the response carries neither
+        // the value the owner typed nor the one they tried to replace it with — a 422 body
+        // is logged and rendered in places a password has no business reaching.
+        $user = User::factory()->create(['password' => 'OldPassw0rd']);
+
+        $response = $this->actingAs($user)->putJson('/api/user/password', [
+            'current_password' => 'GuessedPassw0rd',
+            'password' => 'NewPassw0rd',
+            'password_confirmation' => 'NewPassw0rd',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('current_password');
+        $response->assertDontSee('NewPassw0rd');
+        $response->assertDontSee('GuessedPassw0rd');
+        $this->assertTrue(Hash::check('OldPassw0rd', $user->fresh()->password));
+    }
+
+    public function test_it_refuses_a_new_password_that_fails_the_shared_policy(): void {
+        $user = User::factory()->create(['password' => 'OldPassw0rd']);
+
+        $response = $this->actingAs($user)->putJson('/api/user/password', [
+            'current_password' => 'OldPassw0rd',
+            'password' => 'short',
+            'password_confirmation' => 'short',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('password');
+        $this->assertTrue(Hash::check('OldPassw0rd', $user->fresh()->password));
+    }
+
+    public function test_it_refuses_a_mismatched_confirmation(): void {
+        $user = User::factory()->create(['password' => 'OldPassw0rd']);
+
+        $response = $this->actingAs($user)->putJson('/api/user/password', [
+            'current_password' => 'OldPassw0rd',
+            'password' => 'NewPassw0rd',
+            'password_confirmation' => 'Other1234',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('password');
+        $this->assertTrue(Hash::check('OldPassw0rd', $user->fresh()->password));
+    }
+
+    public function test_password_change_is_rejected_for_an_anonymous_request(): void {
+        $this->putJson('/api/user/password', [
+            'current_password' => 'OldPassw0rd',
+            'password' => 'NewPassw0rd',
+            'password_confirmation' => 'NewPassw0rd',
+        ])->assertStatus(401);
+    }
+
+    /**
+     * FR-030. The cap belongs to the ACCOUNT here, not to the address the request came
+     * from: a borrowed session must not become an offline-speed oracle for the password
+     * it did not come with.
+     */
+    public function test_password_change_is_rate_limited_per_account(): void {
+        config(['app.auth_throttle' => 2]);
+        $user = User::factory()->create(['password' => 'OldPassw0rd']);
+
+        for ($i = 0; $i < 2; $i++) {
+            $this->actingAs($user)->putJson('/api/user/password', $this->guess())->assertStatus(422);
+        }
+
+        $this->actingAs($user)->putJson('/api/user/password', $this->guess())->assertStatus(429);
+    }
+
+    public function test_one_accounts_spent_allowance_does_not_block_another_account(): void {
+        // The proof that the bucket is keyed by account: two owners on one office IP do
+        // not spend each other's attempts.
+        config(['app.auth_throttle' => 2]);
+        $ada = User::factory()->create(['password' => 'OldPassw0rd']);
+        $grace = User::factory()->create(['password' => 'OldPassw0rd']);
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->actAsFreshClient($ada)->putJson('/api/user/password', $this->guess());
+        }
+
+        $this->actAsFreshClient($grace)->putJson('/api/user/password', $this->guess())->assertStatus(422);
+    }
+
+    /**
+     * FR-019 / FR-031: an account created through Google has `password IS NULL`, so there
+     * is no current password to prove — the live session is the proof. The field is absent
+     * from the rule set entirely, not present-and-optional.
+     */
+    public function test_a_google_only_account_sets_a_first_password_without_a_current_one(): void {
+        $user = User::factory()->googleOnly()->create();
+
+        $response = $this->actingAs($user)->putJson('/api/user/password', [
+            'password' => 'FirstPassw0rd',
+            'password_confirmation' => 'FirstPassw0rd',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.has_password', true);
+        $this->assertTrue(Hash::check('FirstPassw0rd', $user->fresh()->password));
+    }
+
+    public function test_setting_a_first_password_leaves_the_google_link_untouched(): void {
+        // The account gains a second door; it does not lose the one it came in through.
+        $user = User::factory()->googleOnly()->create();
+        $identity = UserIdentity::factory()->create(['user_id' => $user->id]);
+        $before = DB::table('user_identities')->where('id', $identity->id)->first();
+
+        $this->actingAs($user)->putJson('/api/user/password', [
+            'password' => 'FirstPassw0rd',
+            'password_confirmation' => 'FirstPassw0rd',
+        ])->assertOk();
+
+        $this->assertEquals($before, DB::table('user_identities')->where('id', $identity->id)->first());
+    }
+
+    public function test_a_google_only_account_ignores_a_submitted_current_password(): void {
+        // The rule is absent, so a value sent for it is ignored rather than checked —
+        // there is nothing to guess at (FR-031).
+        $user = User::factory()->googleOnly()->create();
+
+        $this->actingAs($user)->putJson('/api/user/password', [
+            'current_password' => 'anything-at-all',
+            'password' => 'FirstPassw0rd',
+            'password_confirmation' => 'FirstPassw0rd',
+        ])->assertOk();
+    }
+
+    /**
+     * Act as a fresh client for $user: a second owner is a second browser, and three pieces
+     * of process state would otherwise leak between them here — the shared session (whose
+     * stored password hash makes Sanctum's AuthenticateSession tear the second client down),
+     * the guards' already-resolved user (Sanctum's RequestGuard caches it, where a real
+     * request resolves it once and dies), and the default guard, which auth:sanctum has by
+     * now switched to `sanctum`. None of the three exists in production, where every request
+     * boots its own container.
+     */
+    private function actAsFreshClient(User $user): self {
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        return $this->actingAs($user, 'web');
+    }
+
+    /**
+     * Point the default guard back at `web` mid-test.
+     *
+     * A feature test shares ONE application across its requests, so the `shouldUse('sanctum')`
+     * that the auth:sanctum middleware performs on an authenticated request outlives that
+     * request here in a way it never can in production, where every request boots its own
+     * container. Without this, a later anonymous `POST /api/login` would call `Auth::attempt`
+     * on Sanctum's RequestGuard, which has no such method.
+     */
+    private function useWebGuard(): void {
+        $this->app['auth']->shouldUse('web');
+    }
+
+    /**
+     * A change attempt that cannot succeed, for the rate-limit cases: the current password
+     * is wrong, so every call is a 422 and the stored credential never moves.
+     *
+     * @return array<string, string>
+     */
+    private function guess(): array {
+        return [
+            'current_password' => 'GuessedPassw0rd',
+            'password' => 'NewPassw0rd',
+            'password_confirmation' => 'NewPassw0rd',
+        ];
     }
 
     public function test_user_never_exposes_its_own_rating(): void {

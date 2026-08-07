@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AuthUser } from '../../src/lib/authApi';
 import { AuthModel } from '../../src/lib/authModel';
 import { PasswordModel } from '../../src/lib/passwordModel';
 
@@ -154,5 +155,115 @@ describe('resetFailureMessage', () => {
 
   it.each(['rate-limited', 'network'] as const)('reuses the shared sentence for %s', (kind) => {
     expect(PasswordModel.resetFailureMessage(kind)).toBe(PasswordModel.requestFailureMessage(kind));
+  });
+});
+
+// The account page's validator (022, US3). It is validateReset plus one field, and the
+// one field is present only when there is a stored credential to prove — FR-031's two
+// shapes stated as a rule rather than as markup.
+describe('validateChange', () => {
+  const good = {
+    currentPassword: 'OldPassw0rd',
+    password: 'NewPassw0rd',
+    passwordConfirmation: 'NewPassw0rd',
+  };
+
+  it('accepts a complete, compliant change for an account with a password', () => {
+    expect(PasswordModel.validateChange(good, true)).toEqual({});
+  });
+
+  it('requires the current password when the account has one', () => {
+    expect(PasswordModel.validateChange({ ...good, currentPassword: '' }, true))
+      .toEqual({ currentPassword: ['Current password is required.'] });
+  });
+
+  it('does not ask a Google-only account for a current password it never had', () => {
+    expect(PasswordModel.validateChange({ ...good, currentPassword: '' }, false)).toEqual({});
+  });
+
+  it('applies the same policy the reset form applies', () => {
+    // One policy, one wording, three forms (register, reset, change) — the account page
+    // cannot be stricter or looser than the rule the account was created under.
+    const values = { ...good, password: 'short', passwordConfirmation: 'short' };
+
+    expect(PasswordModel.validateChange(values, true).password)
+      .toEqual(PasswordModel.validateReset(values).password);
+  });
+
+  it('reports a mismatched confirmation', () => {
+    expect(PasswordModel.validateChange({ ...good, passwordConfirmation: 'Other1234' }, true))
+      .toEqual({ passwordConfirmation: ['Passwords do not match.'] });
+  });
+
+  it('judges only the fields already visited, like the other validators', () => {
+    const values = { currentPassword: '', password: 'short', passwordConfirmation: '' };
+
+    expect(PasswordModel.validateChange(values, true, new Set())).toEqual({});
+  });
+
+  it('judges the current password once it has been visited', () => {
+    const values = { currentPassword: '', password: 'NewPassw0rd', passwordConfirmation: 'NewPassw0rd' };
+
+    expect(PasswordModel.validateChange(values, true, new Set(['currentPassword'])))
+      .toHaveProperty('currentPassword');
+  });
+});
+
+describe('changeFailureMessage', () => {
+  const ada: AuthUser = {
+    hash: 'usr0000001',
+    name: 'Ada',
+    email: 'ada@example.com',
+    emailVerifiedAt: null,
+    role: 'member',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    hasPassword: true,
+    googleLinkedAt: null,
+  };
+
+  it('says nothing about a success', () => {
+    expect(PasswordModel.changeFailureMessage({ ok: true, user: ada })).toBe('');
+  });
+
+  it('prefers the server message about the current password', () => {
+    // The server is the authority on whether the current password was right; repeating
+    // its sentence keeps one wording rather than inventing a second.
+    expect(PasswordModel.changeFailureMessage({
+      ok: false,
+      kind: 'validation',
+      errors: { current_password: ['The password is incorrect.'] },
+    })).toBe('The password is incorrect.');
+  });
+
+  it('falls back to the server message about the new password', () => {
+    expect(PasswordModel.changeFailureMessage({
+      ok: false,
+      kind: 'validation',
+      errors: { password: ['The password field must be at least 8 characters.'] },
+    })).toBe('The password field must be at least 8 characters.');
+  });
+
+  it('joins several messages for one field onto their own lines', () => {
+    expect(PasswordModel.changeFailureMessage({
+      ok: false,
+      kind: 'validation',
+      errors: { password: ['too short', 'no number'] },
+    })).toBe('too short\nno number');
+  });
+
+  it('states a refusal that named no field in one plain sentence', () => {
+    expect(PasswordModel.changeFailureMessage({ ok: false, kind: 'validation', errors: {} }))
+      .toBe('That password cannot be used.');
+  });
+
+  it('asks a lapsed session to sign in again', () => {
+    expect(PasswordModel.changeFailureMessage({ ok: false, kind: 'auth' }))
+      .toBe('Please log in again to change your password.');
+  });
+
+  it.each(['rate-limited', 'network'] as const)('reuses the shared sentence for %s', (kind) => {
+    expect(PasswordModel.changeFailureMessage({ ok: false, kind }))
+      .toBe(PasswordModel.requestFailureMessage(kind));
   });
 });

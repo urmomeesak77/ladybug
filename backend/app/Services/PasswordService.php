@@ -114,8 +114,37 @@ class PasswordService {
     }
 
     /**
-     * The one place either route writes a credential (the account page joins it in US3), so
-     * neither can grow a step the other lacks.
+     * Change the password of an account that is already signed in (US3). No link, no inbox
+     * and no waiting: the session names the account and `UpdatePasswordRequest` has already
+     * proved the current password — or established that there is none to prove.
+     *
+     * The write goes through the SAME `applyNewPassword` the recovery route uses, so neither
+     * route can grow a step the other lacks.
+     *
+     * Deleting any outstanding recovery token is FR-008's second half: an owner who suspects
+     * their inbox is compromised has one lever that does not require reaching the inbox, and
+     * this is it — changing the password here shuts a link an attacker has already asked for.
+     * It shares the write's transaction, so a link is never left alive beside a password it
+     * no longer belongs to (INV-3).
+     */
+    public function change(User $user, string $password): User {
+        DB::beginTransaction();
+        try {
+            $this->applyNewPassword($user, $password);
+            Password::broker()->deleteToken($user);
+            DB::commit();
+        }
+        catch (Throwable $exception) {
+            DB::rollBack();
+            throw $exception;
+        }
+
+        return $user;
+    }
+
+    /**
+     * The one place either route writes a credential, so neither can grow a step the other
+     * lacks.
      *
      * Assigned, not pre-hashed: the model's `hashed` cast does the hashing on save, and
      * handing it an already-hashed value would double-hash it and lock the holder out of the

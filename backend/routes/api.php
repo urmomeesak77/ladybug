@@ -86,6 +86,16 @@ Route::get('/user', [AuthController::class, 'user'])->name('api.auth.user');
 Route::patch('/user', [AuthController::class, 'updateProfile'])
     ->middleware('auth:sanctum')
     ->name('api.auth.profile.update');
+// Own-account password change (022, US3). Two things about this line are deliberate.
+// PUT, where its neighbour above is PATCH: that endpoint sends a PARTIAL account — one
+// field of several, the others left alone — while this one addresses a single credential
+// at its own URL and replaces it whole; there is no partial password, so the verbs differ
+// because the requests do. And `throttle:password` keys by the ACCOUNT id here, not the IP
+// (the route is authenticated), so a borrowed session cannot be turned into an offline-speed
+// oracle for the password it did not come with (FR-030, research D7).
+Route::put('/user/password', [AuthController::class, 'updatePassword'])
+    ->middleware(['auth:sanctum', 'throttle:password'])
+    ->name('api.auth.password.update');
 
 // Password recovery (022). Anonymous and session-free: the account is the one the
 // submitted address names, never the signed-in one. The 200 is UNCONDITIONAL — the same

@@ -6,8 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
+use App\Http\Requests\UpdatePasswordRequest;
 use App\Http\Requests\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
+use App\Services\PasswordService;
 use App\Services\UserService;
 use App\Support\RememberMe;
 use Illuminate\Http\JsonResponse;
@@ -16,7 +18,10 @@ use Illuminate\Support\Facades\Auth;
 use Throwable;
 
 class AuthController extends Controller {
-    public function __construct(private readonly UserService $users) {
+    public function __construct(
+        private readonly UserService $users,
+        private readonly PasswordService $passwords,
+    ) {
     }
 
     /**
@@ -114,6 +119,24 @@ class AuthController extends Controller {
      */
     public function updateProfile(UpdateProfileRequest $request): JsonResponse {
         $user = $this->users->rename($request->user(), $request->validated()['name']);
+
+        return (new UserResource($user))->response();
+    }
+
+    /**
+     * Change the signed-in account's password (022, US3). Like updateProfile it edits the
+     * requester's OWN account — the session names the row, there is no target parameter.
+     *
+     * The refreshed profile is the answer rather than a message because the change can flip
+     * `has_password` from false to true: an account that arrived through Google gains a
+     * second door, and the account page reads that field to decide which shape of the
+     * section to render and which sign-in methods to name (contracts/account-password-api.md).
+     *
+     * The acting client is deliberately NOT signed out — no logout, no session invalidation,
+     * no CSRF rotation on this path (FR-028).
+     */
+    public function updatePassword(UpdatePasswordRequest $request): JsonResponse {
+        $user = $this->passwords->change($request->user(), $request->validated()['password']);
 
         return (new UserResource($user))->response();
     }

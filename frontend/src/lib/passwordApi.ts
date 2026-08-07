@@ -1,5 +1,6 @@
 import { Api } from './api';
-import type { FieldErrors } from './authApi';
+import { AuthApi } from './authApi';
+import type { AuthUser, FieldErrors, RawUser } from './authApi';
 import { Csrf } from './csrf';
 
 // Asking for a recovery link (022, contracts/frontend.md §6). There is deliberately no
@@ -35,6 +36,25 @@ export type ResetResult =
   | { ok: true }
   | { ok: false; kind: 'validation'; errors: FieldErrors }
   | { ok: false; kind: 'invalid' }
+  | { ok: false; kind: 'rate-limited' }
+  | { ok: false; kind: 'network' };
+
+// What the account page's password section holds. `currentPassword` is empty for an
+// account that has none to prove — a Google-only one — and the request then carries no
+// such field at all (FR-031).
+export type ChangePasswordInput = {
+  currentPassword: string;
+  password: string;
+  passwordConfirmation: string;
+};
+
+// 'auth' is the session having lapsed between page load and submit, which the recovery
+// endpoints cannot produce because they are anonymous — so this half needs a member the
+// three above do not have.
+export type ChangePasswordResult =
+  | { ok: true; user: AuthUser }
+  | { ok: false; kind: 'validation'; errors: FieldErrors }
+  | { ok: false; kind: 'auth' }
   | { ok: false; kind: 'rate-limited' }
   | { ok: false; kind: 'network' };
 
@@ -110,10 +130,53 @@ export class PasswordApi {
     }
   }
 
+  // Change the password of the account whose session is making the request (US3). The
+  // answer is the refreshed profile rather than a message because the change can flip
+  // `hasPassword` — a Google-only account gains a second door — and the page reads that
+  // field to decide which shape of the section to render.
+  static async changePassword(input: ChangePasswordInput): Promise<ChangePasswordResult> {
+    const body: Record<string, string> = {
+      password: input.password,
+      password_confirmation: input.passwordConfirmation,
+    };
+    // Omitted, not blanked: the server carries no rule for this field when the account
+    // has no stored credential, so there is nothing to send and nothing to guess at.
+    if (input.currentPassword) {
+      body.current_password = input.currentPassword;
+    }
+    try {
+      const response = await PasswordApi.sendJson('PUT', '/api/user/password', body);
+      if (response.status === 200) {
+        const payload = (await response.json()) as { data?: RawUser };
+        if (payload.data) {
+          return { ok: true, user: AuthApi.mapUser(payload.data) };
+        }
+        return { ok: false, kind: 'network' };
+      }
+      if (response.status === 422) {
+        const payload = (await response.json()) as { errors?: FieldErrors };
+        return { ok: false, kind: 'validation', errors: payload.errors ?? {} };
+      }
+      if (response.status === 401) {
+        return { ok: false, kind: 'auth' };
+      }
+      if (response.status === 429) {
+        return { ok: false, kind: 'rate-limited' };
+      }
+      return { ok: false, kind: 'network' };
+    } catch {
+      return { ok: false, kind: 'network' };
+    }
+  }
+
   private static async postJson(path: string, body: unknown): Promise<Response> {
+    return PasswordApi.sendJson('POST', path, body);
+  }
+
+  private static async sendJson(method: string, path: string, body: unknown): Promise<Response> {
     const token = await Csrf.ensure();
     return fetch(`${Api.base()}${path}`, {
-      method: 'POST',
+      method,
       credentials: 'include',
       headers: {
         Accept: 'application/json',

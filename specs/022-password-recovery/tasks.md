@@ -163,23 +163,28 @@ signs in and the old one does not — with no email sent and no link involved.
 
 > Write these first and confirm they FAIL before implementing.
 
-- [ ] T043 [P] [US3] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php` for `PUT /api/user/password`: `200` returning the `UserResource` envelope with `has_password: true`; `422` on a wrong `current_password` **with no password field echoed back**; `422` on a policy failure or confirmation mismatch; `401` with no session; `429` past the per-**account** cap (FR-030); and a **Google-only** account (`password IS NULL`) succeeding **without** sending `current_password`, its `user_identities` row untouched afterwards (FR-019, FR-031)
-- [ ] T044 [P] [US3] Extend `backend/tests/Unit/Services/PasswordServiceTest.php`: `change()` writes the password and deletes any outstanding `password_reset_tokens` row for the account — FR-008's second half, so an account-page change shuts an attacker's outstanding link
-- [ ] T045 [P] [US3] Extend `frontend/tests/lib/passwordApi.test.ts` with `changePassword`: `200` → `{ ok: true, user }` mapped through `AuthApi.mapUser`, `422` → `'validation'`, `401` → `'auth'`, `429` → `'rate-limited'`, network → `'network'`
-- [ ] T046 [P] [US3] Extend `frontend/tests/lib/passwordModel.test.ts` with `validateChange(values, hasPassword, touched?)` — `currentPassword` required **only** when `hasPassword` — and `changeFailureMessage(result)` preferring the server's field message, then the shared fallbacks
-- [ ] T047 [P] [US3] Create `frontend/tests/components/AccountPasswordForm.test.tsx`: with `hasPassword: true` all three fields render; with `hasPassword: false` the current-password input is **absent from the DOM** (not disabled, not hidden) and the Google sentence is rendered as text (FR-031); a `200` shows "Password updated.", clears all three fields and calls the auth context's `refresh`; any refusal clears all three fields (US3 scenario 3); `429` and `401` show the shared sentences
-- [ ] T048 [P] [US3] Extend `frontend/tests/pages/AccountPage.test.tsx`: the password section renders directly after `<AccountNameForm />` and neither section's state can clear or block the other
+- [X] T043 [P] [US3] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php` for `PUT /api/user/password`: `200` returning the `UserResource` envelope with `has_password: true`; `422` on a wrong `current_password` **with no password field echoed back**; `422` on a policy failure or confirmation mismatch; `401` with no session; `429` past the per-**account** cap (FR-030); and a **Google-only** account (`password IS NULL`) succeeding **without** sending `current_password`, its `user_identities` row untouched afterwards (FR-019, FR-031)
+- [X] T044 [P] [US3] Extend `backend/tests/Unit/Services/PasswordServiceTest.php`: `change()` writes the password and deletes any outstanding `password_reset_tokens` row for the account — FR-008's second half, so an account-page change shuts an attacker's outstanding link
+- [X] T045 [P] [US3] Extend `frontend/tests/lib/passwordApi.test.ts` with `changePassword`: `200` → `{ ok: true, user }` mapped through `AuthApi.mapUser`, `422` → `'validation'`, `401` → `'auth'`, `429` → `'rate-limited'`, network → `'network'`
+- [X] T046 [P] [US3] Extend `frontend/tests/lib/passwordModel.test.ts` with `validateChange(values, hasPassword, touched?)` — `currentPassword` required **only** when `hasPassword` — and `changeFailureMessage(result)` preferring the server's field message, then the shared fallbacks
+- [X] T047 [P] [US3] Create `frontend/tests/components/AccountPasswordForm.test.tsx`: with `hasPassword: true` all three fields render; with `hasPassword: false` the current-password input is **absent from the DOM** (not disabled, not hidden) and the Google sentence is rendered as text (FR-031); a `200` shows "Password updated.", clears all three fields and calls the auth context's `refresh`; any refusal clears all three fields (US3 scenario 3); `429` and `401` show the shared sentences
+- [X] T048 [P] [US3] Extend `frontend/tests/pages/AccountPage.test.tsx`: the password section renders directly after `<AccountNameForm />` and neither section's state can clear or block the other
 
 ### Implementation for User Story 3
 
-- [ ] T049 [P] [US3] Create `backend/app/Http/Requests/UpdatePasswordRequest.php` — `password` → `PasswordPolicy::rules()`, and `current_password` → `['required', 'current_password']` added by a plain **`if`** on `$this->user()->password !== null` (closure-free, per the standing preference); when the account has no password the key is absent from the array entirely, so a submitted value is ignored rather than checked (contracts/account-password-api.md)
-- [ ] T050 [US3] Add `change(User $user, string $password, ?string $keepSessionId): User` to `backend/app/Services/PasswordService.php`, routed through the **same** private `applyNewPassword` as T035 plus `Password::broker()->deleteToken($user)` so neither route can grow a gap the other lacks
-- [ ] T051 [US3] Add `updatePassword(UpdatePasswordRequest $request): JsonResponse` to `backend/app/Http/Controllers/AuthController.php` beside `updateProfile`, calling the service with `session()->getId()` and returning a `UserResource` response (contracts/account-password-api.md)
-- [ ] T052 [US3] Register `PUT /api/user/password` in `backend/routes/api.php` as `api.auth.password.update` under `['auth:sanctum', 'throttle:password']`, with a comment noting two things: the limiter keys by account id here (not IP), and **why `PUT` when the neighbouring `updateProfile` is `PATCH /api/user`** — that one sends a partial account, this one replaces one whole credential at its own address, so the verbs differ because the requests differ (contracts/account-password-api.md)
-- [ ] T053 [P] [US3] Add `changePassword(input)` to `frontend/src/lib/passwordApi.ts`, mapping its `200` through `AuthApi.mapUser` so the refreshed `hasPassword` reaches the page in the shape the SPA already speaks
-- [ ] T054 [P] [US3] Add `validateChange` and `changeFailureMessage` to `frontend/src/lib/passwordModel.ts`
-- [ ] T055 [US3] Create `frontend/src/components/AccountPasswordForm.tsx` mirroring `AccountNameForm`'s markup — `fieldset disabled={saving}`, inline `role="alert"` error, `role="status"` success line — with the two shapes chosen from `user.hasPassword`, all three inputs cleared on any outcome, and `refresh()` called on success (contracts/frontend.md §5)
-- [ ] T056 [US3] Render `<AccountPasswordForm />` directly after `<AccountNameForm />` in `frontend/src/pages/AccountPage.tsx` — no new address, no new guard (FR-025, FR-026)
+- [X] T049 [P] [US3] Create `backend/app/Http/Requests/UpdatePasswordRequest.php` — `password` → `PasswordPolicy::rules()`, and `current_password` → `['required', 'current_password']` added by a plain **`if`** on `$this->user()->password !== null` (closure-free, per the standing preference); when the account has no password the key is absent from the array entirely, so a submitted value is ignored rather than checked (contracts/account-password-api.md)
+- [X] T050 [US3] Add `change(User $user, string $password, ?string $keepSessionId): User` to `backend/app/Services/PasswordService.php`, routed through the **same** private `applyNewPassword` as T035 plus `Password::broker()->deleteToken($user)` so neither route can grow a gap the other lacks
+
+  **Built as `change(User $user, string $password): User`** (2026-08-07). `$keepSessionId` is
+  the session-revocation argument and nothing reads it until T066 wires `SessionRevoker` in,
+  so shipping it now would be a parameter accepted and ignored — untestable by construction.
+  T066 adds it to `change`, to `applyNewPassword`, and to T051's controller call in one move.
+- [X] T051 [US3] Add `updatePassword(UpdatePasswordRequest $request): JsonResponse` to `backend/app/Http/Controllers/AuthController.php` beside `updateProfile`, calling the service with `session()->getId()` and returning a `UserResource` response (contracts/account-password-api.md)
+- [X] T052 [US3] Register `PUT /api/user/password` in `backend/routes/api.php` as `api.auth.password.update` under `['auth:sanctum', 'throttle:password']`, with a comment noting two things: the limiter keys by account id here (not IP), and **why `PUT` when the neighbouring `updateProfile` is `PATCH /api/user`** — that one sends a partial account, this one replaces one whole credential at its own address, so the verbs differ because the requests differ (contracts/account-password-api.md)
+- [X] T053 [P] [US3] Add `changePassword(input)` to `frontend/src/lib/passwordApi.ts`, mapping its `200` through `AuthApi.mapUser` so the refreshed `hasPassword` reaches the page in the shape the SPA already speaks
+- [X] T054 [P] [US3] Add `validateChange` and `changeFailureMessage` to `frontend/src/lib/passwordModel.ts`
+- [X] T055 [US3] Create `frontend/src/components/AccountPasswordForm.tsx` mirroring `AccountNameForm`'s markup — `fieldset disabled={saving}`, inline `role="alert"` error, `role="status"` success line — with the two shapes chosen from `user.hasPassword`, all three inputs cleared on any outcome, and `refresh()` called on success (contracts/frontend.md §5)
+- [X] T056 [US3] Render `<AccountPasswordForm />` directly after `<AccountNameForm />` in `frontend/src/pages/AccountPage.tsx` — no new address, no new guard (FR-025, FR-026)
 
 **Checkpoint**: US1, US2 and US3 each work independently; the account page now covers the
 deliberate half of password management.
@@ -234,6 +239,22 @@ from the account page), confirm both existing sessions are refused on their next
 ### Implementation for User Story 5
 
 - [ ] T065 [US5] Create `backend/app/Support/SessionRevoker.php` — `revoke(User $user, ?string $keepSessionId): void`, one `DELETE FROM sessions WHERE user_id = ? [AND id != ?]` through the query builder; document why this and not `Auth::logoutOtherDevices` (research D6: it needs the plaintext password the recovery route never has, and depends on `AuthenticateSession`, which this app does not run)
+
+  **Premise correction (2026-08-07, found while building Phase 5).** The app **does** run
+  `Laravel\Sanctum\Http\Middleware\AuthenticateSession` — `$middleware->statefulApi()` in
+  `bootstrap/app.php` pulls it in through Sanctum's own `config('sanctum.middleware')`, and
+  it is visible in any api-group stack trace. So research D6's second clause is wrong; only
+  the first (`logoutOtherDevices` needs the plaintext password the recovery route never has)
+  still stands, and it is enough on its own. Two consequences for US5:
+  - That middleware already logs a client out when the session's stored `password_hash_web`
+    stops matching the account's — so a **remote** session dies on its next request even
+    before `SessionRevoker` deletes its row. It re-stores the hash **after** the response on
+    the acting request, which is why the acting client survives its own change (FR-028) with
+    no extra code. T064's assertion should hold as written; if it does not, this is the first
+    place to look, not the revoker.
+  - It also means a feature test cannot switch accounts mid-test without `flushSession()` +
+    `forgetGuards()` first — see `AuthControllerTest::actAsFreshClient`, which T063/T064 will
+    want to reuse rather than rediscover.
 - [ ] T066 [US5] Wire `SessionRevoker::revoke` and the `remember_token` rotation into `applyNewPassword` in `backend/app/Services/PasswordService.php`, **inside** the existing transaction — `null` on the recovery route, `session()->getId()` on the account-page route — so the password's death and its dependent credentials' death are simultaneous (INV-3)
 
 **Checkpoint**: All five stories are independently functional.

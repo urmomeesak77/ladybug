@@ -1,4 +1,5 @@
 import type { FieldErrors } from './authApi';
+import type { ChangePasswordResult } from './passwordApi';
 
 // The ways asking for a recovery link can fail on the client's side of the wire. There is
 // no 'unknown-account' member and there never can be: the server answers one 200 for every
@@ -11,6 +12,10 @@ export type RequestFailureKind = 'rate-limited' | 'network';
 export type ResetFailureKind = 'invalid' | RequestFailureKind;
 
 export type ResetPasswordValues = { password: string; passwordConfirmation: string };
+
+// The account page's form. `currentPassword` is always held — a form field cannot be
+// half-present — but it is only ever judged for an account that has one (FR-031).
+export type ChangePasswordValues = ResetPasswordValues & { currentPassword: string };
 
 // Client-side password rules, shared by every form that accepts a password: register,
 // the recovery reset page, and the account page's change section. The server's
@@ -71,6 +76,37 @@ export class PasswordModel {
       errors.passwordConfirmation = confirmation;
     }
     return errors;
+  }
+
+  // The account page's validator: the reset form's rules plus one field, and that field is
+  // asked for only when the account has a password to prove. A Google-only account is not
+  // shown an optional box it could leave blank — there is nothing it could put there, and
+  // its live session is the proof of identity instead (FR-027, FR-031).
+  static validateChange(values: ChangePasswordValues, hasPassword: boolean, touched?: Set<string>): FieldErrors {
+    const errors = PasswordModel.validateReset(values, touched);
+    const judged = PasswordModel.isTouched(touched, 'currentPassword');
+    if (hasPassword && judged && !values.currentPassword) {
+      errors.currentPassword = ['Current password is required.'];
+    }
+    return errors;
+  }
+
+  // Why a change was refused, in one sentence (FR-023). The server's own field message wins
+  // where there is one — it is the authority on whether the current password was right, and
+  // repeating its wording keeps the site saying one thing rather than two.
+  static changeFailureMessage(result: ChangePasswordResult): string {
+    if (result.ok) {
+      return '';
+    }
+    if (result.kind === 'validation') {
+      return result.errors.current_password?.join('\n')
+        ?? result.errors.password?.join('\n')
+        ?? 'That password cannot be used.';
+    }
+    if (result.kind === 'auth') {
+      return 'Please log in again to change your password.';
+    }
+    return PasswordModel.requestFailureMessage(result.kind);
   }
 
   // Mirrors the server policy (min 8, mixed case, a number — research D9), one message

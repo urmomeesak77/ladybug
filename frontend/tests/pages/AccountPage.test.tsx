@@ -8,6 +8,7 @@ import { AuthContext } from '../../src/hooks/useAuth';
 import type { AuthContextValue } from '../../src/hooks/useAuth';
 import { AuthApi } from '../../src/lib/authApi';
 import type { AuthUser } from '../../src/lib/authApi';
+import { PasswordApi } from '../../src/lib/passwordApi';
 import AccountPage from '../../src/pages/AccountPage';
 
 if (!HTMLDialogElement.prototype.showModal) {
@@ -158,5 +159,52 @@ describe('AccountPage — sign-in method', () => {
     // Principle IV: the value is text and nothing but text — no badge element to
     // carry the meaning, so it survives a screen reader and a monochrome display.
     expect(methodFor({}).children.length).toBe(0);
+  });
+});
+
+// Feature 022 (US3, FR-025/FR-026): the deliberate half of password management lives on
+// the page the owner already has, directly under the name editor — no new address, no new
+// guard, and two independent sections that cannot disturb each other.
+describe('AccountPage — password section', () => {
+  it('renders the password section directly after the name section', () => {
+    const { container } = renderAccount({ ...ada, hasPassword: true });
+
+    const name = container.querySelector('.account__name');
+    expect(name).not.toBeNull();
+    expect((name as HTMLElement).nextElementSibling?.className).toContain('account__password');
+  });
+
+  it('offers the current-password field for an account that has one', () => {
+    renderAccount({ ...ada, hasPassword: true });
+
+    expect(screen.getByLabelText('Current password')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save password' })).toBeTruthy();
+  });
+
+  it('drops the current-password field for a Google-only account', () => {
+    renderAccount({ ...ada, hasPassword: false, googleLinkedAt: '2026-07-29T09:00:00Z' });
+
+    expect(screen.queryByLabelText('Current password')).toBeNull();
+    expect(screen.getByLabelText('New password')).toBeTruthy();
+  });
+
+  it('keeps the outcome of each section to itself', async () => {
+    vi.spyOn(AuthApi, 'updateName').mockResolvedValue({ ok: false, kind: 'network' });
+    vi.spyOn(PasswordApi, 'changePassword').mockResolvedValue({ ok: true, user: { ...ada, hasPassword: true } });
+    renderAccount({ ...ada, hasPassword: true });
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Grace' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save name' }));
+    expect(await screen.findByText(/Something went wrong/)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'OldPassw0rd' } });
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'NewPassw0rd' } });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'NewPassw0rd' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save password' }));
+
+    expect(await screen.findByText('Password updated.')).toBeTruthy();
+    // The name section's refusal and its typed draft both survive the neighbour's success.
+    expect(screen.getByText(/Something went wrong/)).toBeTruthy();
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Grace');
   });
 });

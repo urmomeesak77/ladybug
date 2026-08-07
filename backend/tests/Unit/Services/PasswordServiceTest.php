@@ -254,6 +254,52 @@ class PasswordServiceTest extends TestCase {
     }
 
     /**
+     * FR-008, second half. An owner who suspects their inbox is compromised has one lever
+     * that works without reaching the inbox: changing the password from the account page,
+     * which must shut any link an attacker has already asked for.
+     */
+    public function test_the_change_writes_the_password_and_shuts_an_outstanding_link(): void {
+        $user = User::factory()->create(['email' => 'ada@example.com', 'password' => 'OldPassw0rd']);
+        Password::broker()->createToken($user);
+
+        $this->service()->change($user, 'NewPassw0rd');
+
+        $this->assertTrue(Hash::check('NewPassw0rd', $user->fresh()->password));
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+    }
+
+    public function test_the_change_leaves_another_accounts_outstanding_link_alone(): void {
+        $ada = User::factory()->create(['email' => 'ada@example.com']);
+        $grace = User::factory()->create(['email' => 'grace@example.com']);
+        Password::broker()->createToken($grace);
+
+        $this->service()->change($ada, 'NewPassw0rd');
+
+        $this->assertDatabaseHas('password_reset_tokens', ['email' => 'grace@example.com']);
+    }
+
+    /** Same cast, same trap as the recovery route: a pre-hashed value would be hashed twice. */
+    public function test_the_change_stores_the_password_hashed_by_the_model_cast(): void {
+        $user = User::factory()->create(['password' => 'OldPassw0rd']);
+
+        $this->service()->change($user, 'NewPassw0rd');
+
+        $stored = (string) $user->fresh()->password;
+        $this->assertNotSame('NewPassw0rd', $stored);
+        $this->assertTrue(Hash::check('NewPassw0rd', $stored));
+    }
+
+    /** FR-019: the account that never had a password gains one, through the same method. */
+    public function test_the_change_gives_a_google_only_account_its_first_password(): void {
+        $user = User::factory()->googleOnly()->create();
+
+        $changed = $this->service()->change($user, 'FirstPassw0rd');
+
+        $this->assertTrue(Hash::check('FirstPassw0rd', $changed->password));
+        $this->assertTrue(Hash::check('FirstPassw0rd', $user->fresh()->password));
+    }
+
+    /**
      * The message's own words, with the link excluded: the action URL necessarily differs
      * between two accounts (different digest, different token), while everything the
      * recipient reads must not.
