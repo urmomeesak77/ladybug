@@ -55,11 +55,26 @@ services:
       - ./backend/.env.e2e:/app/.env:ro
       # No C:/docker_permanent/ladybug-storage mount: e2e doesn't need the media library, only a working
       # storage skeleton (sessions/cache/logs) which the repo already ships.
-    ports:
-      - "127.0.0.1:8001:8000"
+    # No host port: nginx-e2e owns 8001 and proxies here, mirroring the dev stack.
     depends_on:
       mysql-e2e:
         condition: service_healthy
+
+  # Fronts backend-e2e exactly as the dev stack's nginx fronts backend, so /storage/ media
+  # is served with real Range support AND the CORS header a cross-origin `fetch` needs
+  # (see docker/nginx-e2e/default.conf). APP_URL/VITE_API_BASE_URL already point at 8001,
+  # which now reaches nginx instead of `artisan serve` directly -- nothing else changes.
+  nginx-e2e:
+    image: nginx:alpine
+    volumes:
+      - ./docker/nginx-e2e/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # The e2e backend writes uploads into its bind-mounted storage tree; serve them
+      # straight off the same host directory.
+      - ./backend/storage/app/public:/srv/media:ro
+    ports:
+      - "127.0.0.1:8001:80"
+    depends_on:
+      - backend-e2e
 
   frontend-e2e:
     image: node:20

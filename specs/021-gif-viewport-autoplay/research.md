@@ -117,8 +117,14 @@ variant the browser actually selected — and **the probe waits until that value
   FR-012's "leave the `<img>` alone" covers the interim.
 - `force-cache` uses the cached response whenever one exists, without a revalidation
   round trip.
-- Media is same-origin (`/storage/…`, served by the nginx service in dev and the edge
-  nginx in prod), so no CORS work and no `crossorigin` attribute on the `<img>`.
+- Media is same-origin **in production** (one nginx server block serves both the SPA and
+  `/storage/…`), so no `crossorigin` attribute on the `<img>` is needed there.
+  **Correction, found during T024:** dev and e2e are *not* same-origin — the SPA runs on
+  `:5173`/`:5174` while media comes from `:8000`/`:8001` — and a cross-origin `fetch` of a
+  response carrying no `Access-Control-Allow-Origin` is blocked, so the probe resolved
+  `null` and the takeover never happened outside production. Both non-prod nginx configs
+  now send the header on `/storage/` (and the e2e stack gained the nginx front it lacked).
+  No application code changed; production was correct as designed.
 
 Worst case (cache miss, e.g. a `no-store` header) is **one extra conditional request per
 animated post** — never for JPEG/PNG posts (R3 stage 1). Acceptable; the takeover also

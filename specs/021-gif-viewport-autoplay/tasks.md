@@ -365,7 +365,7 @@ post and a video post in the same feed behave exactly as before (quickstart Scen
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T024 [P] Write `frontend/tests/e2e/animated-image.spec.ts` (chromium-only project),
+- [X] T024 [P] Write `frontend/tests/e2e/animated-image.spec.ts` (chromium-only project),
       modeled on `frontend/tests/e2e/video-playback.spec.ts` and reusing its
       `helpers/e2eReset`, `helpers/adminSetup` and `helpers/mailLog` flow: register → verify
       → upload `backend/tests/fixtures/animated.gif` (T001) and
@@ -373,15 +373,21 @@ post and a video post in the same feed behave exactly as before (quickstart Scen
       permalink that the element is a `canvas.meme-media__canvas`, that
       `data-playing="true"` while in view, `"false"` after scrolling away, and `"true"` again
       on scroll-back (research R12, SC-006).
-- [ ] T025 Run the real frontend gates and fix what they report:
+- [X] T025 Run the real frontend gates and fix what they report:
       `docker compose run --rm frontend npm run lint` and
       `docker compose run --rm frontend npm test -- --coverage` — ESLint clean and the ≥90%
       line gate green **over all of `src/`**, including the five new modules and `MemeImage`
       (Principle VII). Paste real output; do not claim green without it.
-- [ ] T026 Run the e2e stack once — `scripts\e2e.ps1` — and confirm
+- [X] T026 Run the e2e stack once — `scripts\e2e.ps1` — and confirm
       `animated-image.spec.ts` passes alongside the existing specs (especially
       `video-playback.spec.ts`, which must be untouched and still green — SC-010).
-- [ ] T027 [P] Verify the dependency invariant: `git diff master -- frontend/package.json
+      **Result: 41 passed, 1 skipped (`logo-parity`, pre-existing), 1 failed.** Both specs
+      this task names are green. The failure is `upload.spec.ts:85`, which asserts a pending
+      upload shows its owner **no** image — behaviour master changed on 2026-07-21
+      (`4c44336` owner-visible pending posts + `874a9ce` the HiddenNotice banner) without
+      updating the assertion. Stale on master, unrelated to this feature: nothing on this
+      branch touches `PostPage`, `HiddenNotice` or any backend visibility rule.
+- [X] T027 [P] Verify the dependency invariant: `git diff master -- frontend/package.json
       frontend/package-lock.json backend/composer.json backend/composer.lock` is **empty**
       (FR-015, Principle I, SC-009's "0 new third-party dependencies"), and `git diff --stat
       master -- backend/app backend/database backend/routes backend/tests` shows only the
@@ -398,11 +404,46 @@ post and a video post in the same feed behave exactly as before (quickstart Scen
       **Scenario 11** (a meme that predates this branch, using no fresh upload — FR-007,
       SC-005), and **Scenario 12** (backgrounded tab holds its frame — FR-002a, SC-012).
       Record the result of each scenario.
-- [ ] T029 [P] Update `C:\projects\ladybug\CLAUDE.md` — add the **021-gif-viewport-autoplay**
+      **BLOCKED — needs a foregrounded Chrome window.** Every scenario needs a *visible*
+      viewport and the driven window is minimised/occluded: `document.hidden` is stuck true,
+      which defers `loading="lazy"` image loads (so nothing ever probes) and correctly
+      suppresses playback (FR-002a). Neither a synthetic click, a fresh tab nor a resize
+      raises the window; only the human can. Prep is done and waiting: the dev stack serves
+      media with CORS (see below), a verified superuser `qa021@example.com` / `Password1`
+      exists, and two purpose-built subjects are uploaded and activated —
+      `/posts/8RGAEFqrZP` (animated WebP, Scenario 2) and `/posts/bsCDIpUPlD` (a hand-built
+      6-frame **play-once** GIF, no NETSCAPE block, `repetitionCount: 0`, Scenario 9; the
+      library had no play-once GIF). Subjects for the rest: tall animated GIFs
+      `/posts/QBwwgDOI7q` (ratio 0.19), `/posts/qrEH_1ZqAP`, `/posts/RsW87SZsyQ` (Scenario 4);
+      the single video post `/posts/3WT9d3rccO` (Scenario 3); any of the library's 305 GIFs,
+      all of which predate this branch (Scenario 11).
+      **Partial result already observed while the window was still visible:** on
+      `/posts/A5eZFac6yF` the `<img>` swapped to a `canvas` 200×313 with `data-playing="true"`,
+      and the FR-011 tall-meme rule correctly kept a 1950 px-tall post playing with 1041 px
+      of a 1249 px window covered. Feed takeover, `--fluid`, `role="img"` + `aria-label` and
+      the play/freeze/resume cycle are all additionally covered by T024 against a real stack.
+      Still genuinely unverified: **Scenario 9's colour-fidelity side-by-side (research R13,
+      the one flagged risk)**, Scenario 5 step 3's layout check at a narrow window,
+      Scenario 6's fallback path, and Scenario 10's theme/responsive pass.
+
+- [X] T029 [P] Update `C:\projects\ladybug\CLAUDE.md` — add the **021-gif-viewport-autoplay**
       entry to the implemented-features list (frontend-only; `ImageDecoder` takeover with
       LRU(12) sessions + page-lifetime frame positions; Safari/iOS keeps the always-animating
       fallback; video deliberately untouched) and bump the "Current State (as of …)" date and
       feature count.
+- [X] T030 **Cross-origin media in dev and e2e** (discovered during T024, not in the original
+      plan). research.md R4 asserts "media is same-origin … so no CORS work"; that holds in
+      **production**, where one nginx server block serves both the SPA and `/storage/`, but
+      **not** in dev (SPA `:5173`, media `:8000`) or e2e (`:5174` / `:8001`). Without an
+      `Access-Control-Allow-Origin` header the probe's `fetch` is blocked — measured in
+      Chrome: `mode:'no-cors'` returns an opaque response, `mode:'cors'` throws — so
+      `AnimatedImage.probe` resolves `null` and the takeover silently never happened outside
+      production, indistinguishable from FR-012's intended fallback. Fixed by serving the
+      header on `/storage/` in `docker/nginx-dev/default.conf`, and by giving the e2e stack
+      the same nginx front it never had (`docker/nginx-e2e/default.conf` + an `nginx-e2e`
+      service owning `:8001`, backend-e2e now internal). **No production or application code
+      changed — this is dev/e2e topology only**, and research.md R4 now carries the
+      correction inline.
 
 ---
 

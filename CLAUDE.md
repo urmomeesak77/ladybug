@@ -9,11 +9,15 @@ and YouTube links and browse an endless feed of entries. The stack is a **React 
 + Vite (TypeScript)** frontend talking to a **Laravel 12 (PHP 8.2+) + Sanctum**
 backend over a JSON API, backed by **MySQL** via Eloquent.
 
-## Current State (as of 2026-07-23)
+## Current State (as of 2026-08-07)
 
 The project is **past planning**: both `backend/` (Laravel 12) and `frontend/`
-(React 18 + Vite + TypeScript) are scaffolded and fifteen features are implemented.
+(React 18 + Vite + TypeScript) are scaffolded and twenty-one features are implemented.
 Features follow the Spec Kit flow (specify → plan → tasks → implement) under `specs/`:
+
+**Documentation gap:** 016-seo-discoverability, 017-google-oauth-login,
+018-remember-me-login, 019-video-upload and 020-youtube-shorts-support are implemented
+and on `master` but have no entry below — read their `specs/` directories directly.
 
 - **001-infra-scaffold** — `backend/` + `frontend/` skeletons, lint/test tooling,
   CI wired, `/api/health` probe.
@@ -117,6 +121,25 @@ Features follow the Spec Kit flow (specify → plan → tasks → implement) und
   `CommentApi`/`CommentModel`; admin+ get the shared `ActionMenu` per row (Hide/Unhide + a text
   "Hidden" badge, confirmed Delete) with counts adjusted only on a real state transition. Bodies are
   rendered as plain-text React children (never `dangerouslySetInnerHTML`). No new dependency.
+- **021-gif-viewport-autoplay** — **frontend-only** (the sole `backend/` change is one e2e
+  fixture): an animated GIF/WebP plays while it is on screen and freezes on its current frame
+  when it leaves, resuming from that exact frame. `MemeImage` (the image branch split out of
+  `MemeMedia`, used by both the feed and the permalink page) swaps its `<img>` for a
+  `<canvas role="img" aria-label>` — one-way, no added chrome — once `AnimatedImage.probe`
+  confirms a multi-frame track via **`ImageDecoder`**. The probe keys off the img's
+  `currentSrc` (the srcset variant actually chosen), never `media.src`. `AnimationRegistry`
+  holds an **LRU(12)** of decode sessions, pinned while playing so an on-screen post is never
+  evicted, plus **page-lifetime** frame positions that outlive eviction; `AnimationPlayer`
+  drives a `setTimeout` frame chain (never rAF) honouring `repetitionCount`.
+  `useInViewport` starts on the same half-visible rule video uses but **stops on the ratio**,
+  so an image freezes earlier than a video pauses — deliberate; `useVideoAutoplay` is
+  untouched. A hidden tab freezes (`visibilitychange`). **Safari/iOS has no `ImageDecoder`
+  and keeps today's always-animating `<img>`** — the fallback is the unchanged status quo,
+  not a degradation. Existing memes need no re-upload or reprocessing. No new dependency.
+  Note: dev and e2e serve media cross-origin (SPA :5173/:5174, media :8000/:8001), unlike
+  production's single origin, so both nginx configs send `Access-Control-Allow-Origin` on
+  `/storage/` — without it the probe's `fetch` is blocked and the takeover silently never
+  happens outside prod.
 
 Not built yet: password reset.
 
