@@ -61,10 +61,15 @@ valid subject (FR-007), so existing feed content works too.
    - **Expect**: both start at effectively the same scroll position (both use the
      half-visible rule).
 3. Now scroll each back *out* slowly, watching where playback ends.
-   - **Expect** — and this is deliberate, not a bug: the animated image freezes as soon as
-     less than half of it is left on screen, while the video keeps playing until it has
-     left the viewport entirely. Video's existing hook pauses only on full exit and this
-     feature does not touch it (FR-004/FR-004a, research R5).
+   - **Expect**: both stop at effectively the same point — once less than half is left on
+     screen. **Corrected 2026-08-07 (T028):** earlier drafts of this step predicted the
+     video would keep playing until full exit. It does not. `useVideoAutoplay` declares
+     `threshold: 0.5`, and a declared threshold makes `isIntersecting` track that threshold
+     (measured in Chrome: `false` at ratio 0.25, `true` at 0.75), so video pauses on the same
+     half-visible boundary. There is no "image stops earlier" asymmetry to look for.
+   - The real divergence is Scenario 4's: a meme taller than twice the window can never
+     reach ratio 0.5, so an animated image keeps playing on the covers-half-the-window rule
+     where a video of the same shape would pause. The image is more forgiving, not less.
 4. Exercise the video post normally: autoplay on entry, pause on exit, the
    play/pause/mute buttons and the scrub bar.
    - **Expect**: no change whatsoever from before this feature (SC-010). The video

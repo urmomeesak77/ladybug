@@ -108,7 +108,13 @@ export function useAnimatedImage(src: string): {
     if (!takeover || !(node instanceof HTMLCanvasElement)) {
       return;
     }
-    player.current ??= new AnimationPlayer(probe.current.url, node);
+    // The callback is the SINGLE source of isPlaying — reading it back after start()/stop()
+    // would miss the transition that matters most: a file whose repeat allowance runs out
+    // stops itself part-way through the frame chain (FR-003a), with nobody here to observe
+    // it, leaving a post resting on its final frame still claiming data-playing="true".
+    player.current ??= new AnimationPlayer(probe.current.url, node, () => {
+      setIsPlaying(player.current?.isPlaying ?? false);
+    });
     const active = player.current;
     // A hidden tab counts as not visible: our own timer would otherwise limp on at the
     // browser's background throttle, spending a play-once meme for nobody (FR-002a, R16).
@@ -117,7 +123,6 @@ export function useAnimatedImage(src: string): {
     } else {
       active.stop();
     }
-    setIsPlaying(active.isPlaying);
   }, [takeover, node, isVisible, isPageVisible]);
 
   // Unmount only — navigating away stops the timer but deliberately leaves the decoder in

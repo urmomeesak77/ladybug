@@ -126,9 +126,11 @@ describe('useInViewport visibility', () => {
   });
 
   it('turns invisible as soon as the ratio falls back under a half', () => {
-    // Deliberately UNLIKE useVideoAutoplay, which branches on isIntersecting alone and so
-    // keeps playing until the post has left the viewport entirely. An image freezes at the
-    // boundary in both directions (FR-004, research R5) — do not "fix" this into parity.
+    // An image freezes at the boundary in both directions — do not "fix" this into
+    // "stops only on full exit". Note this is NOT a difference from video: useVideoAutoplay
+    // declares threshold:0.5, and a declared threshold makes isIntersecting track it
+    // (measured in Chrome: false at ratio 0.25, true at 0.75), so video pauses on the same
+    // boundary. The genuine divergence is the tall-meme rule in the test below.
     const { result } = renderForNode(document.createElement('img'));
 
     act(() => visibilityObserver().fire({ isIntersecting: true, ratio: 0.6, visibleHeight: 300 }));

@@ -77,7 +77,7 @@ delay clamp (research.md R6).
 element has selected one, research.md R4).
 
 **Scale/Scope**: Six new frontend modules (3 `lib/` classes, 2 hooks, 1 component), two
-edited files (`MemeMedia.tsx`, `theme.css` — one canvas rule plus its `--fluid` modifier),
+edited files (`MemeMedia.tsx`, `theme.css` — one canvas rule, sized by `--meme-media-width`),
 one new e2e fixture. No new route, no new page, no backend file.
 
 ## Constitution Check

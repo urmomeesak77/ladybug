@@ -11,6 +11,7 @@ const SELECTED_SRC = '/storage/meme-640.gif';
 let currentSrc = SELECTED_SRC;
 let isPageHidden = false;
 let trackAnimated = true;
+let trackRepetitionCount: number = Infinity;
 let decodedIndexes: number[] = [];
 // Every canvas operation in order, so a test can assert the post was never left showing a
 // cleared (blank) canvas — a clearRect that is not immediately followed by a drawImage.
@@ -25,7 +26,7 @@ class FakeImageDecoder {
 
   tracks = {
     ready: Promise.resolve(),
-    selectedTrack: { animated: trackAnimated, frameCount: 4, repetitionCount: Infinity },
+    selectedTrack: { animated: trackAnimated, frameCount: 4, repetitionCount: trackRepetitionCount },
   };
   completed = Promise.resolve();
   close = vi.fn();
@@ -159,6 +160,7 @@ beforeEach(() => {
   currentSrc = SELECTED_SRC;
   isPageHidden = false;
   trackAnimated = true;
+  trackRepetitionCount = Infinity;
   decodedIndexes = [];
   paintLog = [];
   MockIntersectionObserver.instances = [];
@@ -294,6 +296,24 @@ describe('useAnimatedImage playback', () => {
     await fireVisible(false);
     expect(getByTestId('canvas').getAttribute('data-playing')).toBe('false');
     expect(AnimationRegistry.position(SELECTED_SRC).isFinished).toBe(false);
+  });
+
+  // Nobody calls stop() here — the file's single play-through simply runs out. Observed in
+  // Chrome on a real play-once GIF: the canvas correctly came to rest on its final frame
+  // while data-playing still said "true", because the hook only ever read isPlaying right
+  // after driving the player itself.
+  it('stops reporting playing once a play-once file has run out on its own', async () => {
+    vi.useFakeTimers();
+    trackRepetitionCount = 0;
+    const { getByTestId } = render(<Harness src={MEME_SRC} />);
+    await takeOver();
+    await fireVisible(true);
+    expect(getByTestId('canvas').getAttribute('data-playing')).toBe('true');
+
+    await advanceFrames(4 * 100);
+
+    expect(getByTestId('canvas').getAttribute('data-playing')).toBe('false');
+    expect(AnimationRegistry.position(SELECTED_SRC).isFinished).toBe(true);
   });
 
   it('does not start while the page is hidden', async () => {

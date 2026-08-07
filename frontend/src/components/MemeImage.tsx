@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAnimatedImage } from '../hooks/useAnimatedImage';
 import type { ImageFeedMedia } from './MemeMedia';
+
+type CanvasStyle = CSSProperties & { '--meme-media-width'?: string };
 
 // One post's image. Until the file proves itself animated this is byte-for-byte the <img>
 // MemeMedia rendered before 021; once useAnimatedImage has decoded a multi-frame track the
@@ -19,21 +22,22 @@ function MemeImage({ media, linkTo }: { media: ImageFeedMedia; linkTo?: string }
     return null;
   }
 
-  // --fluid stands in for the density correction a canvas never gets: the browser lays a
-  // w-descriptor <img> out at its `sizes` width, but a canvas at its attribute width, so a
-  // small selected variant would otherwise halve the post's rendered box (research R8
-  // mechanic 3). With no srcset the <img> used its intrinsic width and so does the canvas.
-  const fluid = media.srcset ? ' meme-media__canvas--fluid' : '';
+  // The <img>'s width attribute is a presentational hint, so it lays out at exactly
+  // media.width px (capped by max-width:100%). A canvas gets no such hint and would lay out
+  // at its backing store — whichever variant was decoded — so the post's own width is handed
+  // to CSS here and the swap changes the rendered box by nothing (FR-009, SC-003).
+  const sizing = { '--meme-media-width': `${media.width}px` } as CanvasStyle;
   const element = takeover ? (
     <canvas
       ref={setNode}
-      className={`meme-media meme-media__image meme-media__canvas${fluid}`}
+      className="meme-media meme-media__image meme-media__canvas"
       role="img"
       aria-label={media.alt}
       // The decoded frame's own dimensions, not the stored ones: the browser may have picked
       // a smaller variant, and the canvas backing store must match what it decodes (FR-009).
       width={takeover.width}
       height={takeover.height}
+      style={sizing}
       data-playing={isPlaying}
     />
   ) : (

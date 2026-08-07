@@ -156,21 +156,26 @@ Test (a) is *numerically the same rule* `useVideoAutoplay` uses (`threshold: 0.5
 FR-004's "starts at the same point in the scroll" for normally sized media is satisfied by
 using the same constant.
 
-**Start parity, not stop parity — a deliberate, documented asymmetry (FR-004).**
-`useVideoAutoplay` (`src/hooks/useVideoAutoplay.ts:17-24`) branches on
-`entry.isIntersecting` alone. Per the IntersectionObserver spec, `isIntersecting` is true
-whenever the target overlaps the root *at all* — it is **not** tied to the declared
-threshold. So a video *starts* when the ratio crosses 0.5 (the callback fires there and
-`isIntersecting` is true), but the callback that fires when the ratio falls back under 0.5
-still reports `isIntersecting === true` and calls `play()` again; the video only pauses on
-the entry fired when it leaves the viewport completely. `useInViewport` evaluates the ratio
-itself, so an animated image freezes at the 0.5 boundary in both directions.
+**Start parity AND stop parity — the "asymmetry" below was wrong (corrected 2026-08-07, T028).**
 
-Consequence: image and video begin together and stop apart. That is the intended reading of
-FR-004 as amended — copying video's late stop would leave a meme 90% off screen animating
-(the exact waste this feature removes), and fixing video's stop would modify the video slice
-FR-004a fences off. `useInViewport` therefore does **not** replicate the quirk, and the
-divergence is asserted in tests rather than discovered in QA.
+~~`useVideoAutoplay` branches on `entry.isIntersecting` alone, and per the spec
+`isIntersecting` is true whenever the target overlaps the root at all — not tied to the
+declared threshold — so a video only pauses once it leaves the viewport completely, while
+an image freezes at the 0.5 boundary. Image and video begin together and stop apart.~~
+
+**This was not true, and the manual pass measured it.** A *declared* threshold does gate
+`isIntersecting` in Chrome: an observer with `threshold: 0.5` on a plain element reports
+`isIntersecting: false` at ratio 0.25 and `true` at 0.75. So `useVideoAutoplay` pauses on
+the same half-visible boundary `useInViewport` freezes on. Confirmed on the dev feed: an
+animated image played at 85% covered and froze at 45%; the video post played at 70% and
+paused at 45%.
+
+The real divergence is **test (b)**, and it runs the other way: a meme taller than twice the
+window can never reach ratio 0.5, so an animated image keeps playing on the
+covers-half-the-window rule where a video of the same shape would pause. The image is more
+forgiving than video, never less — so the worry that motivated the original note (a meme 90%
+off screen still animating) does not arise, and nothing about the video slice needs changing
+either way (FR-004a still holds trivially: no video code is touched).
 
 Test (b) is unreachable for any image shorter than the viewport (its
 visible height can never reach half the screen while less than half of it is on screen…

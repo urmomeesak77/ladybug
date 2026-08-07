@@ -395,21 +395,25 @@ main {
 
 /* An animated post swaps its <img> for a <canvas> we drive frame by frame (021). A canvas
    inherits none of the UA/global <img> reset (theme.css:70), so it has to be restated here
-   or the decoded frame would overflow its card at full pixel width. */
+   or the decoded frame would overflow its card at full pixel width.
+
+   width: the <img> this replaces carries width/height ATTRIBUTES, which are presentational
+   hints setting CSS width — so it lays out at exactly media.width px (capped by max-width),
+   NOT at the srcset density-corrected size and NOT at the column width. A canvas gets no
+   such hint from its attributes: left alone it would lay out at its backing-store width,
+   i.e. whichever variant was decoded, so a 100w variant would shrink a 120px post to 100px.
+   The post's own width therefore comes in as --meme-media-width, the same inline
+   custom-property pattern as --video-progress on the scrub bar.
+
+   Do NOT put width:100% here: theme.css:386 states the site's "never upscale" rule, and
+   forcing the column width blew a 120px GIF up to 1246px and shifted the layout the moment
+   the canvas swapped in — the exact opposite of what FR-009/SC-003 ask for. */
 .meme-media__canvas {
   max-width: 100%;
   display: block;
   height: auto;
   margin-inline: auto;
-}
-
-/* The density-correction equivalent. An <img> with a w-descriptor srcset does NOT lay out
-   at its chosen variant's pixel width — the browser corrects it to the `sizes` width — but
-   a canvas lays out at its attribute width, which would shrink the post by half whenever a
-   small variant was selected. Applied only when the <img> had a real srcset; with an empty
-   one the <img> rendered at its intrinsic width and width:auto matches it. */
-.meme-media__canvas--fluid {
-  width: 100%;
+  width: var(--meme-media-width);
 }
 
 /* video has no built-in max-width reset the way <img> does (theme.css:70) — add one so a

@@ -185,9 +185,10 @@ Before takeover — **byte-for-byte today's markup**:
 After takeover:
 
 ```html
-<canvas class="meme-media meme-media__image meme-media__canvas [meme-media__canvas--fluid]"
+<canvas class="meme-media meme-media__image meme-media__canvas"
         role="img" aria-label="<same alt text>"
         width="<frame width>" height="<frame height>"
+        style="--meme-media-width: <media.width>px"
         data-playing="true|false"></canvas>
 ```
 
@@ -197,15 +198,21 @@ After takeover:
   (FR-013), and exists so unit and Playwright tests can assert playback state without
   pixel diffing (R12). No control, button or overlay element is ever added — the taken-over
   subtree contains exactly one element.
-- `meme-media__canvas--fluid` is present **iff** the `<img>` had a non-empty `srcset`. That
-  is the case where the browser density-corrects the `<img>` to the `sizes` width, which a
-  canvas does not do on its own; the modifier supplies `width: 100%` so the box survives
-  the swap. With an empty `srcset` the `<img>` rendered at its intrinsic width under
-  `max-width: 100%`, and the canvas does the same with `width: auto` (research R8
-  mechanic 3, FR-009/SC-003).
+- `--meme-media-width` carries the post's own `media.width`, which is what the `<img>`
+  rendered at: its `width` attribute is a presentational hint setting CSS `width`, and that
+  beats srcset density correction. A canvas gets no such hint and would otherwise lay out at
+  its backing store (the decoded variant), so the swap would resize the post.
+  **Corrected 2026-08-07 (T028/T031):** this replaced a `meme-media__canvas--fluid` modifier
+  applying `width: 100%`, written on research R8 mechanic 3's mistaken premise that the
+  `<img>` lays out at the `sizes` width. Measured on the dev feed, every image renders at
+  exactly its width attribute (500→500, 800→800, 1280→capped to the column), so `width: 100%`
+  upscaled a 120 px GIF to 1246 px and broke theme.css's explicit "never upscale" rule
+  (FR-009/SC-003).
 - In the feed both forms stay wrapped in the existing
   `<Link class="meme-media__link" tabIndex={-1}>`, so the permalink click target is
   unchanged (FR-010, US3 scenario 2). On the permalink page neither is wrapped.
 - `.meme-media__canvas` replicates the global `img` reset (`max-width:100%; display:block;
-  height:auto; margin-inline:auto`) and `--fluid` adds the density-correction equivalent, so
-  the rendered box is identical in both states at every breakpoint (FR-009, SC-003).
+  height:auto; margin-inline:auto`) and takes its width from `--meme-media-width`, so the
+  rendered box is identical in both states at every breakpoint (FR-009, SC-003). Verified in
+  Chrome: zero layout shifts across the swap, and canvases render 120×120 / 400×200 / 64×64
+  exactly as their `<img>` did.

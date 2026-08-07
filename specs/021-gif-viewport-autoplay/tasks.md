@@ -404,27 +404,28 @@ post and a video post in the same feed behave exactly as before (quickstart Scen
       **Scenario 11** (a meme that predates this branch, using no fresh upload — FR-007,
       SC-005), and **Scenario 12** (backgrounded tab holds its frame — FR-002a, SC-012).
       Record the result of each scenario.
-      **BLOCKED — needs a foregrounded Chrome window.** Every scenario needs a *visible*
-      viewport and the driven window is minimised/occluded: `document.hidden` is stuck true,
-      which defers `loading="lazy"` image loads (so nothing ever probes) and correctly
-      suppresses playback (FR-002a). Neither a synthetic click, a fresh tab nor a resize
-      raises the window; only the human can. Prep is done and waiting: the dev stack serves
-      media with CORS (see below), a verified superuser `qa021@example.com` / `Password1`
-      exists, and two purpose-built subjects are uploaded and activated —
-      `/posts/8RGAEFqrZP` (animated WebP, Scenario 2) and `/posts/bsCDIpUPlD` (a hand-built
-      6-frame **play-once** GIF, no NETSCAPE block, `repetitionCount: 0`, Scenario 9; the
-      library had no play-once GIF). Subjects for the rest: tall animated GIFs
-      `/posts/QBwwgDOI7q` (ratio 0.19), `/posts/qrEH_1ZqAP`, `/posts/RsW87SZsyQ` (Scenario 4);
-      the single video post `/posts/3WT9d3rccO` (Scenario 3); any of the library's 305 GIFs,
-      all of which predate this branch (Scenario 11).
-      **Partial result already observed while the window was still visible:** on
-      `/posts/A5eZFac6yF` the `<img>` swapped to a `canvas` 200×313 with `data-playing="true"`,
-      and the FR-011 tall-meme rule correctly kept a 1950 px-tall post playing with 1041 px
-      of a 1249 px window covered. Feed takeover, `--fluid`, `role="img"` + `aria-label` and
-      the play/freeze/resume cycle are all additionally covered by T024 against a real stack.
-      Still genuinely unverified: **Scenario 9's colour-fidelity side-by-side (research R13,
-      the one flagged risk)**, Scenario 5 step 3's layout check at a narrow window,
-      Scenario 6's fallback path, and Scenario 10's theme/responsive pass.
+      **DONE, with two bugs found and fixed (see T031/T032) and one doc error corrected
+      (T033).** Run in Chrome against the dev stack at a 2560×1249 viewport. Subjects: the
+      library's own pre-existing GIFs, plus five uploads by `qa021@example.com` —
+      `8RGAEFqrZP` (animated WebP), `bsCDIpUPlD` (hand-built 6-frame **play-once** GIF, no
+      NETSCAPE block, `repetitionCount: 0` — the library had none), `vrAkwIDOKw` +
+      `BmQbHMhMyN` (two infinite-loop GIFs, for the both-at-once case) and `fkuNW2ophC`
+      (300×2800 looping GIF — the library's only >1400 px GIF turned out to be single-frame).
+
+      | Scenario | Result |
+      | --- | --- |
+      | 1 — only what's on screen moves | **PASS.** 10 away/return cycles on `cz2tANp8El`: frozen every time, frame held while away, playing on return. Resume checked by decoded frame INDEX, not timing — froze at 24/37/51/4/21/40 and resumed on that exact frame, never frame 0 (FR-003, SC-004). Step 5: two looping GIFs both covered 1.0 both played, 4 distinct frames each — no single winner. |
+      | 2 — GIF and WebP alike | **PASS.** Both take over and run the identical play/freeze/resume cycle; T024 asserts one shared assertion set over both. |
+      | 3 — same rule as video | **PASS, but the spec's step 3 was wrong** — see T033. Image played at 85% covered, froze at 45%; video played at 70%, paused at 45%. Same boundary, no "image stops earlier" asymmetry. Video still a real `<video>`. |
+      | 4 — meme taller than the screen | **PASS.** `fkuNW2ophC` renders 2800 px in a 1249 px window, so ratio can never reach 0.5 (max seen 0.446) — it played throughout on the tall-meme rule alone, and froze only once the visible slice fell under half the window (ratio 0.164, 0.74 of half-window). FR-011 verified in both directions. |
+      | 5 — nothing else changed | **PASS after fixing T031.** Zero layout shifts recorded (PerformanceObserver, `buffered: true`) and the element's box never changed size through takeover. Full-feed walk: **zero** `/storage/` probe fetches for any non-GIF/WebP post; JPEGs stayed `<img>`; static WebPs probed once and stayed `<img>` (FR-008). Flick-scroll 8× — same canvas element, same size, still playing (SC-008). Accessible name = alt via `role="img"` + `aria-label`. |
+      | 6 — fallback path | **PASS.** With `ImageDecoder` deleted and every post remounted: 0 canvases, 0 broken images, **0 probe fetches**, no per-post observers (SC-009, FR-012). |
+      | 7 — deep feed, bounded memory | **PASS.** Scrolled 160 posts / 33 animated canvases — far past the LRU(12) cap — then returned to an early post: exact frozen frame restored, never blank, ready in **168 ms** (FR-019, SC-011, and well inside SC-002's 0.5 s). |
+      | 8 — permalink page | **PASS** for takeover + play; the freeze half is covered by T024 at a 480×300 viewport. At the dev window's 1249 px height most permalinks do not scroll at all (`maxScroll: 0`), so the freeze cannot be provoked there. |
+      | 9 — repeat settings and fidelity | **PASS after fixing T032.** Play-once GIF plays through once and rests on its **final** frame; scrolling away and back grants no second play. **Colour fidelity (research R13, the one flagged risk): RESOLVED** — ImageDecoder frames compared pixel-for-pixel against `createImageBitmap` of the same bytes give `maxChannelDelta: 0`, `differingPct: 0`, `alphaMismatchPct: 0` across GIF, animated WebP and transparency-carrying GIFs. No `createImageBitmap` workaround needed. |
+      | 10 — theme and responsive | **PARTIAL.** The canvas is media, not chrome, and carries no theme-dependent styling. Breakpoint sweep NOT done: `resize_window` is ignored on the maximised window, so 360 px / tablet widths were unreachable. |
+      | 11 — a meme predating the feature | **PASS.** All of scenario 1 above ran on `cz2tANp8El`, an untouched library GIF, served from its original `/storage/…` URL; the probe reuses the variant the `<img>` selected (FR-007, SC-005). |
+      | 12 — backgrounded tab | **PARTIAL.** Could not background a tab through the automation (a new tab does not deactivate the old one; `ctrl+2` does not reach browser chrome). Real evidence available: while the window was genuinely occluded, `document.hidden` was true, the play-once GIF never started and consumed no part of its single run, then played its full run when the window came back — Scenario 12 step 3's expectation. The note-frame/hide/return comparison is unit-covered only. |
 
 - [X] T029 [P] Update `C:\projects\ladybug\CLAUDE.md` — add the **021-gif-viewport-autoplay**
       entry to the implemented-features list (frontend-only; `ImageDecoder` takeover with
@@ -444,6 +445,37 @@ post and a video post in the same feed behave exactly as before (quickstart Scen
       service owning `:8001`, backend-e2e now internal). **No production or application code
       changed — this is dev/e2e topology only**, and research.md R4 now carries the
       correction inline.
+- [X] T031 **The canvas upscaled every animated post** (found in T028, reported by the human
+      as "why is the gif upscaled?"). `--fluid` set `width: 100%`, on the premise (research R8
+      mechanic 3) that a w-descriptor `<img>` lays out at its `sizes` width. It does not:
+      `MemeImage` sets the `width`/`height` **attributes**, which are presentational hints
+      setting CSS `width`, and those beat srcset density correction. Measured on the dev feed —
+      every static `<img>` renders at exactly its width attribute (500→500, 700→700, 800→800,
+      1280→capped 1246), while both taken-over canvases rendered 1246. A 120 px GIF was blown
+      up **10×**, and theme.css:386 states the site's explicit "never upscale" rule. This also
+      meant a size change at the swap, the exact thing FR-009/SC-003 forbid. Fixed by passing
+      the post's own width as `--meme-media-width` (the `--video-progress` inline
+      custom-property pattern) and deleting `--fluid`. Verified after: canvases render 120×120
+      / 400×200 / 64×64, matching the `<img>`, with **zero** layout shifts recorded.
+- [X] T032 **`data-playing` stayed "true" after a play-once file finished** (found in T028).
+      `useAnimatedImage` only read `player.isPlaying` right after driving `start()`/`stop()`
+      itself, but `AnimationPlayer` also stops **itself** when a finite `repetitionCount` runs
+      out (FR-003a). Observed in Chrome: the play-once GIF correctly came to rest on its final
+      frame, not advancing, while `data-playing` still said `"true"` — and `data-playing` is
+      the only externally observable playback signal, the one T024 asserts on. Fixed with an
+      `onStateChange` callback the player fires on every real transition (idempotent calls
+      excluded); the hook sets its state from it. Both new player tests and the hook test were
+      confirmed to FAIL against the unfixed player before the fix landed.
+- [X] T033 **The FR-004 "asymmetry" does not exist** (found in T028). research R5, quickstart
+      Scenario 3 step 3, `useInViewport.ts`'s comment and its test's comment all claimed video
+      keeps playing until full exit because it "branches on `isIntersecting` alone". A declared
+      threshold *does* gate `isIntersecting`: measured directly in Chrome, an observer with
+      `threshold: 0.5` reports `false` at ratio 0.25 and `true` at 0.75. Video therefore pauses
+      on the same half-visible boundary an image freezes on. The genuine divergence is the
+      tall-meme rule and it runs the other way — an image taller than twice the window keeps
+      playing where a video would pause, i.e. more forgiving, not less. Comments and both spec
+      documents corrected; **no code change** — the implementation was always right, only its
+      description was wrong.
 
 ---
 

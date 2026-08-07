@@ -226,35 +226,49 @@ describe('MemeImage layout preservation', () => {
     vi.stubGlobal('ImageDecoder', FakeImageDecoder);
   });
 
-  // The whole of the layout-shift defence: an <img> with a w-descriptor srcset lays out at
-  // the `sizes` width, not the variant's pixel width. A canvas gets no such correction, so
-  // without --fluid a small selected variant would shrink the post (research R8 mechanic 3).
-  it('marks the canvas fluid when the image carried a srcset', async () => {
+  // The whole of the layout-shift defence. The <img>'s width attribute is a presentational
+  // hint, so it lays out at exactly media.width px — measured in Chrome against this very
+  // feed: a 500px post renders 500px, an 800px post 800px, never the column width. The
+  // canvas must be handed that same number or the swap resizes the post.
+  it('gives the canvas the media width so the swap changes no layout', async () => {
     render(<MemeImage media={imageMedia()} />);
     await takeOver();
 
-    expect(document.querySelector('canvas')?.classList.contains('meme-media__canvas--fluid')).toBe(
-      true,
-    );
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas.style.getPropertyValue('--meme-media-width')).toBe('800px');
   });
 
-  it('leaves the canvas at its intrinsic width when there is no srcset', async () => {
+  // Regression guard for the bug this replaced: width:100% blew a 120px GIF up to the full
+  // 1246px column, breaking theme.css's explicit "never upscale" rule and shifting the
+  // layout on takeover — the opposite of FR-009/SC-003.
+  it('never stretches the canvas to the column width', async () => {
+    render(<MemeImage media={imageMedia({ width: 120, height: 120 })} />);
+    await takeOver();
+
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas.style.getPropertyValue('--meme-media-width')).toBe('120px');
+    expect(canvas.className).not.toContain('fluid');
+    expect(canvas.style.width).not.toBe('100%');
+  });
+
+  it('sizes from the media, not the srcset, when there is no srcset', async () => {
     render(<MemeImage media={imageMedia({ srcset: '' })} />);
     await takeOver();
 
-    expect(document.querySelector('canvas')?.classList.contains('meme-media__canvas--fluid')).toBe(
-      false,
-    );
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas.style.getPropertyValue('--meme-media-width')).toBe('800px');
   });
 
-  it('stays fluid when the decoded frame is narrower than the stored width', async () => {
+  // The small-variant case: the backing store follows the DECODED frame while the rendered
+  // width stays the post's own, so a 320w variant does not shrink an 800px post.
+  it('keeps the rendered width when the decoded frame is narrower than the stored width', async () => {
     frameWidth = 320;
     frameHeight = 160;
     render(<MemeImage media={imageMedia()} />);
     await takeOver();
 
     const canvas = document.querySelector('canvas') as HTMLCanvasElement;
-    expect(canvas.classList.contains('meme-media__canvas--fluid')).toBe(true);
+    expect(canvas.style.getPropertyValue('--meme-media-width')).toBe('800px');
     expect(canvas.getAttribute('width')).toBe('320');
     expect(canvas.getAttribute('height')).toBe('160');
   });
@@ -395,8 +409,8 @@ describe('MemeImage preserves the post around the swap', () => {
 
   it('keeps the rendered box at the same aspect ratio in both states', async () => {
     // The small-variant case: the decoded frame is half the stored size, so the canvas
-    // attributes alone would shrink the post. --fluid restores the width the <img> had and
-    // the frame's own ratio keeps the height honest (research R8 mechanic 3).
+    // attributes alone would shrink the post. --meme-media-width restores the width the
+    // <img> laid out at and the frame's own ratio keeps the height honest.
     frameWidth = 320;
     frameHeight = 160;
     render(<MemeImage media={imageMedia()} />);
@@ -408,6 +422,6 @@ describe('MemeImage preserves the post around the swap', () => {
     expect(canvas.width).toBe(320);
     expect(canvas.height).toBe(160);
     expect(canvas.width / canvas.height).toBe(imageRatio);
-    expect(canvas.classList.contains('meme-media__canvas--fluid')).toBe(true);
+    expect(canvas.style.getPropertyValue('--meme-media-width')).toBe(`${img.getAttribute('width')}px`);
   });
 });

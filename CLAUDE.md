@@ -131,9 +131,13 @@ and on `master` but have no entry below — read their `specs/` directories dire
   holds an **LRU(12)** of decode sessions, pinned while playing so an on-screen post is never
   evicted, plus **page-lifetime** frame positions that outlive eviction; `AnimationPlayer`
   drives a `setTimeout` frame chain (never rAF) honouring `repetitionCount`.
-  `useInViewport` starts on the same half-visible rule video uses but **stops on the ratio**,
-  so an image freezes earlier than a video pauses — deliberate; `useVideoAutoplay` is
-  untouched. A hidden tab freezes (`visibilitychange`). **Safari/iOS has no `ImageDecoder`
+  `useInViewport` uses the same half-visible rule video does — a declared IO threshold gates
+  `isIntersecting`, so both start AND stop at 50% (an earlier note claiming the image stops
+  sooner was wrong; measured in T028). It adds one rule video lacks: a meme taller than twice
+  the window can never reach ratio 0.5, so it plays while its visible slice covers half the
+  window. `useVideoAutoplay` is untouched. A hidden tab freezes (`visibilitychange`). The
+  canvas takes its rendered width from the post's own `media.width` via `--meme-media-width`,
+  matching the `<img>`'s width attribute — never `width: 100%`, which upscaled small memes. **Safari/iOS has no `ImageDecoder`
   and keeps today's always-animating `<img>`** — the fallback is the unchanged status quo,
   not a degradation. Existing memes need no re-upload or reprocessing. No new dependency.
   Note: dev and e2e serve media cross-origin (SPA :5173/:5174, media :8000/:8001), unlike

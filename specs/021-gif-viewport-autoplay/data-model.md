@@ -86,9 +86,11 @@ stable, unique per post variant, and requires no new identifier — the post `ha
 | `isBroken` | `boolean` | Existing behavior, unchanged — a failed image degrades the post to title-only |
 | `isPageVisible` | `boolean` | `!document.hidden`, from one `visibilitychange` subscription. ANDed with `isVisible` to decide `start()`/`stop()`, so a backgrounded tab freezes instead of limping along on throttled timers (FR-002a, research R16) |
 
-The `--fluid` class modifier is **not** state: it is derived at render time from
-`media.srcset !== ''` (research R8 mechanic 3), so it needs no measurement and cannot go
-stale on resize.
+The canvas's rendered width is **not** state: `--meme-media-width` is derived at render time
+from `media.width`, the same number the `<img>`'s width attribute carries, so it needs no
+measurement and cannot go stale on resize. (It replaced a `--fluid` modifier keyed on
+`media.srcset !== ''` that applied `width: 100%` — see T031; that upscaled every post whose
+media was narrower than the column.)
 
 `takeover` is one-way: once set it is never cleared (research R8 — "one swap, ever"),
 which is what makes flick-scrolling flicker-free (SC-008).

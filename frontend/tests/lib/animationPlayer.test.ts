@@ -192,6 +192,40 @@ describe('AnimationPlayer repeat allowance', () => {
     });
   });
 
+  // Playback that ends on its own is the one transition nobody is watching for: the owner
+  // never called stop(), so without this notification a finished post keeps reporting
+  // data-playing="true" while resting on its final frame (observed in Chrome on a real
+  // play-once GIF before this callback existed).
+  it('reports the state change when it stops itself at the end of its allowance', async () => {
+    installSession(3, 0);
+    const onStateChange = vi.fn();
+    const player = new AnimationPlayer(MEME_URL, canvas, onStateChange);
+
+    player.start();
+    expect(onStateChange).toHaveBeenCalledTimes(1);
+    expect(player.isPlaying).toBe(true);
+
+    await advance(FRAME_DELAY_MS * 10);
+
+    expect(onStateChange).toHaveBeenCalledTimes(2);
+    expect(player.isPlaying).toBe(false);
+  });
+
+  it('reports start and stop when the caller drives them', async () => {
+    installSession(3, Infinity);
+    const onStateChange = vi.fn();
+    const player = new AnimationPlayer(MEME_URL, canvas, onStateChange);
+
+    player.start();
+    await advance(FRAME_DELAY_MS);
+    player.stop();
+    expect(onStateChange).toHaveBeenCalledTimes(2);
+
+    // Idempotent calls are not state changes and must not be reported.
+    player.stop();
+    expect(onStateChange).toHaveBeenCalledTimes(2);
+  });
+
   it('refuses to start again once the allowance is spent, holding no pin', async () => {
     installSession(3, 0);
     const unpin = vi.spyOn(AnimationRegistry, 'unpin');

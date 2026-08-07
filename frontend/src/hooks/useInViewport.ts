@@ -13,9 +13,16 @@ const NEAR_MARGIN = '100% 0px';
 // ratio near 0.17 — so a lone `threshold: 0.5` would never fire for it (research R5).
 const THRESHOLD_LADDER = Array.from({ length: 51 }, (_, step) => step / 50);
 
-// FR-011's two tests. Evaluating the ratio here (rather than `isIntersecting`, as the video
-// hook does) is also what makes an image freeze at the boundary instead of on full exit —
-// the documented FR-004 asymmetry, intended and asserted in the tests.
+// FR-011's two tests.
+//
+// How this really compares to the video hook (measured in Chrome, correcting research R5):
+// `useVideoAutoplay` declares `threshold: 0.5`, and a threshold makes `isIntersecting`
+// itself track that threshold — at ratio 0.25 it reports false, at 0.75 true. So video
+// pauses on the SAME half-visible boundary an image freezes on, not on full exit. The one
+// real difference is the second test below: a meme taller than twice the window can never
+// reach ratio 0.5, so an image keeps playing on the covers-half-the-window rule where a
+// video of the same shape would pause. The asymmetry is the opposite way round from the
+// original note, and it makes the image MORE forgiving, never less.
 function isHalfSeen(entry: IntersectionObserverEntry): boolean {
   if (!entry.isIntersecting) {
     return false;

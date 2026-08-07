@@ -17,6 +17,10 @@ export class AnimationPlayer {
   private readonly url: string;
   private readonly canvas: HTMLCanvasElement;
   private readonly context: CanvasRenderingContext2D | null;
+  // Playback can end WITHOUT anyone asking it to: a file whose repeat allowance runs out
+  // stops itself mid-chain (FR-003a). Without this the owner would keep reporting "playing"
+  // for a post that is resting on its final frame.
+  private readonly onStateChange: () => void;
   private frameIndex = 0;
   private loopsDone = 0;
   private isFinished = false;
@@ -27,10 +31,11 @@ export class AnimationPlayer {
   private nextPlan: FramePlan | null = null;
   private pending: Promise<VideoFrame | null> | null = null;
 
-  constructor(url: string, canvas: HTMLCanvasElement) {
+  constructor(url: string, canvas: HTMLCanvasElement, onStateChange: () => void = () => {}) {
     this.url = url;
     this.canvas = canvas;
     this.context = canvas.getContext('2d');
+    this.onStateChange = onStateChange;
   }
 
   get isPlaying(): boolean {
@@ -56,6 +61,7 @@ export class AnimationPlayer {
     // Pinned rather than merely recently-used: acquisition spans three viewports, so plain
     // recency would let a post that is on screen and playing be evicted (research R9).
     AnimationRegistry.pin(this.url);
+    this.onStateChange();
     void this.step();
   }
 
@@ -75,6 +81,7 @@ export class AnimationPlayer {
       loopsDone: this.loopsDone,
       isFinished: this.isFinished,
     });
+    this.onStateChange();
   }
 
   private async step(): Promise<void> {
