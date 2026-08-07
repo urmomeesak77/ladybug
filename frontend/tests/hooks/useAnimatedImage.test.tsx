@@ -386,7 +386,11 @@ describe('useAnimatedImage playback', () => {
 
     expect(fetchMock.mock.calls.length - fetchesBefore).toBe(1);
     expect(fetchMock).toHaveBeenLastCalledWith(SELECTED_SRC, { cache: 'force-cache' });
-    expect(decodedIndexes[0]).toBe(held);
+    // The rebuilt decoder is asked twice for frame 0 first — that is the frame-ownership
+    // check every fresh decoder pays for (AnimatedImage.framesAreShared) — and only then does
+    // playback resume, on the frame the post was holding rather than back at the start.
+    expect(decodedIndexes.slice(0, 2)).toEqual([0, 0]);
+    expect(decodedIndexes[2]).toBe(held);
     expect(paintLog).toContain('draw');
     expect(hasBlankPaint()).toBe(false);
   });

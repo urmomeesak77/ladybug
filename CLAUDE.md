@@ -140,6 +140,15 @@ and on `master` but have no entry below — read their `specs/` directories dire
   matching the `<img>`'s width attribute — never `width: 100%`, which upscaled small memes. **Safari/iOS has no `ImageDecoder`
   and keeps today's always-animating `<img>`** — the fallback is the unchanged status quo,
   not a degradation. Existing memes need no re-upload or reprocessing. No new dependency.
+  **Firefox does have `ImageDecoder`, so it runs the whole canvas path — but it hands back its
+  OWN cached `VideoFrame` for a frame index (same object identity on every decode of it), where
+  Chrome mints a fresh one.** Closing a drawn frame there destroys the decoder's copy, so every
+  later decode of that index resolves to a closed frame, `drawImage` rejects it as `"broken"`,
+  and the post renders as a blank canvas still claiming `data-playing="true"`. Ownership is
+  therefore measured per decoder in `AnimatedImage.framesAreShared` (decode frame 0 twice,
+  compare identity) and every release goes through `AnimationRegistry.release`, which closes
+  only frames the browser minted for us. `data-playing` alone cannot see this class of bug —
+  the e2e spec samples canvas pixels for that reason, and Firefox is NOT in the e2e matrix.
   Note: dev and e2e serve media cross-origin (SPA :5173/:5174, media :8000/:8001), unlike
   production's single origin, so both nginx configs send `Access-Control-Allow-Origin` on
   `/storage/` — without it the probe's `fetch` is blocked and the takeover silently never

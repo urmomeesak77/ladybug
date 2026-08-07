@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnimatedImage } from '../../src/lib/animatedImage';
 
 type TrackStub = { animated: boolean; frameCount: number; repetitionCount: number };
+type FrameStub = { format: string | null; close: ReturnType<typeof vi.fn> };
 
 // jsdom ships no ImageDecoder, so the whole API is faked here (research R11). Configuration
 // is static rather than constructor-injected because the class is installed as a global and
@@ -12,6 +13,11 @@ class FakeImageDecoder {
   static track: TrackStub | null = { animated: true, frameCount: 4, repetitionCount: Infinity };
   static supportsType = true;
   static throwsOnConstruct = false;
+  // Firefox hands the SAME cached VideoFrame back for a frame index it has already decoded;
+  // Chrome mints a fresh one every time. Both are modelled here because the difference is
+  // what AnimatedImage has to discover.
+  static sharesFrames = false;
+  static throwsOnDecode = false;
   static instances: FakeImageDecoder[] = [];
   static isTypeSupported = vi.fn(() => Promise.resolve(FakeImageDecoder.supportsType));
 
@@ -19,6 +25,8 @@ class FakeImageDecoder {
   completed = Promise.resolve();
   close = vi.fn();
   type: string;
+  frames: FrameStub[] = [];
+  private cached = new Map<number, FrameStub>();
 
   constructor(init: { data: BufferSource; type: string }) {
     if (FakeImageDecoder.throwsOnConstruct) {
@@ -27,6 +35,20 @@ class FakeImageDecoder {
     this.type = init.type;
     this.tracks = { ready: Promise.resolve(), selectedTrack: FakeImageDecoder.track };
     FakeImageDecoder.instances.push(this);
+  }
+
+  decode(options: { frameIndex: number }): Promise<{ image: FrameStub }> {
+    if (FakeImageDecoder.throwsOnDecode) {
+      return Promise.reject(new DOMException('closed'));
+    }
+    const cached = this.cached.get(options.frameIndex);
+    if (FakeImageDecoder.sharesFrames && cached) {
+      return Promise.resolve({ image: cached });
+    }
+    const image: FrameStub = { format: 'BGRA', close: vi.fn() };
+    this.cached.set(options.frameIndex, image);
+    this.frames.push(image);
+    return Promise.resolve({ image });
   }
 }
 
@@ -48,6 +70,8 @@ beforeEach(() => {
   FakeImageDecoder.track = { animated: true, frameCount: 4, repetitionCount: Infinity };
   FakeImageDecoder.supportsType = true;
   FakeImageDecoder.throwsOnConstruct = false;
+  FakeImageDecoder.sharesFrames = false;
+  FakeImageDecoder.throwsOnDecode = false;
   FakeImageDecoder.instances = [];
   FakeImageDecoder.isTypeSupported.mockClear();
 });
@@ -120,6 +144,47 @@ describe('AnimatedImage.probe', () => {
     expect(result?.frameCount).toBe(4);
     expect(result?.repetitionCount).toBe(Infinity);
     expect(result?.decoder).toBe(FakeImageDecoder.instances[0]);
+  });
+
+  // Who owns a decoded frame is a browser trait we cannot look up, and guessing it wrong is
+  // fatal either way round: closing a frame the decoder still owns blanks the post (Firefox),
+  // not closing one it handed us leaks it (Chrome). Hence a real probe, not a UA sniff.
+  it('reports frames as owned when the decoder mints a new one per decode', async () => {
+    stubImageDecoder();
+    stubFetch('image/gif');
+
+    const result = await AnimatedImage.probe('/storage/a/b/meme.gif');
+
+    expect(result?.framesAreShared).toBe(false);
+    // Both probe frames are ours, so both are released rather than left to the collector.
+    const [decoder] = FakeImageDecoder.instances;
+    expect(decoder.frames).toHaveLength(2);
+    for (const frame of decoder.frames) {
+      expect(frame.close).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('reports frames as shared when the decoder hands the same one back, closing neither', async () => {
+    stubImageDecoder();
+    stubFetch('image/gif');
+    FakeImageDecoder.sharesFrames = true;
+
+    const result = await AnimatedImage.probe('/storage/a/b/meme.gif');
+
+    expect(result?.framesAreShared).toBe(true);
+    const [decoder] = FakeImageDecoder.instances;
+    expect(decoder.frames).toHaveLength(1);
+    expect(decoder.frames[0].close).not.toHaveBeenCalled();
+  });
+
+  it('assumes shared frames when the ownership probe itself fails', async () => {
+    stubImageDecoder();
+    stubFetch('image/gif');
+    FakeImageDecoder.throwsOnDecode = true;
+
+    const result = await AnimatedImage.probe('/storage/a/b/meme.gif');
+
+    expect(result?.framesAreShared).toBe(true);
   });
 
   it('resolves null when the response is not a gif or webp', async () => {

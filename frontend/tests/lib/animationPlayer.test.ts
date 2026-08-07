@@ -9,7 +9,7 @@ const MEME_URL = '/storage/meme.gif';
 const FRAME_DURATION_US = 40_000;
 const FRAME_DELAY_MS = 40;
 
-type FrameStub = { duration: number; close: ReturnType<typeof vi.fn> };
+type FrameStub = { duration: number; format: string | null; close: ReturnType<typeof vi.fn> };
 
 let frames: FrameStub[];
 let decodedIndexes: number[];
@@ -17,15 +17,15 @@ let decode: ReturnType<typeof vi.fn>;
 let context: { clearRect: ReturnType<typeof vi.fn>; drawImage: ReturnType<typeof vi.fn> };
 let canvas: HTMLCanvasElement;
 
-function makeFrame(): VideoFrame {
-  const frame = { duration: FRAME_DURATION_US, close: vi.fn() };
+function makeFrame(format: string | null = 'BGRA'): VideoFrame {
+  const frame = { duration: FRAME_DURATION_US, format, close: vi.fn() };
   frames.push(frame);
   return frame as unknown as VideoFrame;
 }
 
 // A registry session backed by a decoder whose decode() records the frame indexes asked for.
 // The registry itself is the real one — only the probe underneath it is stubbed.
-function installSession(frameCount: number, repetitionCount: number): void {
+function installSession(frameCount: number, repetitionCount: number, framesAreShared = false): void {
   decode = vi.fn((options: { frameIndex: number }) => {
     decodedIndexes.push(options.frameIndex);
     return Promise.resolve({ image: makeFrame() });
@@ -35,6 +35,7 @@ function installSession(frameCount: number, repetitionCount: number): void {
       decoder: { close: vi.fn(), decode } as unknown as ImageDecoder,
       frameCount,
       repetitionCount,
+      framesAreShared,
     }),
   );
 }
@@ -113,6 +114,40 @@ describe('AnimationPlayer playback', () => {
     for (const frame of frames) {
       expect(frame.close).toHaveBeenCalledTimes(1);
     }
+  });
+
+  // Firefox caches one VideoFrame per frame index and hands that same object back on every
+  // decode of it, so closing a drawn frame destroys the decoder's own copy: the next decode
+  // of that index returns a closed frame, drawImage rejects it as "broken", and the post is
+  // left blank. Observed on the real feed in Firefox; Chrome mints a fresh frame per decode
+  // and is unaffected either way.
+  it('never closes a frame the decoder still owns', async () => {
+    installSession(4, Infinity, true);
+    const player = new AnimationPlayer(MEME_URL, canvas);
+
+    player.start();
+    await advance(FRAME_DELAY_MS * 3);
+    player.stop();
+    await settle();
+
+    expect(frames.length).toBeGreaterThan(1);
+    for (const frame of frames) {
+      expect(frame.close).not.toHaveBeenCalled();
+    }
+  });
+
+  // Belt and braces behind the fix above: whatever leaves a frame closed, a post freezes on
+  // the frame it is showing instead of throwing out of the timer chain (guarantee 5).
+  it('treats an already-closed frame as a failed decode rather than drawing it', async () => {
+    installSession(4, Infinity);
+    decode.mockImplementation(() => Promise.resolve({ image: makeFrame(null) }));
+    const player = new AnimationPlayer(MEME_URL, canvas);
+
+    player.start();
+    await settle();
+
+    expect(context.drawImage).not.toHaveBeenCalled();
+    expect(player.isPlaying).toBe(false);
   });
 });
 

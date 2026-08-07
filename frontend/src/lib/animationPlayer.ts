@@ -88,7 +88,9 @@ export class AnimationPlayer {
     const plan = this.nextPlan ?? { index: this.frameIndex, loops: this.loopsDone, isFinished: false };
     const image = await this.takePending(plan.index);
     if (!this.isRunning) {
-      image?.close();
+      if (image) {
+        AnimationRegistry.release(this.url, image);
+      }
       return;
     }
     if (!image) {
@@ -105,8 +107,9 @@ export class AnimationPlayer {
   private show(image: VideoFrame): void {
     this.paint(image);
     const delay = AnimatedImage.frameDelayMs(image.duration);
-    // VideoFrames hold memory the garbage collector will not reclaim promptly (research R10).
-    image.close();
+    // VideoFrames hold memory the garbage collector will not reclaim promptly (research R10),
+    // but only where the decoder minted this one for us — releasing decides which.
+    AnimationRegistry.release(this.url, image);
     const plan = this.plan();
     if (plan.isFinished) {
       this.isFinished = true;
@@ -153,7 +156,11 @@ export class AnimationPlayer {
     const pending = this.pending;
     this.pending = null;
     if (pending) {
-      void pending.then((image) => image?.close());
+      void pending.then((image) => {
+        if (image) {
+          AnimationRegistry.release(this.url, image);
+        }
+      });
     }
   }
 
@@ -176,7 +183,9 @@ export class AnimationPlayer {
     this.repetitionCount = session.repetitionCount;
     try {
       const result = await session.decoder.decode({ frameIndex: index, completeFramesOnly: true });
-      return result.image;
+      // A closed frame reports a null format, and drawing one throws. Counting it as a failed
+      // decode keeps that inside decodeAt's retry instead of throwing out of the timer chain.
+      return result.image.format === null ? null : result.image;
     } catch {
       return null;
     }

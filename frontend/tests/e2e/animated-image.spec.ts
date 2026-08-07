@@ -15,6 +15,10 @@ import { MailLog } from './helpers/mailLog';
 //
 // Chromium-only by construction: playwright.config.ts declares a single chromium project, and
 // ImageDecoder is exactly what Safari lacks (FR-012's fallback path, unobservable here).
+// Firefox is the gap that matters: it HAS ImageDecoder, so it runs this whole path, and it
+// does not behave identically to Chrome inside it (AnimatedImage.framesAreShared). Declaring a
+// second project here is the only guard against that class of bug; the pixel assertions below
+// are written so it would be worth running.
 
 const FIXTURES = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -72,6 +76,38 @@ function scrollTo(canvas: import('@playwright/test').Locator): Promise<void> {
   return canvas.evaluate((el) => el.scrollIntoView({ block: 'center' }));
 }
 
+// What data-playing cannot tell you: whether anything is actually reaching the canvas.
+// data-playing is the player's own claim about its timer chain, and a Firefox regression
+// (2026-08) ran that chain perfectly while every drawImage threw, leaving data-playing="true"
+// over a canvas cleared to nothing — a post that had simply vanished. Sampling the pixels is
+// the only assertion that separates the two, so the playing phases below make it.
+async function expectFramesAdvance(
+  canvas: import('@playwright/test').Locator,
+): Promise<void> {
+  // Three cycles of the 4-frame, 100 ms-per-frame fixtures, so a pass cannot be a lucky sample.
+  const seen = await canvas.evaluate(async (el) => {
+    const element = el as HTMLCanvasElement;
+    const context = element.getContext('2d');
+    const checksums = new Set<number>();
+    let painted = false;
+    for (let sample = 0; sample < 8; sample += 1) {
+      const pixels = context?.getImageData(0, 0, element.width, element.height).data ?? [];
+      let checksum = 0;
+      for (let at = 0; at < pixels.length; at += 397) {
+        checksum = (checksum * 31 + pixels[at]) >>> 0;
+        painted = painted || pixels[at] !== 0;
+      }
+      checksums.add(checksum);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+
+    return { painted, distinct: checksums.size };
+  });
+
+  expect(seen.painted, 'the canvas has something on it').toBe(true);
+  expect(seen.distinct, 'the canvas is showing different frames over time').toBeGreaterThan(1);
+}
+
 // The FR-001/002/003 cycle: playing while the post is on screen, frozen once it is not, and
 // playing again on the way back. data-playing is the one externally observable signal for
 // this (MemeImage renders it off the player's own isPlaying), which is why it exists.
@@ -85,6 +121,7 @@ async function expectPlayFreezeResume(
   await expect(canvas).toBeVisible();
   await scrollTo(canvas);
   await expect(canvas).toHaveAttribute('data-playing', 'true');
+  await expectFramesAdvance(canvas);
 
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   // Check the GEOMETRY before the behaviour. The freeze rule is "neither half the element nor
@@ -103,6 +140,7 @@ async function expectPlayFreezeResume(
 
   await scrollTo(canvas);
   await expect(canvas).toHaveAttribute('data-playing', 'true');
+  await expectFramesAdvance(canvas);
 }
 
 test.describe('Animated image viewport autoplay', () => {

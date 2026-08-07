@@ -81,7 +81,7 @@ export function useAnimatedImage(src: string): {
         return;
       }
       if (isCancelled) {
-        frame.close();
+        AnimationRegistry.release(url, frame);
         return;
       }
       heldFrame.current = frame;
@@ -101,7 +101,9 @@ export function useAnimatedImage(src: string): {
     }
     heldFrame.current = null;
     node.getContext('2d')?.drawImage(frame, 0, 0);
-    frame.close();
+    // Not frame.close(): where the decoder owns its frames, closing this one would poison the
+    // very index the player is about to decode first (see AnimationRegistry.release).
+    AnimationRegistry.release(probe.current.url, frame);
   }, [takeover, node]);
 
   useEffect(() => {
@@ -131,7 +133,9 @@ export function useAnimatedImage(src: string): {
     return () => {
       player.current?.stop();
       player.current = null;
-      heldFrame.current?.close();
+      if (heldFrame.current) {
+        AnimationRegistry.release(probe.current.url, heldFrame.current);
+      }
       heldFrame.current = null;
     };
   }, []);

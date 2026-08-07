@@ -8,6 +8,7 @@ export type ProbeResult = {
   decoder: ImageDecoder;
   frameCount: number;
   repetitionCount: number;
+  framesAreShared: boolean;
 };
 
 // A frame duration under 20 ms is the legacy "as fast as possible" GIF encoding; every
@@ -84,6 +85,32 @@ export class AnimatedImage {
       decoder,
       frameCount: track.frameCount,
       repetitionCount: track.repetitionCount,
+      framesAreShared: await AnimatedImage.framesAreShared(decoder),
     };
+  }
+
+  // Who owns a decoded frame differs by browser, and there is no flag to read it off — so it
+  // is measured, once per decoder, by decoding one index twice and comparing identity.
+  //
+  // Firefox caches its decoded frame per index and returns that SAME VideoFrame every time,
+  // so close()ing a drawn frame destroys the decoder's own copy: every later decode of that
+  // index resolves to a closed frame and drawImage rejects it as "broken", leaving the post
+  // blank. Chrome mints a fresh frame per decode, which leaks unless we do close it. The
+  // check itself closes nothing it must not: two owned frames are released, a shared pair is
+  // one object left for the decoder.
+  private static async framesAreShared(decoder: ImageDecoder): Promise<boolean> {
+    try {
+      const first = await decoder.decode({ frameIndex: 0, completeFramesOnly: true });
+      const second = await decoder.decode({ frameIndex: 0, completeFramesOnly: true });
+      if (first.image === second.image) {
+        return true;
+      }
+      first.image.close();
+      second.image.close();
+      return false;
+    } catch {
+      // Ownership unknown: not closing costs memory, closing can blank the post outright.
+      return true;
+    }
   }
 }

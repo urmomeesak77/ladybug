@@ -1,4 +1,5 @@
 import { AnimatedImage } from './animatedImage';
+import type { ProbeResult } from './animatedImage';
 
 // What a post remembers about where it was: a few numbers, kept for every animated post on
 // the page and never capped, because this is what makes a released post resume rather than
@@ -11,11 +12,7 @@ export type FramePosition = {
 
 // The expensive half — a live decoder — capped at MAX_SESSIONS. Same shape as the probe
 // result it is built from; aliased rather than restated so the two cannot drift apart.
-export type PlaybackSession = {
-  decoder: ImageDecoder;
-  frameCount: number;
-  repetitionCount: number;
-};
+export type PlaybackSession = ProbeResult;
 
 // FR-017: at most twelve live decoders at any scroll depth.
 const MAX_SESSIONS = 12;
@@ -60,6 +57,17 @@ export class AnimationRegistry {
       return null;
     }
     return entry;
+  }
+
+  // Hands a drawn frame back. Whether it may be closed is the decoder's trait, not the
+  // caller's (see AnimatedImage.framesAreShared), and the registry is the only place that
+  // knows which session a URL is on. An evicted session's decoder is closed already, so a
+  // frame outliving it is ours to release.
+  static release(url: string, frame: VideoFrame): void {
+    if (AnimationRegistry.peek(url)?.framesAreShared) {
+      return;
+    }
+    frame.close();
   }
 
   static position(url: string): FramePosition {

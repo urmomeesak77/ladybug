@@ -392,7 +392,7 @@ post and a video post in the same feed behave exactly as before (quickstart Scen
       (FR-015, Principle I, SC-009's "0 new third-party dependencies"), and `git diff --stat
       master -- backend/app backend/database backend/routes backend/tests` shows only the
       T001 fixture (FR-014).
-- [ ] T028 Walk quickstart.md Scenarios 1–12 manually against the dev stack in Chrome, plus
+- [X] T028 Walk quickstart.md Scenarios 1–12 manually against the dev stack in Chrome, plus
       Scenario 6 in Safari **or** with `ImageDecoder` deleted before load (the FR-012
       fallback), Scenario 4 at ~360×640 for the tall-meme rule, and Scenario 9's explicit
       **color-fidelity side-by-side** (research R13 — the one flagged risk; if a shift
@@ -476,6 +476,21 @@ post and a video post in the same feed behave exactly as before (quickstart Scen
       playing where a video would pause, i.e. more forgiving, not less. Comments and both spec
       documents corrected; **no code change** — the implementation was always right, only its
       description was wrong.
+- [X] T034 **Firefox renders every animated post as a blank canvas** (found after T028, in
+      Firefox — which is outside the e2e matrix and outside T028's Chrome-only walk). Firefox
+      HAS `ImageDecoder`, so it runs the whole takeover path, but it caches one `VideoFrame`
+      per frame index and returns that SAME object on every decode of it, where Chrome mints a
+      fresh one. `AnimationPlayer.show` closed each frame after drawing it (research R10, a
+      real Chrome leak fix), which in Firefox destroys the decoder's own copy: every later
+      decode of that index resolves to a closed frame, `drawImage` rejects it as `"broken"`,
+      and the post vanishes — while `data-playing` still says `"true"`, because the timer chain
+      itself is fine. Fixed by measuring ownership per decoder instead of assuming it
+      (`AnimatedImage.framesAreShared` decodes frame 0 twice and compares identity, carried on
+      `ProbeResult`/`PlaybackSession`) and routing **every** release through
+      `AnimationRegistry.release`, which closes only frames the browser minted for us; a closed
+      frame reaching `decodeAt` now counts as a failed decode rather than throwing out of the
+      timer chain. The e2e spec gains `expectFramesAdvance` — sampling canvas pixels across
+      three fixture cycles — because `data-playing` provably cannot see this class of bug.
 
 ---
 

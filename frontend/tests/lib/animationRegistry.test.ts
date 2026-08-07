@@ -13,14 +13,22 @@ function url(index: number): string {
   return `/storage/meme-${index}.gif`;
 }
 
+let sharesFrames = false;
+
 function fakeSession(forUrl: string): PlaybackSession {
   const session = {
     decoder: { close: vi.fn() } as unknown as ImageDecoder,
     frameCount: 4,
     repetitionCount: Infinity,
+    framesAreShared: sharesFrames,
   };
   decoded.set(forUrl, session);
   return session;
+}
+
+function fakeFrame(): { frame: VideoFrame; close: ReturnType<typeof vi.fn> } {
+  const close = vi.fn();
+  return { frame: { close } as unknown as VideoFrame, close };
 }
 
 function stubProbe(): ReturnType<typeof vi.spyOn> {
@@ -51,6 +59,7 @@ function liveCount(count: number): number {
 
 beforeEach(() => {
   decoded.clear();
+  sharesFrames = false;
   AnimationRegistry.reset();
 });
 
@@ -225,5 +234,40 @@ describe('AnimationRegistry.reset', () => {
     expect(closeSpy(url(2))).toHaveBeenCalledTimes(1);
     expect(AnimationRegistry.peek(url(0))).toBeNull();
     expect(AnimationRegistry.position(url(0)).frameIndex).toBe(0);
+  });
+});
+
+// Whether a drawn frame may be closed is a property of the decoder that produced it, so the
+// registry — the only thing that knows which session a URL is on — answers it.
+describe('AnimationRegistry.release', () => {
+  it('closes a frame the decoder minted for us', async () => {
+    stubProbe();
+    await AnimationRegistry.acquire(url(0));
+    const { frame, close } = fakeFrame();
+
+    AnimationRegistry.release(url(0), frame);
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a frame the decoder still owns alone', async () => {
+    sharesFrames = true;
+    stubProbe();
+    await AnimationRegistry.acquire(url(0));
+    const { frame, close } = fakeFrame();
+
+    AnimationRegistry.release(url(0), frame);
+
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  // An evicted session's decoder is closed already, so nothing else can be holding its
+  // frames: whatever is left over is ours to release.
+  it('closes a frame whose session is gone', () => {
+    const { frame, close } = fakeFrame();
+
+    AnimationRegistry.release(url(0), frame);
+
+    expect(close).toHaveBeenCalledTimes(1);
   });
 });
