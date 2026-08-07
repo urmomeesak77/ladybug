@@ -77,12 +77,16 @@ test.describe('Upload', () => {
     // Since 011 a fresh account starts at rating 0, below the trust threshold, so the
     // meme is created pending and is not publicly readable yet (FR-018).
     //
-    // KNOWN GAP: the permalink therefore renders "not found" to the very person who
-    // just uploaded. 011 specifies only that the meme stays invisible, not what its
-    // uploader should see, so the pending-upload confirmation is unspecced follow-up
-    // work. This asserts today's behaviour rather than endorsing it.
+    // The uploader is not the public, though: findViewableByHash returns a viewer their
+    // OWN pending post, so the permalink resolves for them and says so via HiddenNotice
+    // rather than 404ing on the meme they just posted. Asserting the notice AND the image
+    // is what pins that down — an earlier revision of this test asserted the image was
+    // absent, which only ever passed because toHaveCount(0) is satisfied on its first poll
+    // and so raced the image's paint. Invisibility to everyone else is a separate claim,
+    // covered by the feed check in "a moderator activates a pending upload" below.
     await expect(page).toHaveURL(/\/posts\/[A-Za-z0-9_-]{10}$/);
-    await expect(page.locator('img.meme-media__image')).toHaveCount(0);
+    await expect(page.getByRole('status')).toHaveText(/pending review/i);
+    await expect(page.locator('img.meme-media__image')).toBeVisible();
   });
 
   test('accepts a WebP upload and enforces the required title and media tabs', async ({ page }) => {
