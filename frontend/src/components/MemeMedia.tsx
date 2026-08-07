@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react';
 import type { CSSProperties, Dispatch, RefObject, SetStateAction } from 'react';
-import { Link } from 'react-router-dom';
 
+import MemeImage from './MemeImage';
 import { useVideoAutoplay } from '../hooks/useVideoAutoplay';
 import { useVideoTapToggle } from '../hooks/useVideoTapToggle';
 import type { FeedMedia } from '../lib/feedModel';
 
 type VideoFeedMedia = Extract<FeedMedia, { kind: 'video' }>;
 type YoutubeFeedMedia = Extract<FeedMedia, { kind: 'youtube' }>;
+export type ImageFeedMedia = Extract<FeedMedia, { kind: 'image' }>;
 type ScrubStyle = CSSProperties & { '--video-progress'?: string };
 
 // Flat 24x24 currentColor path glyphs, same style as moderation/ActionGlyph.tsx's play/pause
@@ -195,13 +196,12 @@ function YoutubeMedia({ media }: { media: YoutubeFeedMedia }) {
   );
 }
 
-// Renders one post's media. `none` ⇒ nothing (the FeedItem still shows the title). A
-// runtime-broken image degrades to title-only rather than leaving a broken-image element
-// (spec edge case). `linkTo` (feed only) wraps the image in a permalink; YouTube and video
-// stay unwrapped — clicks land in the iframe, and the video post has its own controls.
+// Renders one post's media. `none` ⇒ nothing (the FeedItem still shows the title). The image
+// branch — including its broken-image degradation and its optional permalink wrapper — lives
+// in MemeImage, which also owns the animated <img> ⇄ <canvas> takeover (021). `linkTo` (feed
+// only) wraps the image in a permalink; YouTube and video stay unwrapped — clicks land in the
+// iframe, and the video post has its own controls.
 function MemeMedia({ media, linkTo }: { media: FeedMedia; linkTo?: string }) {
-  const [isBroken, setIsBroken] = useState(false);
-
   if (media.kind === 'youtube') {
     return <YoutubeMedia media={media} />;
   }
@@ -210,30 +210,8 @@ function MemeMedia({ media, linkTo }: { media: FeedMedia; linkTo?: string }) {
     return <VideoMedia media={media} />;
   }
 
-  if (media.kind === 'image' && !isBroken) {
-    const image = (
-      <img
-        className="meme-media meme-media__image"
-        src={media.src}
-        srcSet={media.srcset || undefined}
-        sizes={media.srcset ? media.sizes : undefined}
-        alt={media.alt}
-        width={media.width}
-        height={media.height}
-        loading="lazy"
-        onError={() => setIsBroken(true)}
-      />
-    );
-    if (linkTo) {
-      // tabIndex -1: pointer affordance only — the title link is the same destination,
-      // so keyboard users keep one tab stop per entry; alt text stays exposed to AT.
-      return (
-        <Link className="meme-media__link" to={linkTo} tabIndex={-1}>
-          {image}
-        </Link>
-      );
-    }
-    return image;
+  if (media.kind === 'image') {
+    return <MemeImage media={media} linkTo={linkTo} />;
   }
 
   return null;

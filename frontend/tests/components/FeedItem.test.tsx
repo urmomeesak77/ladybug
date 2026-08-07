@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FeedItem from '../../src/components/FeedItem';
 import NoticeProvider from '../../src/components/NoticeProvider';
+import { AnimationRegistry } from '../../src/lib/animationRegistry';
 import { ModerationApi } from '../../src/lib/moderationApi';
-import type { FeedPost } from '../../src/lib/feedModel';
+import type { FeedMedia, FeedPost } from '../../src/lib/feedModel';
 
 afterEach(() => {
   cleanup();
@@ -129,5 +130,145 @@ describe('FeedItem', () => {
 
     await waitFor(() => expect(ModerationApi.deactivate).toHaveBeenCalled());
     expect(onRemove).not.toHaveBeenCalled();
+  });
+});
+
+// The real feed path, end to end: a feed entry whose media is animated must reach the 021
+// takeover through FeedItem → MemeMedia → MemeImage, and the entries around it must be
+// entirely unaffected — FR-005's "wherever these memes are shown", feed half.
+describe('FeedItem animated media', () => {
+  const ANIMATED_SRC = '/storage/dance.gif';
+
+  let fetchMock: ReturnType<typeof vi.fn>;
+  // The variant the <img> would have selected, plus the type the server would serve it as.
+  let selectedSrc = ANIMATED_SRC;
+  let selectedType = 'image/gif';
+
+  class FakeImageDecoder {
+    static isTypeSupported = vi.fn(() => Promise.resolve(true));
+
+    tracks = {
+      ready: Promise.resolve(),
+      selectedTrack: { animated: true, frameCount: 4, repetitionCount: Infinity },
+    };
+    completed = Promise.resolve();
+    close = vi.fn();
+    decode = vi.fn(() =>
+      Promise.resolve({
+        image: { displayWidth: 320, displayHeight: 240, duration: 40_000, close: vi.fn() },
+      }),
+    );
+  }
+
+  class MockIntersectionObserver {
+    static instances: MockIntersectionObserver[] = [];
+    callback: IntersectionObserverCallback;
+
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback;
+      MockIntersectionObserver.instances.push(this);
+    }
+
+    observe(): void {}
+
+    disconnect(): void {}
+
+    fire(isIntersecting: boolean): void {
+      this.callback(
+        [
+          {
+            isIntersecting,
+            intersectionRatio: isIntersecting ? 1 : 0,
+            intersectionRect: { height: isIntersecting ? 240 : 0 } as DOMRectReadOnly,
+            rootBounds: { height: 800 } as DOMRectReadOnly,
+          } as IntersectionObserverEntry,
+        ],
+        this as unknown as IntersectionObserver,
+      );
+    }
+  }
+
+  function media(src: string): FeedMedia {
+    return { kind: 'image', src, srcset: '', sizes: '', alt: `Pic ${src}`, width: 320, height: 240 };
+  }
+
+  async function settle(): Promise<void> {
+    await act(async () => {
+      for (let turn = 0; turn < 20; turn += 1) {
+        await Promise.resolve();
+      }
+    });
+  }
+
+  beforeEach(() => {
+    MockIntersectionObserver.instances = [];
+    selectedSrc = ANIMATED_SRC;
+    selectedType = 'image/gif';
+    AnimationRegistry.reset();
+    fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(new ArrayBuffer(8), { headers: { 'Content-Type': selectedType } }),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('ImageDecoder', FakeImageDecoder);
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+    Object.defineProperty(HTMLImageElement.prototype, 'currentSrc', {
+      configurable: true,
+      get: () => selectedSrc,
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+  });
+
+  afterEach(() => {
+    AnimationRegistry.reset();
+    vi.unstubAllGlobals();
+  });
+
+  it('takes over an animated entry and leaves its neighbours untouched', async () => {
+    const { container } = render(
+      <MemoryRouter>
+        <FeedItem post={post({ hash: 'sta1111111', media: media('/storage/still.jpg') })} />
+        <FeedItem post={post({ hash: 'gif2222222', media: media(ANIMATED_SRC) })} />
+        <FeedItem post={post({ hash: 'sta3333333', media: media('/storage/other.png') })} />
+      </MemoryRouter>,
+    );
+
+    // Only the animated entry is eligible, so it is the only one that is observed at all —
+    // the two static neighbours construct no IntersectionObserver (FR-008, research R5).
+    expect(MockIntersectionObserver.instances).toHaveLength(2);
+
+    act(() => MockIntersectionObserver.instances[1].fire(true));
+    await settle();
+
+    const canvases = container.querySelectorAll('canvas');
+    expect(canvases).toHaveLength(1);
+    expect(canvases[0].classList.contains('meme-media__canvas')).toBe(true);
+    expect(canvases[0].getAttribute('aria-label')).toBe(`Pic ${ANIMATED_SRC}`);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(ANIMATED_SRC, { cache: 'force-cache' });
+
+    const stillImages = container.querySelectorAll('img');
+    expect(stillImages).toHaveLength(2);
+    expect(stillImages[0].getAttribute('src')).toBe('/storage/still.jpg');
+    expect(stillImages[1].getAttribute('src')).toBe('/storage/other.png');
+  });
+
+  it('renders an animated WebP entry through the same path', async () => {
+    selectedSrc = '/storage/dance.webp';
+    selectedType = 'image/webp';
+    const { container } = render(
+      <MemoryRouter>
+        <FeedItem post={post({ media: media(selectedSrc) })} />
+      </MemoryRouter>,
+    );
+
+    act(() => MockIntersectionObserver.instances[1].fire(true));
+    await settle();
+
+    expect(container.querySelector('canvas.meme-media__canvas')).not.toBeNull();
   });
 });

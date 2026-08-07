@@ -241,7 +241,7 @@ a time; scroll slowly and confirm only on-screen ones move, each freezes on leav
 resumes (not restarts) on return; confirm an animated GIF and an animated WebP are
 indistinguishable in that behavior (quickstart Scenarios 1–2).
 
-- [ ] T013 [P] [US1] Write failing tests in `frontend/tests/components/MemeImage.test.tsx`
+- [X] T013 [P] [US1] Write failing tests in `frontend/tests/components/MemeImage.test.tsx`
       for the DOM contract in contracts §"DOM contract": before takeover the markup is
       byte-for-byte today's `<img class="meme-media meme-media__image" src srcset sizes alt
       width height loading="lazy">`; after takeover the element is
@@ -258,7 +258,7 @@ indistinguishable in that behavior (quickstart Scenarios 1–2).
         post by half).
       - **No new chrome (FR-013)**: the taken-over subtree contains exactly one element —
         no `<button>`, no overlay, no control of any kind.
-- [ ] T014 [US1] Implement `MemeImage` in `frontend/src/components/MemeImage.tsx` — the image
+- [X] T014 [US1] Implement `MemeImage` in `frontend/src/components/MemeImage.tsx` — the image
       branch extracted out of `MemeMedia`: `useAnimatedImage(media.src)` (T012), the
       `<img>` ⇄ `<canvas>` render fork on `takeover`, the `isBroken` state moved across
       unchanged, and the optional `linkTo` permalink wrapper around **both** forms. Props
@@ -268,16 +268,16 @@ indistinguishable in that behavior (quickstart Scenarios 1–2).
       `VideoFeedMedia` / `YoutubeFeedMedia` (`MemeMedia.tsx:9-10`) and exported for
       `MemeImage` to import. Apply `meme-media__canvas--fluid` iff `media.srcset !== ''`
       (T002, research R8 mechanic 3).
-- [ ] T015 [US1] Edit `frontend/src/components/MemeMedia.tsx` so the `media.kind === 'image'`
+- [X] T015 [US1] Edit `frontend/src/components/MemeMedia.tsx` so the `media.kind === 'image'`
       branch delegates to `<MemeImage media={media} linkTo={linkTo} />`, removing the now-
       duplicated `<img>`/`isBroken`/`<Link>` code from that file. **`YoutubeMedia`,
       `VideoMedia`, `VideoControls` and every video handler stay untouched** (FR-004a).
-- [ ] T016 [US1] Update `frontend/tests/components/MemeMedia.test.tsx` for the delegation:
+- [X] T016 [US1] Update `frontend/tests/components/MemeMedia.test.tsx` for the delegation:
       the image branch's existing assertions must still pass through `MemeImage` (same
       classes, `src`/`srcset`/`sizes`/`alt`/`width`/`height`/`loading`, the
       `meme-media__link` wrapper when `linkTo` is given, broken-image degradation), and the
       YouTube/video branches keep their current assertions verbatim.
-- [ ] T017 [US1] Wire the real feed path end-to-end in `frontend/tests/components/FeedItem.test.tsx`:
+- [X] T017 [US1] Wire the real feed path end-to-end in `frontend/tests/components/FeedItem.test.tsx`:
       a feed entry whose media is an animated `.gif`/`.webp` renders through `MemeImage` and
       takes over, while entries around it are unaffected — FR-005's "wherever these memes are
       shown", feed half. Add the case rather than rewriting existing FeedItem assertions.

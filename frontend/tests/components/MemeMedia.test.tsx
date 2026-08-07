@@ -48,15 +48,20 @@ const videoMedia: FeedMedia = {
 };
 
 describe('MemeMedia', () => {
+  // The image branch is rendered by MemeImage since 021; these assertions are unchanged and
+  // exist to prove the delegation preserves the markup byte-for-byte. Without ImageDecoder
+  // (jsdom) MemeImage never leaves the <img> path, which is also the FR-012 fallback.
   it('renders a lazy responsive img for image media', () => {
     render(<MemeMedia media={imageMedia} />);
 
     const img = screen.getByRole('img', { name: 'Funny cat' });
+    expect(img.className).toBe('meme-media meme-media__image');
     expect(img.getAttribute('src')).toBe('/img/800/a/abc.jpg');
     expect(img.getAttribute('srcset')).toContain('300w');
     expect(img.getAttribute('sizes')).toContain('80rem');
     expect(img.getAttribute('loading')).toBe('lazy');
     expect(img.getAttribute('width')).toBe('800');
+    expect(img.getAttribute('height')).toBe('400');
   });
 
   it('omits srcset and sizes when no variants exist', () => {
