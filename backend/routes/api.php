@@ -96,6 +96,19 @@ Route::patch('/user', [AuthController::class, 'updateProfile'])
 Route::post('/password/forgot', [PasswordResetController::class, 'request'])
     ->middleware('throttle:password')
     ->name('api.password.forgot');
+// Is this link still alive? A READ (204/403) that consumes nothing (FR-012), called once
+// when the page opens so a dead link is refused before a password is typed. It is a POST
+// with a body rather than a GET with a query for the same reason the token rides in the
+// link's fragment: a `?token=…` would put the secret straight into nginx's access log, one
+// layer below the fragment that was chosen to keep it out (research D2/D8).
+Route::post('/password/reset/check', [PasswordResetController::class, 'check'])
+    ->middleware('throttle:password')
+    ->name('api.password.reset.check');
+// Spend the link. Session-free like the two above: the account is the one the digest names,
+// and completing a reset establishes NO session — the caller is told to log in (FR-021).
+Route::post('/password/reset', [PasswordResetController::class, 'reset'])
+    ->middleware('throttle:password')
+    ->name('api.password.reset');
 
 // Admin moderation console (010). The whole group is gated by auth:sanctum (guest → 401)
 // then role:admin (member → 403; admin/superuser through) — the boundary protects the

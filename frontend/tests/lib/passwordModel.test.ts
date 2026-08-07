@@ -77,3 +77,82 @@ describe('requestFailureMessage', () => {
     expect(PasswordModel.requestFailureMessage(kind)).toBe(AuthModel.verifyFailureMessage(kind));
   });
 });
+
+// The token arrives in the URL FRAGMENT, which no server ever sees (research D2). Reading
+// it is the page's first act, and a fragment it cannot read means a link that can never
+// work — so the page refuses locally instead of issuing a doomed request.
+describe('parseResetFragment', () => {
+  it('reads the token out of a well-formed fragment', () => {
+    expect(PasswordModel.parseResetFragment('#token=a1b2c3')).toBe('a1b2c3');
+  });
+
+  it('reads it whether or not the leading hash is present', () => {
+    expect(PasswordModel.parseResetFragment('token=a1b2c3')).toBe('a1b2c3');
+  });
+
+  it('returns null for an absent fragment', () => {
+    expect(PasswordModel.parseResetFragment('')).toBeNull();
+    expect(PasswordModel.parseResetFragment('#')).toBeNull();
+  });
+
+  it('returns null for a fragment carrying no token', () => {
+    expect(PasswordModel.parseResetFragment('#other=a1b2c3')).toBeNull();
+  });
+
+  it('returns null for an empty or whitespace-only token', () => {
+    expect(PasswordModel.parseResetFragment('#token=')).toBeNull();
+    expect(PasswordModel.parseResetFragment('#token=%20')).toBeNull();
+  });
+});
+
+describe('validateReset', () => {
+  const good = { password: 'NewPassw0rd', passwordConfirmation: 'NewPassw0rd' };
+
+  it('accepts a compliant, matching pair', () => {
+    expect(PasswordModel.validateReset(good)).toEqual({});
+  });
+
+  it('reports the same policy violations the register form does', () => {
+    // One policy, one wording — the reset form cannot be stricter or looser than the rule
+    // the account was created under (FR-013).
+    expect(PasswordModel.validateReset({ password: 'short', passwordConfirmation: 'short' }).password)
+      .toEqual(PasswordModel.policyErrors('short'));
+  });
+
+  it('reports a missing password as required', () => {
+    expect(PasswordModel.validateReset({ password: '', passwordConfirmation: '' }).password)
+      .toEqual(['Password is required.']);
+  });
+
+  it('reports a mismatched confirmation', () => {
+    expect(PasswordModel.validateReset({ password: 'NewPassw0rd', passwordConfirmation: 'Other1234' }))
+      .toEqual({ passwordConfirmation: ['Passwords do not match.'] });
+  });
+
+  it('reports a missing confirmation as required', () => {
+    expect(PasswordModel.validateReset({ password: 'NewPassw0rd', passwordConfirmation: '' }))
+      .toEqual({ passwordConfirmation: ['Re-type password is required.'] });
+  });
+
+  it('judges only the fields already visited, like the other validators', () => {
+    expect(PasswordModel.validateReset({ password: 'short', passwordConfirmation: '' }, new Set())).toEqual({});
+  });
+
+  it('judges a visited field once it has been visited', () => {
+    expect(PasswordModel.validateReset({ password: 'short', passwordConfirmation: '' }, new Set(['password'])))
+      .toHaveProperty('password');
+  });
+});
+
+describe('resetFailureMessage', () => {
+  it('states a dead link in one plain sentence, naming no account', () => {
+    const sentence = PasswordModel.resetFailureMessage('invalid');
+
+    expect(sentence).toBe('This password recovery link is no longer valid.');
+    expect(sentence).not.toContain('@');
+  });
+
+  it.each(['rate-limited', 'network'] as const)('reuses the shared sentence for %s', (kind) => {
+    expect(PasswordModel.resetFailureMessage(kind)).toBe(PasswordModel.requestFailureMessage(kind));
+  });
+});

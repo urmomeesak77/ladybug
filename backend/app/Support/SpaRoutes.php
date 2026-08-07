@@ -35,12 +35,21 @@ class SpaRoutes {
 
     public const FORGOT_PASSWORD = '/forgot-password';
 
+    public const RESET_PASSWORD_HASH = '/reset-password/{hash}';
+
     public const ADMIN_TRASHPOSTS = '/admin/trashposts';
 
     public const ADMIN_USERS = '/admin/users';
 
     /** The public identifier's shape (Constitution V): 10 chars of [A-Za-z0-9-_]. */
     private const HASH_PATTERN = '[A-Za-z0-9_-]{10}';
+
+    /**
+     * A recovery link's account handle: sha1 of the address, so 40 LOWERCASE hex characters
+     * (022). Narrower than HASH_PATTERN on purpose — a malformed digest fails here and never
+     * becomes a query.
+     */
+    private const EMAIL_DIGEST_PATTERN = '[0-9a-f]{40}';
 
     /** Fixed addresses, each mapped to whether a search engine may index it. */
     private const STATIC_ROUTES = [
@@ -63,6 +72,10 @@ class SpaRoutes {
         ],
         self::VERIFY_EMAIL_HASH => [
             'pattern' => '#^/verify-email/' . self::HASH_PATTERN . '$#',
+            'indexable' => false,
+        ],
+        self::RESET_PASSWORD_HASH => [
+            'pattern' => '#^/reset-password/' . self::EMAIL_DIGEST_PATTERN . '$#',
             'indexable' => false,
         ],
     ];
@@ -126,8 +139,9 @@ class SpaRoutes {
 
     /**
      * The prefixes robots.txt disallows. Generated from the same table that drives
-     * the noindex tags, so FR-012 and FR-021 cannot disagree. `/verify-email` and
-     * `/admin/` are prefixes and therefore cover their dynamic children too.
+     * the noindex tags, so FR-012 and FR-021 cannot disagree. `/verify-email`,
+     * `/reset-password` and `/admin/` are prefixes and therefore cover their dynamic
+     * children too.
      *
      * @return list<string>
      */
@@ -139,6 +153,7 @@ class SpaRoutes {
             self::UPLOAD,
             self::VERIFY_EMAIL,
             self::FORGOT_PASSWORD,
+            '/reset-password',
             '/admin/',
         ];
     }

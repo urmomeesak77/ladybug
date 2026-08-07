@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Controllers;
 
 use App\Models\User;
+use App\Models\UserIdentity;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
@@ -20,6 +22,9 @@ class PasswordResetControllerTest extends TestCase {
 
     /** The five account states FR-004 requires to be indistinguishable from one another. */
     private const ENUMERATION_STATES = ['enabled', 'unknown', 'disabled', 'throttled', 'mail-failure'];
+
+    /** The single sentence every refusal on the check and reset routes answers with (FR-015, INV-7). */
+    private const REFUSAL = 'This password recovery link is no longer valid.';
 
     /**
      * Headers deliberately excluded from the paired comparison, each for a stated reason —
@@ -207,6 +212,160 @@ class PasswordResetControllerTest extends TestCase {
         $mail = (new ResetPassword('a1b2c3'))->toMail($user);
 
         $this->assertStringContainsString('45 minutes', implode(' ', $mail->outroLines));
+    }
+
+    /**
+     * FR-012 / contracts §2. The row is compared before and after, `created_at` included:
+     * a check that refreshed the timestamp would silently extend every link's life, and a
+     * check that consumed it would kill a link the moment a mail client previewed it.
+     */
+    public function test_the_check_confirms_a_live_link_and_leaves_the_row_untouched(): void {
+        ['user' => $user, 'token' => $token] = $this->liveLink();
+        $before = DB::table('password_reset_tokens')->where('email', $user->email)->first();
+
+        $response = $this->postJson('/api/password/reset/check', ['hash' => sha1($user->email), 'token' => $token]);
+
+        $response->assertNoContent();
+        $this->assertEquals($before, DB::table('password_reset_tokens')->where('email', $user->email)->first());
+    }
+
+    public function test_the_check_refuses_a_tampered_token_with_the_one_refusal_message(): void {
+        ['user' => $user] = $this->liveLink();
+
+        $response = $this->postJson('/api/password/reset/check', [
+            'hash' => sha1($user->email),
+            'token' => str_repeat('a', 64),
+        ]);
+
+        $response->assertStatus(403);
+        $response->assertExactJson(['message' => self::REFUSAL]);
+    }
+
+    public function test_the_check_requires_both_parts_of_the_link(): void {
+        $response = $this->postJson('/api/password/reset/check', []);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['hash', 'token']);
+    }
+
+    /**
+     * The whole of US2 in one test: the link is spent, the old password stops working, and
+     * the new one starts. Both halves matter — asserting only that the new password signs in
+     * would pass even if the row had grown a second credential rather than replaced one.
+     */
+    public function test_a_valid_link_replaces_the_password_and_the_old_one_stops_working(): void {
+        ['user' => $user, 'token' => $token] = $this->liveLink('OldPassw0rd');
+
+        $response = $this->postJson('/api/password/reset', $this->resetPayload($user, $token));
+
+        $response->assertOk();
+        $response->assertExactJson(['message' => 'Your password has been changed. Please log in.']);
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+        // 401 is login's generic credential refusal (007 D5) — the old password is now
+        // simply a wrong password, indistinguishable from any other wrong one.
+        $this->attemptLogin($user->email, 'OldPassw0rd')->assertStatus(401);
+        $this->attemptLogin($user->email, 'NewPassw0rd')->assertOk();
+    }
+
+    /**
+     * FR-021 / INV-6: possession of an inbox is not possession of a password. The response
+     * says "please log in" and means it — no session is established, so the very next request
+     * from this client is anonymous.
+     */
+    public function test_a_successful_reset_establishes_no_session(): void {
+        ['user' => $user, 'token' => $token] = $this->liveLink();
+
+        $this->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/password/reset', $this->resetPayload($user, $token))
+            ->assertOk();
+
+        $this->assertGuest();
+        $this->getJson('/api/user')->assertOk()->assertExactJson(['data' => null]);
+    }
+
+    /**
+     * FR-011 / INV-7: the response is a message and nothing else. Not the address, not the
+     * display name, not the account's public hash — nothing that would turn a stolen link
+     * into a disclosure of whose link it was.
+     */
+    public function test_a_successful_reset_returns_no_account_detail(): void {
+        ['user' => $user, 'token' => $token] = $this->liveLink();
+
+        $body = (string) $this->postJson('/api/password/reset', $this->resetPayload($user, $token))->getContent();
+
+        foreach ([$user->email, $user->name, $user->hash, sha1($user->email)] as $detail) {
+            $this->assertStringNotContainsString((string) $detail, $body);
+        }
+        $this->assertSame(['message'], array_keys((array) json_decode($body, true)));
+    }
+
+    /**
+     * FR-019, second half. The account holder who loses access to their Google account keeps
+     * their Ladybug one: recovery ADDS the password credential and removes nothing. The
+     * identity row is compared whole, because "the Google link still works" is exactly the
+     * claim a partial assertion would fail to make.
+     */
+    public function test_a_google_only_account_gains_a_password_without_losing_its_google_link(): void {
+        $user = User::factory()->googleOnly()->create(['email' => 'grace@example.com']);
+        UserIdentity::factory()->for($user)->create();
+        $identityBefore = DB::table('user_identities')->where('user_id', $user->id)->first();
+        $token = Password::broker()->createToken($user);
+
+        $this->postJson('/api/password/reset', $this->resetPayload($user, $token))->assertOk();
+
+        $this->assertEquals($identityBefore, DB::table('user_identities')->where('user_id', $user->id)->first());
+        $this->attemptLogin($user->email, 'NewPassw0rd')->assertOk()->assertJsonPath('data.has_password', true);
+    }
+
+    /**
+     * FR-033 names the reset form specifically, so the cap is asserted on all three endpoints
+     * rather than on the request one alone — a bulk token-guessing run never touches /forgot.
+     */
+    public function test_the_check_endpoint_refuses_past_the_cap(): void {
+        config(['app.auth_throttle' => 1]);
+        ['user' => $user, 'token' => $token] = $this->liveLink();
+        $payload = ['hash' => sha1($user->email), 'token' => $token];
+
+        $this->postJson('/api/password/reset/check', $payload)->assertNoContent();
+
+        $this->postJson('/api/password/reset/check', $payload)->assertStatus(429);
+    }
+
+    public function test_the_reset_endpoint_refuses_past_the_cap(): void {
+        config(['app.auth_throttle' => 1]);
+        ['user' => $user, 'token' => $token] = $this->liveLink();
+
+        $this->postJson('/api/password/reset', $this->resetPayload($user, $token))->assertOk();
+
+        $this->postJson('/api/password/reset', $this->resetPayload($user, $token))->assertStatus(429);
+    }
+
+    /**
+     * An enabled account with one live link, plus the plaintext token only the email would
+     * carry.
+     *
+     * @return array{user: User, token: string}
+     */
+    private function liveLink(string $password = 'OldPassw0rd'): array {
+        $user = User::factory()->create(['email' => 'ada@example.com', 'password' => $password]);
+
+        return ['user' => $user, 'token' => Password::broker()->createToken($user)];
+    }
+
+    /** @return array<string, string> */
+    private function resetPayload(User $user, string $token, string $password = 'NewPassw0rd'): array {
+        return [
+            'hash' => sha1($user->email),
+            'token' => $token,
+            'password' => $password,
+            'password_confirmation' => $password,
+        ];
+    }
+
+    /** Sanctum's SPA session only starts for a same-origin request, so the header is required. */
+    private function attemptLogin(string $email, string $password): TestResponse {
+        return $this->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/login', ['email' => $email, 'password' => $password]);
     }
 
     /**

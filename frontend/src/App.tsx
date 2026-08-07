@@ -16,6 +16,7 @@ import ModerationPage from './pages/ModerationPage';
 import NotFoundPage from './pages/NotFoundPage';
 import PostPage from './pages/PostPage';
 import RegisterPage from './pages/RegisterPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import UploadPage from './pages/UploadPage';
 import UserAdminPage from './pages/UserAdminPage';
 import VerifyEmailNoticePage from './pages/VerifyEmailNoticePage';
@@ -64,6 +65,10 @@ function App() {
                   bounce a signed-in person away from a recovery view the spec requires to
                   be honoured for the account it names, not the signed-in one (022, D11). */}
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              {/* Unguarded for the same reason, and one more: a signed-in person opening a
+                  recovery link must have it honoured for the account it NAMES, which is the
+                  account the digest resolves to server-side — never the signed-in one. */}
+              <Route path="/reset-password/:hash" element={<ResetPasswordPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </PageLayout>

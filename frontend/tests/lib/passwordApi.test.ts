@@ -91,3 +91,148 @@ describe('requestLink', () => {
     expect(await PasswordApi.requestLink('ada@example.com')).toEqual({ ok: false, kind: 'network' });
   });
 });
+
+const DIGEST = '356a192b7913b04c54574d18c28d46e6395428ab';
+
+describe('checkToken', () => {
+  it('posts the digest and the token in the body, never in the URL', async () => {
+    // The token is kept out of the query string for the same reason it rides in the
+    // link's fragment: a URL reaches nginx's access log, a body does not (research D8).
+    withXsrfCookie();
+    const mock = stubFetch({ ok: true, status: 204 });
+
+    await PasswordApi.checkToken(DIGEST, 'a'.repeat(64));
+
+    const [url, init] = mock.mock.calls[0] as FetchArgs;
+    expect(url).toMatch(/\/api\/password\/reset\/check$/);
+    expect(url).not.toContain('token');
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('include');
+    expect(JSON.parse(init.body as string)).toEqual({ hash: DIGEST, token: 'a'.repeat(64) });
+  });
+
+  it('maps a 204 to a live link', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: true, status: 204 });
+
+    expect(await PasswordApi.checkToken(DIGEST, 'tok')).toEqual({ ok: true });
+  });
+
+  it('maps a 403 to an invalid link', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 403, json: async () => ({ message: 'no longer valid' }) });
+
+    expect(await PasswordApi.checkToken(DIGEST, 'tok')).toEqual({ ok: false, kind: 'invalid' });
+  });
+
+  it('maps a 429 to a rate-limited result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 429, json: async () => ({ message: 'Too Many Attempts.' }) });
+
+    expect(await PasswordApi.checkToken(DIGEST, 'tok')).toEqual({ ok: false, kind: 'rate-limited' });
+  });
+
+  it('maps any other status to a retryable network result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 500, json: async () => ({}) });
+
+    expect(await PasswordApi.checkToken(DIGEST, 'tok')).toEqual({ ok: false, kind: 'network' });
+  });
+
+  it('maps a thrown fetch to a network result', async () => {
+    withXsrfCookie();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }));
+
+    expect(await PasswordApi.checkToken(DIGEST, 'tok')).toEqual({ ok: false, kind: 'network' });
+  });
+});
+
+describe('reset', () => {
+  const input = {
+    hash: DIGEST,
+    token: 'a'.repeat(64),
+    password: 'NewPassw0rd',
+    passwordConfirmation: 'NewPassw0rd',
+  };
+
+  it('sends the confirmation under the name the server validates it by', async () => {
+    // Laravel's `confirmed` rule looks for password_confirmation; sending the camelCase
+    // field the form holds would make every reset a 422 nobody could correct.
+    withXsrfCookie();
+    const mock = stubFetch({ ok: true, status: 200, json: async () => ({ message: 'changed' }) });
+
+    await PasswordApi.reset(input);
+
+    const [url, init] = mock.mock.calls[0] as FetchArgs;
+    expect(url).toMatch(/\/api\/password\/reset$/);
+    expect(JSON.parse(init.body as string)).toEqual({
+      hash: DIGEST,
+      token: 'a'.repeat(64),
+      password: 'NewPassw0rd',
+      password_confirmation: 'NewPassw0rd',
+    });
+  });
+
+  it('maps a 200 to success', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: true, status: 200, json: async () => ({ message: 'changed' }) });
+
+    expect(await PasswordApi.reset(input)).toEqual({ ok: true });
+  });
+
+  it('maps a 422 to a validation result carrying the field errors', async () => {
+    // The 422/403 split is the whole of US2 scenarios 3-4: a rejected password leaves the
+    // link alive, so this result must NOT be the one that kills the page.
+    withXsrfCookie();
+    stubFetch({
+      ok: false,
+      status: 422,
+      json: async () => ({ message: 'invalid', errors: { password: ['too short'] } }),
+    });
+
+    expect(await PasswordApi.reset(input)).toEqual({
+      ok: false,
+      kind: 'validation',
+      errors: { password: ['too short'] },
+    });
+  });
+
+  it('maps a 422 with no error envelope to an empty field-error set', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 422, json: async () => ({ message: 'invalid' }) });
+
+    expect(await PasswordApi.reset(input)).toEqual({ ok: false, kind: 'validation', errors: {} });
+  });
+
+  it('maps a 403 to an invalid link', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 403, json: async () => ({ message: 'no longer valid' }) });
+
+    expect(await PasswordApi.reset(input)).toEqual({ ok: false, kind: 'invalid' });
+  });
+
+  it('maps a 429 to a rate-limited result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 429, json: async () => ({ message: 'Too Many Attempts.' }) });
+
+    expect(await PasswordApi.reset(input)).toEqual({ ok: false, kind: 'rate-limited' });
+  });
+
+  it('maps any other status to a retryable network result', async () => {
+    withXsrfCookie();
+    stubFetch({ ok: false, status: 500, json: async () => ({}) });
+
+    expect(await PasswordApi.reset(input)).toEqual({ ok: false, kind: 'network' });
+  });
+
+  it('maps a thrown fetch to a network result', async () => {
+    withXsrfCookie();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }));
+
+    expect(await PasswordApi.reset(input)).toEqual({ ok: false, kind: 'network' });
+  });
+});

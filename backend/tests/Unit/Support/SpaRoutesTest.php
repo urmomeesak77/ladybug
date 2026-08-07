@@ -11,6 +11,9 @@ final class SpaRoutesTest extends TestCase {
     /** A conforming public identifier: 10 characters of [A-Za-z0-9-_] (Constitution V). */
     private const HASH = 'aB3dEf7-h_';
 
+    /** A conforming account handle for a recovery link: sha1 of an address, 40 lowercase hex. */
+    private const EMAIL_DIGEST = '356a192b7913b04c54574d18c28d46e6395428ab';
+
     public function test_home_is_a_known_address(): void {
         $this->assertSame(SpaRoutes::HOME, SpaRoutes::match('/'));
     }
@@ -59,6 +62,23 @@ final class SpaRoutesTest extends TestCase {
         $this->assertNull(SpaRoutes::match('/posts/aB3dEf7GhJx'));
     }
 
+    public function test_the_recovery_link_address_is_a_known_address(): void {
+        $this->assertSame(SpaRoutes::RESET_PASSWORD_HASH, SpaRoutes::match('/reset-password/' . self::EMAIL_DIGEST));
+    }
+
+    /**
+     * The digest is sha1 — 40 LOWERCASE hex characters, a narrower shape than the 10-char
+     * meme identifier. Anything else fails here and never becomes a query (contracts §1).
+     */
+    public function test_a_malformed_recovery_link_address_matches_nothing(): void {
+        $this->assertNull(SpaRoutes::match('/reset-password/' . substr(self::EMAIL_DIGEST, 0, 39)));
+        $this->assertNull(SpaRoutes::match('/reset-password/' . self::EMAIL_DIGEST . 'a'));
+        $this->assertNull(SpaRoutes::match('/reset-password/' . strtoupper(self::EMAIL_DIGEST)));
+        $this->assertNull(SpaRoutes::match('/reset-password/' . substr(self::EMAIL_DIGEST, 0, 39) . 'z'));
+        $this->assertNull(SpaRoutes::match('/reset-password'));
+        $this->assertNull(SpaRoutes::match('/reset-password/'));
+    }
+
     public function test_a_permalink_whose_hash_holds_a_disallowed_character_matches_nothing(): void {
         $this->assertNull(SpaRoutes::match('/posts/aB3dEf7.h_'));
     }
@@ -70,7 +90,8 @@ final class SpaRoutesTest extends TestCase {
 
     public function test_the_account_and_admin_addresses_are_not_indexable(): void {
         foreach (['/login', '/register', '/account', '/upload', '/verify-email',
-            '/verify-email/' . self::HASH, '/forgot-password', '/admin/trashposts', '/admin/users'] as $path) {
+            '/verify-email/' . self::HASH, '/forgot-password', '/reset-password/' . self::EMAIL_DIGEST,
+            '/admin/trashposts', '/admin/users'] as $path) {
             $this->assertFalse(SpaRoutes::isIndexable($path), $path . ' must not be indexable');
         }
     }
@@ -85,12 +106,14 @@ final class SpaRoutesTest extends TestCase {
 
     /**
      * robots.txt is generated from this list, so FR-012's noindex set and FR-021's
-     * Disallow set cannot drift apart. `/verify-email` and `/admin/` are prefixes
-     * that cover their dynamic children, which is why there are seven and not nine.
+     * Disallow set cannot drift apart. `/verify-email`, `/reset-password` and `/admin/`
+     * are prefixes that cover their dynamic children, which is why the list is shorter
+     * than the address table.
      */
     public function test_the_disallowed_prefixes_are_the_noindex_areas(): void {
         $this->assertSame(
-            ['/login', '/register', '/account', '/upload', '/verify-email', '/forgot-password', '/admin/'],
+            ['/login', '/register', '/account', '/upload', '/verify-email', '/forgot-password',
+                '/reset-password', '/admin/'],
             SpaRoutes::disallowedPaths(),
         );
     }
