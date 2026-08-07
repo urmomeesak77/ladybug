@@ -1,4 +1,5 @@
 import type { AuthResult, AuthUser, FieldErrors, ResendResult, VerifyEmailInput, VerifyEmailResult } from './authApi';
+import { PasswordModel } from './passwordModel';
 
 export type AuthStatus = 'unknown' | 'anonymous' | 'authenticated';
 
@@ -37,7 +38,7 @@ export class AuthModel {
       }
     }
     if (AuthModel.isTouched(touched, 'password')) {
-      const passwordErrors = AuthModel.passwordPolicyErrors(values.password);
+      const passwordErrors = PasswordModel.policyErrors(values.password);
       if (passwordErrors.length > 0) {
         errors.password = passwordErrors;
       }
@@ -171,25 +172,6 @@ export class AuthModel {
       return ['Enter a valid email address.'];
     }
     return [];
-  }
-
-  // Mirrors the server policy (min 8, mixed case, a number — research D3), one message
-  // per violation like the prototype, so users see exactly what is missing.
-  private static passwordPolicyErrors(password: string): string[] {
-    if (!password) {
-      return ['Password is required.'];
-    }
-    const violations: string[] = [];
-    if (password.length < 8) {
-      violations.push('The password field must be at least 8 characters.');
-    }
-    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password)) {
-      violations.push('The password field must contain at least one uppercase and one lowercase letter.');
-    }
-    if (!/[0-9]/.test(password)) {
-      violations.push('The password field must contain at least one number.');
-    }
-    return violations;
   }
 
   // The mismatch check waits until BOTH password fields are touched and non-empty

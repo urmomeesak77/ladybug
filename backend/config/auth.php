@@ -92,14 +92,18 @@ return [
     | generating more password reset tokens. This prevents the user from
     | quickly generating a very large amount of password reset tokens.
     |
+    | Both are env-driven so 022's recovery window (FR-007) and re-send interval
+    | (FR-009) are configuration rather than hard-coded behaviour — the e2e stack
+    | in particular needs to shorten the interval to exercise a re-send.
+    |
     */
 
     'passwords' => [
         'users' => [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => 60,
-            'throttle' => 60,
+            'expire' => env('AUTH_PASSWORD_RESET_EXPIRE', 60),
+            'throttle' => env('AUTH_PASSWORD_RESET_THROTTLE', 60),
         ],
     ],
 

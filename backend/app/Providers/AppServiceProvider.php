@@ -30,6 +30,7 @@ class AppServiceProvider extends ServiceProvider {
         RateLimiter::for('auth', $this->authLimit(...));
         RateLimiter::for('uploads', $this->uploadLimit(...));
         RateLimiter::for('comments', $this->commentLimit(...));
+        RateLimiter::for('password', $this->passwordLimit(...));
         VerifyEmail::createUrlUsing(self::verificationLinkFor(...));
     }
 
@@ -68,6 +69,24 @@ class AppServiceProvider extends ServiceProvider {
         $key = $request->user()?->getAuthIdentifier() ?? $request->ip();
 
         return Limit::perMinute((int) config('app.upload_throttle'))->by((string) $key);
+    }
+
+    /**
+     * Password recovery/change cap (022). A SEPARATE bucket from `auth` on purpose: the
+     * recovery endpoints are anonymous and cheap to hammer, but exhausting their cap must
+     * never lock the visitor out of `POST /api/login` with the password they do remember
+     * (research D7). Laravel namespaces a named limiter's counter by its name, so
+     * registering it under `password` is what buys that separation.
+     *
+     * Keyed by the authenticated account where there is one — the account-page change is
+     * behind auth:sanctum, and keying it per-account stops one user on a shared office IP
+     * from spending everyone's allowance — falling back to IP for the anonymous recovery
+     * endpoints. It shares `auth`'s cap value because both guard credential attempts.
+     */
+    private function passwordLimit(Request $request): Limit {
+        $key = $request->user()?->getAuthIdentifier() ?? $request->ip();
+
+        return Limit::perMinute((int) config('app.auth_throttle'))->by((string) $key);
     }
 
     /**

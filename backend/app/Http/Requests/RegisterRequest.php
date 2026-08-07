@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Support\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
 class RegisterRequest extends FormRequest {
     public function authorize(): bool {
@@ -13,9 +13,11 @@ class RegisterRequest extends FormRequest {
     }
 
     /**
-     * Server-side registration rules. The password policy mirrors the prototype
-     * (min 8, mixed case, a number); the compromised-password check is deferred as
-     * it requires an external service (research D3/D4).
+     * Server-side registration rules. The password policy is no longer stated here:
+     * 022 moved it to App\Support\PasswordPolicy, which registration, the recovery
+     * reset, and the account-page change all consume — so recovery cannot drift from
+     * registration. The rules themselves are unchanged (min 8, mixed case, a number;
+     * the compromised-password check stays deferred — research D3/D4, D9).
      *
      * `unique:users,email` means a 422 confirms an account's existence — an accepted,
      * deliberate tradeoff (unlike login's generic 401): registration cannot proceed
@@ -29,7 +31,7 @@ class RegisterRequest extends FormRequest {
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'confirmed', Password::min(8)->mixedCase()->numbers()],
+            'password' => PasswordPolicy::rules(),
         ];
     }
 }
