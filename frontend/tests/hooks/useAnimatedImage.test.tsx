@@ -12,6 +12,9 @@ let currentSrc = SELECTED_SRC;
 let isPageHidden = false;
 let trackAnimated = true;
 let decodedIndexes: number[] = [];
+// Every canvas operation in order, so a test can assert the post was never left showing a
+// cleared (blank) canvas — a clearRect that is not immediately followed by a drawImage.
+let paintLog: string[] = [];
 let fetchMock: ReturnType<typeof vi.fn>;
 
 // jsdom provides neither ImageDecoder nor a canvas 2D context, so both are stubbed and the
@@ -124,11 +127,40 @@ async function takeOver(): Promise<void> {
   await fireNear();
 }
 
+// Real elapsed time, so the frame chain actually advances and the remembered position is a
+// frame the visitor was shown rather than the initial zero.
+async function advanceFrames(milliseconds: number): Promise<void> {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(milliseconds);
+  });
+}
+
+function hasBlankPaint(): boolean {
+  for (let index = 0; index < paintLog.length; index += 1) {
+    if (paintLog[index] === 'clear' && paintLog[index + 1] !== 'draw') {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Pushes the post out of the LRU by acquiring more sessions than the registry's cap, the way
+// a long scroll past other animated posts would.
+async function evictSessions(): Promise<void> {
+  await act(async () => {
+    for (let index = 0; index < 12; index += 1) {
+      void AnimationRegistry.acquire(`/storage/other-${index}.gif`);
+    }
+  });
+  await settle();
+}
+
 beforeEach(() => {
   currentSrc = SELECTED_SRC;
   isPageHidden = false;
   trackAnimated = true;
   decodedIndexes = [];
+  paintLog = [];
   MockIntersectionObserver.instances = [];
   AnimationRegistry.reset();
   fetchMock = vi.fn(() =>
@@ -144,8 +176,8 @@ beforeEach(() => {
   });
   Object.defineProperty(document, 'hidden', { configurable: true, get: () => isPageHidden });
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-    clearRect: vi.fn(),
-    drawImage: vi.fn(),
+    clearRect: vi.fn(() => paintLog.push('clear')),
+    drawImage: vi.fn(() => paintLog.push('draw')),
   } as unknown as CanvasRenderingContext2D);
 });
 
@@ -154,6 +186,7 @@ afterEach(() => {
   AnimationRegistry.reset();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe('useAnimatedImage gating', () => {
@@ -287,6 +320,55 @@ describe('useAnimatedImage playback', () => {
 
     expect(getByTestId('canvas').getAttribute('data-playing')).toBe('true');
     expect(decodedIndexes[0]).toBe(held);
+  });
+
+  // SC-008: takeover is one-way. A flick scroll crosses the visibility boundary several times
+  // a second, and each crossing re-running the probe or re-creating the element would be both
+  // a wasted request and a visible flicker (research R8 mechanic 2).
+  it('swaps the element once however often the post crosses the boundary', async () => {
+    const { getByTestId } = render(<Harness src={MEME_SRC} />);
+    await takeOver();
+    const canvas = getByTestId('canvas');
+
+    await fireVisible(true);
+    await fireVisible(false);
+    await fireVisible(true);
+    await fireVisible(false);
+    await fireVisible(true);
+
+    expect(getByTestId('canvas')).toBe(canvas);
+    expect(document.querySelectorAll('canvas')).toHaveLength(1);
+    expect(document.querySelector('img')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // FR-019 / SC-011, and the automated stand-in for SC-002's 0.5 s budget: coming back to a
+  // post whose decoder was released is one cached request and one decode — not a re-run of
+  // the probe — and the frame it lands on is the one it was showing when it left.
+  it('re-acquires an evicted session and resumes on its saved frame', async () => {
+    vi.useFakeTimers();
+    render(<Harness src={MEME_SRC} />);
+    await takeOver();
+    await fireVisible(true);
+    await advanceFrames(100);
+    await fireVisible(false);
+
+    const held = AnimationRegistry.position(SELECTED_SRC).frameIndex;
+    expect(held).toBeGreaterThan(0);
+
+    await evictSessions();
+    expect(AnimationRegistry.peek(SELECTED_SRC)).toBeNull();
+
+    decodedIndexes = [];
+    paintLog = [];
+    const fetchesBefore = fetchMock.mock.calls.length;
+    await fireVisible(true);
+
+    expect(fetchMock.mock.calls.length - fetchesBefore).toBe(1);
+    expect(fetchMock).toHaveBeenLastCalledWith(SELECTED_SRC, { cache: 'force-cache' });
+    expect(decodedIndexes[0]).toBe(held);
+    expect(paintLog).toContain('draw');
+    expect(hasBlankPaint()).toBe(false);
   });
 
   it('stops on unmount, drops its listener and leaves the session cached', async () => {

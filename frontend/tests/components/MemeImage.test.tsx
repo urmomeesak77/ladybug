@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import MemeImage from '../../src/components/MemeImage';
@@ -11,6 +11,7 @@ const SELECTED_SRC = '/storage/meme-640.gif';
 
 let currentSrc = SELECTED_SRC;
 let trackAnimated = true;
+let trackFrameCount = 4;
 let frameWidth = 640;
 let frameHeight = 480;
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -23,7 +24,11 @@ class FakeImageDecoder {
 
   tracks = {
     ready: Promise.resolve(),
-    selectedTrack: { animated: trackAnimated, frameCount: 4, repetitionCount: Infinity },
+    selectedTrack: {
+      animated: trackAnimated,
+      frameCount: trackFrameCount,
+      repetitionCount: Infinity,
+    },
   };
   completed = Promise.resolve();
   close = vi.fn();
@@ -113,12 +118,20 @@ async function fireVisible(isVisible: boolean): Promise<void> {
 beforeEach(() => {
   currentSrc = SELECTED_SRC;
   trackAnimated = true;
+  trackFrameCount = 4;
   frameWidth = 640;
   frameHeight = 480;
   MockIntersectionObserver.instances = [];
   AnimationRegistry.reset();
-  fetchMock = vi.fn(() =>
-    Promise.resolve(new Response(new ArrayBuffer(8), { headers: { 'Content-Type': 'image/gif' } })),
+  // The served type follows the URL so a .webp post is probed as image/webp, which is what
+  // AnimatedImage.probe checks — a fixed image/gif header would make every WebP case pass
+  // for the wrong reason.
+  fetchMock = vi.fn((url: string) =>
+    Promise.resolve(
+      new Response(new ArrayBuffer(8), {
+        headers: { 'Content-Type': url.endsWith('.webp') ? 'image/webp' : 'image/gif' },
+      }),
+    ),
   );
   vi.stubGlobal('fetch', fetchMock);
   vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
@@ -263,5 +276,138 @@ describe('MemeImage permalink wrapper', () => {
     expect(link.getAttribute('href')).toBe('/posts/abc1234567');
     expect(link.getAttribute('tabindex')).toBe('-1');
     expect(link.querySelector('canvas')).not.toBeNull();
+  });
+});
+
+// FR-008 / SC-007: a post that is not an animated GIF or WebP must be exactly as cheap and
+// exactly as static as it was before 021. "Cheap" is asserted as well as "static", because a
+// 200-entry feed of JPEGs paying for two 51-threshold observers each is the regression a
+// fetch-count assertion alone would miss (research R5).
+describe('MemeImage leaves static images alone', () => {
+  beforeEach(() => {
+    vi.stubGlobal('ImageDecoder', FakeImageDecoder);
+  });
+
+  it('never observes or fetches a JPEG post', async () => {
+    currentSrc = '/storage/meme-640.jpg';
+    const { container } = render(<MemeImage media={imageMedia({ src: '/storage/meme.jpg' })} />);
+    await settle();
+
+    expect(container.querySelector('img')).not.toBeNull();
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(MockIntersectionObserver.instances).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('never observes or fetches a PNG post', async () => {
+    currentSrc = '/storage/meme-640.png';
+    const { container } = render(<MemeImage media={imageMedia({ src: '/storage/meme.png' })} />);
+    await settle();
+
+    expect(container.querySelector('img')).not.toBeNull();
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(MockIntersectionObserver.instances).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('probes a single-frame GIF once and leaves it an <img> forever', async () => {
+    trackFrameCount = 1;
+    const { container } = render(<MemeImage media={imageMedia()} />);
+    await takeOver();
+
+    expect(container.querySelector('img')?.className).toBe('meme-media meme-media__image');
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Scrolling past it again must not re-open the question: the answer is remembered for
+    // the life of the page, so a still GIF costs one request ever.
+    await takeOver();
+    await fireVisible(true);
+
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(container.querySelector('img')?.hasAttribute('data-playing')).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('probes a single-frame WebP once and leaves it an <img> forever', async () => {
+    trackFrameCount = 1;
+    currentSrc = '/storage/meme-640.webp';
+    const { container } = render(
+      <MemeImage
+        media={imageMedia({
+          src: '/storage/meme.webp',
+          srcset: '/storage/meme-640.webp 640w, /storage/meme-320.webp 320w',
+        })}
+      />,
+    );
+    await takeOver();
+
+    expect(container.querySelector('img')).not.toBeNull();
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('/storage/meme-640.webp', { cache: 'force-cache' });
+
+    await takeOver();
+    await fireVisible(true);
+
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// FR-009 / FR-010: everything the visitor can do with the post has to survive the element
+// swap — the permalink click target, the text alternative, and the rendered box.
+describe('MemeImage preserves the post around the swap', () => {
+  beforeEach(() => {
+    vi.stubGlobal('ImageDecoder', FakeImageDecoder);
+  });
+
+  it('still navigates to the permalink when the canvas is clicked', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route
+            path="/"
+            element={<MemeImage media={imageMedia()} linkTo="/posts/abc1234567" />}
+          />
+          <Route path="/posts/:hash" element={<p>Permalink page</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await takeOver();
+    expect(document.querySelector('canvas')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Funny cat' }));
+
+    expect(screen.getByText('Permalink page')).toBeTruthy();
+  });
+
+  it('carries the img alt across to the canvas as its accessible name', async () => {
+    render(<MemeImage media={imageMedia()} />);
+    const alt = screen.getByRole('img', { name: 'Funny cat' }).getAttribute('alt');
+    await takeOver();
+
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas.getAttribute('role')).toBe('img');
+    expect(canvas.getAttribute('aria-label')).toBe(alt);
+    expect(screen.getByRole('img', { name: 'Funny cat' })).toBe(canvas);
+  });
+
+  it('keeps the rendered box at the same aspect ratio in both states', async () => {
+    // The small-variant case: the decoded frame is half the stored size, so the canvas
+    // attributes alone would shrink the post. --fluid restores the width the <img> had and
+    // the frame's own ratio keeps the height honest (research R8 mechanic 3).
+    frameWidth = 320;
+    frameHeight = 160;
+    render(<MemeImage media={imageMedia()} />);
+    const img = screen.getByRole('img', { name: 'Funny cat' });
+    const imageRatio = Number(img.getAttribute('width')) / Number(img.getAttribute('height'));
+    await takeOver();
+
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas.width).toBe(320);
+    expect(canvas.height).toBe(160);
+    expect(canvas.width / canvas.height).toBe(imageRatio);
+    expect(canvas.classList.contains('meme-media__canvas--fluid')).toBe(true);
   });
 });

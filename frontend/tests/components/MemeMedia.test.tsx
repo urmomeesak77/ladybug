@@ -7,14 +7,35 @@ import MemeMedia from '../../src/components/MemeMedia';
 import type { FeedMedia } from '../../src/lib/feedModel';
 
 // jsdom has no IntersectionObserver; the video branch wires one up via useVideoAutoplay
-// (US3), so every test in this file needs a stub even when it never fires it.
+// (US3), so every test in this file needs a stub even when it never fires it. It records what
+// it observed so the 021 non-regression guard can prove the video is still the observed
+// element and not, say, a canvas.
 class StubIntersectionObserver {
-  observe(): void {}
+  static instances: StubIntersectionObserver[] = [];
+  observed: Element[] = [];
+
+  constructor() {
+    StubIntersectionObserver.instances.push(this);
+  }
+
+  observe(target: Element): void {
+    this.observed.push(target);
+  }
 
   disconnect(): void {}
 }
 
+function isObserved(target: Element): boolean {
+  for (const instance of StubIntersectionObserver.instances) {
+    if (instance.observed.includes(target)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 beforeEach(() => {
+  StubIntersectionObserver.instances = [];
   vi.stubGlobal('IntersectionObserver', StubIntersectionObserver);
 });
 
@@ -359,6 +380,44 @@ describe('MemeMedia', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
 
     expect(wrap.classList.contains('meme-media--controls-visible')).toBe(true);
+  });
+
+  // SC-010 / FR-004a: 021 changed the image branch only. A video post keeps its own element,
+  // its own controls and its own autoplay rule — the canvas takeover must never reach it, and
+  // useVideoAutoplay.ts has zero changed lines on this branch (verified with git diff --stat).
+  it('keeps a video post on a real <video> with its controls and autoplay observer', () => {
+    const { container } = render(<MemeMedia media={videoMedia} />);
+
+    const video = container.querySelector('video') as HTMLVideoElement;
+    expect(video.className).toBe('meme-media__video');
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(video.hasAttribute('data-playing')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Unmute' })).toBeInstanceOf(HTMLButtonElement);
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInstanceOf(HTMLButtonElement);
+    expect(screen.getByRole('slider', { name: 'Seek' })).toBeInstanceOf(HTMLInputElement);
+    // useVideoAutoplay observes the video element itself — unchanged by 021.
+    expect(isObserved(video)).toBe(true);
+  });
+
+  it('keeps a youtube post on the sandboxed iframe', () => {
+    const { container } = render(
+      <MemeMedia
+        media={{
+          kind: 'youtube',
+          embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          title: 'Song',
+          isShort: false,
+        }}
+      />,
+    );
+
+    const iframe = container.querySelector('iframe') as HTMLIFrameElement;
+    expect(iframe.className).toBe('meme-media__iframe');
+    expect(iframe.getAttribute('sandbox')).toBe(
+      'allow-scripts allow-same-origin allow-presentation allow-popups',
+    );
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(StubIntersectionObserver.instances).toHaveLength(0);
   });
 
   it('dragging the scrub bar updates its own value immediately (no jitter waiting for timeupdate)', () => {

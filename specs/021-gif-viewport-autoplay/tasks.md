@@ -322,7 +322,7 @@ images and video posts are entirely unaffected (FR-008/009/010, SC-003/007/010).
 the meme; click it in the feed and confirm it opens the permalink; confirm a static JPEG/PNG
 post and a video post in the same feed behave exactly as before (quickstart Scenario 5).
 
-- [ ] T020 [P] [US3] Add static-image regression tests to
+- [X] T020 [P] [US3] Add static-image regression tests to
       `frontend/tests/components/MemeImage.test.tsx`: a `.jpg`, a `.png`, a **single-frame**
       `.gif` and a **single-frame** `.webp` each stay a plain `<img>` forever — no canvas, no
       `data-playing`, no class change — and `fetch` is called **zero** times for the JPEG/PNG
@@ -330,7 +330,7 @@ post and a video post in the same feed behave exactly as before (quickstart Scen
       (FR-008, SC-007, quickstart Scenario 5 step 2). Also assert the JPEG/PNG cases
       construct **zero `IntersectionObserver`s** — the cost half of FR-008 that a
       fetch-count assertion alone would miss on a 200-entry feed (research R5).
-- [ ] T021 [US3] Add preservation tests to `frontend/tests/components/MemeImage.test.tsx`
+- [X] T021 [US3] Add preservation tests to `frontend/tests/components/MemeImage.test.tsx`
       (same file as T020 — sequence them, not `[P]`):
       after takeover the `<canvas>` is still wrapped in
       `<Link class="meme-media__link" tabIndex={-1}>` pointing at the same permalink and a
@@ -340,14 +340,14 @@ post and a video post in the same feed behave exactly as before (quickstart Scen
       frame's dimensions differ from `media.width`/`media.height` — the canvas attributes
       carry the frame's ratio while `--fluid` carries the width, and neither may drift from
       the `<img>`'s ratio (research R8 mechanic 3).
-- [ ] T022 [P] [US3] Add a video/YouTube non-regression guard to
+- [X] T022 [P] [US3] Add a video/YouTube non-regression guard to
       `frontend/tests/components/MemeMedia.test.tsx`: a video post still renders a real
       `<video class="meme-media__video">` (never a canvas) with its controls and
       `useVideoAutoplay` wiring, and a YouTube post still renders the sandboxed `<iframe>` —
       pinning SC-010. Pair it with `git diff --stat` evidence that
       `frontend/src/hooks/useVideoAutoplay.ts` has **zero** changed lines on this branch
       (FR-004a).
-- [ ] T023 [US3] Add flick-scroll / one-swap-ever coverage to
+- [X] T023 [US3] Add flick-scroll / one-swap-ever coverage to
       `frontend/tests/hooks/useAnimatedImage.test.tsx`: rapid `isVisible` true→false→true
       cycles produce **no** second element swap and no re-probe (`takeover` is one-way,
       research R8 mechanic 2, SC-008), and a post whose session was evicted mid-cycle
