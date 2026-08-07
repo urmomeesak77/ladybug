@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,6 +8,8 @@ import NoticeProvider from '../../src/components/NoticeProvider';
 import { AuthContext } from '../../src/hooks/useAuth';
 import type { AuthContextValue } from '../../src/hooks/useAuth';
 import { Api } from '../../src/lib/api';
+import { AnimationRegistry } from '../../src/lib/animationRegistry';
+import { CommentApi } from '../../src/lib/commentApi';
 import { ModerationApi } from '../../src/lib/moderationApi';
 import type { RoleName } from '../../src/lib/role';
 import type { FeedPost } from '../../src/lib/feedModel';
@@ -200,5 +202,157 @@ describe('PostPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete permanently' }));
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Home' })).toBeTruthy());
+  });
+});
+
+// US2: the permalink page gets the feed's animated-image behaviour for free, because
+// PostPage renders the same MemeMedia → MemeImage the feed does — only without `linkTo`,
+// so the media here is never wrapped in a permalink to the page you are already on.
+const ANIMATED_SRC = '/storage/meme.gif';
+
+class FakeImageDecoder {
+  static isTypeSupported = vi.fn(() => Promise.resolve(true));
+
+  tracks = {
+    ready: Promise.resolve(),
+    selectedTrack: { animated: true, frameCount: 4, repetitionCount: Infinity },
+  };
+  completed = Promise.resolve();
+  close = vi.fn();
+  decode = vi.fn(() =>
+    Promise.resolve({
+      image: { displayWidth: 640, displayHeight: 480, duration: 40_000, close: vi.fn() },
+    }),
+  );
+}
+
+class MockIntersectionObserver {
+  static instances: MockIntersectionObserver[] = [];
+  callback: IntersectionObserverCallback;
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+    MockIntersectionObserver.instances.push(this);
+  }
+
+  observe(): void {}
+
+  disconnect(): void {}
+
+  fire(isIntersecting: boolean): void {
+    this.callback(
+      [
+        {
+          isIntersecting,
+          intersectionRatio: isIntersecting ? 1 : 0,
+          intersectionRect: { height: isIntersecting ? 480 : 0 } as DOMRectReadOnly,
+          rootBounds: { height: 800 } as DOMRectReadOnly,
+        } as IntersectionObserverEntry,
+      ],
+      this as unknown as IntersectionObserver,
+    );
+  }
+}
+
+// useInViewport constructs the visibility observer first and the nearness one second, and
+// re-arms both on the <img> → <canvas> swap, so the live pair is always the last two.
+function visibilityObserver(): MockIntersectionObserver {
+  const { instances } = MockIntersectionObserver;
+  return instances[instances.length - 2];
+}
+
+function nearnessObserver(): MockIntersectionObserver {
+  const { instances } = MockIntersectionObserver;
+  return instances[instances.length - 1];
+}
+
+const animatedPost: FeedPost = {
+  ...post,
+  media: { kind: 'image', src: ANIMATED_SRC, srcset: '', sizes: '', alt: 'Funny cat' },
+};
+
+async function settle(): Promise<void> {
+  await act(async () => {
+    for (let turn = 0; turn < 20; turn += 1) {
+      await Promise.resolve();
+    }
+  });
+}
+
+describe('PostPage animated media', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    MockIntersectionObserver.instances = [];
+    AnimationRegistry.reset();
+    // jsdom has neither ImageDecoder nor a canvas 2D context, so both are stubbed and the
+    // real AnimatedImage / AnimationRegistry / AnimationPlayer chain runs underneath the
+    // page — the same harness MemeImage.test.tsx uses (research R11).
+    fetchMock = vi.fn(() =>
+      Promise.resolve(new Response(new ArrayBuffer(8), { headers: { 'Content-Type': 'image/gif' } })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('ImageDecoder', FakeImageDecoder);
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+    // The comment list would otherwise fetch through the same stub and blur the media
+    // fetch counts below.
+    vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: false });
+    Object.defineProperty(HTMLImageElement.prototype, 'currentSrc', {
+      configurable: true,
+      get: () => ANIMATED_SRC,
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+  });
+
+  afterEach(() => {
+    AnimationRegistry.reset();
+  });
+
+  it('takes an animated meme over to a canvas with no permalink wrapper', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post: animatedPost });
+
+    renderPost();
+    await screen.findByRole('heading', { name: 'Funny cat' });
+    act(() => nearnessObserver().fire(true));
+    await settle();
+
+    const canvas = screen.getByRole('img', { name: 'Funny cat' }) as HTMLCanvasElement;
+    expect(canvas.tagName).toBe('CANVAS');
+    expect(canvas.classList.contains('meme-media__canvas')).toBe(true);
+    expect(document.querySelector('.meme-media__link')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Funny cat' })).toBeNull();
+  });
+
+  it('plays and freezes the meme as the page scrolls it in and out of view', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post: animatedPost });
+
+    renderPost();
+    await screen.findByRole('heading', { name: 'Funny cat' });
+    act(() => nearnessObserver().fire(true));
+    await settle();
+
+    act(() => visibilityObserver().fire(true));
+    await settle();
+    expect(document.querySelector('canvas')?.getAttribute('data-playing')).toBe('true');
+
+    act(() => visibilityObserver().fire(false));
+    await settle();
+    expect(document.querySelector('canvas')?.getAttribute('data-playing')).toBe('false');
+  });
+
+  it('leaves a static meme on this page a plain img that is never probed', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post });
+
+    renderPost();
+    await screen.findByRole('heading', { name: 'Funny cat' });
+    await settle();
+
+    expect(screen.getByRole('img', { name: 'Funny cat' }).tagName).toBe('IMG');
+    expect(document.querySelector('canvas')).toBeNull();
+    expect(MockIntersectionObserver.instances).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

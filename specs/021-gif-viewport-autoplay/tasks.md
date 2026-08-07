@@ -296,12 +296,12 @@ permalink `<Link>` around it) as it is today (FR-005, US2 scenarios 1–2).
 on arrival, scroll down into the comments until it leaves the viewport, confirm it stops,
 scroll back and confirm it resumes on the frozen frame (quickstart Scenario 8).
 
-- [ ] T018 [P] [US2] Write failing tests in `frontend/tests/pages/PostPage.test.tsx` for the
+- [X] T018 [P] [US2] Write failing tests in `frontend/tests/pages/PostPage.test.tsx` for the
       permalink path: an animated image post renders through `MemeImage` with **no**
       `meme-media__link` wrapper (`linkTo` is not passed on this page), takes over to a
       canvas, and carries `data-playing` — while a static image post on the same page still
       renders a bare `<img>` and is never probed.
-- [ ] T019 [US2] Confirm T018 passes with **no production change** to
+- [X] T019 [US2] Confirm T018 passes with **no production change** to
       `frontend/src/pages/PostPage.tsx` — the page already renders `MemeMedia` without
       `linkTo`, which T015 routed to `MemeImage`, so US2 should fall out of US1 for free.
       If it does not, make the smallest fix in the image branch only and leave the page's
