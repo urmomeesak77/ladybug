@@ -33,6 +33,8 @@ class SpaRoutes {
 
     public const VERIFY_EMAIL_HASH = '/verify-email/{hash}';
 
+    public const FORGOT_PASSWORD = '/forgot-password';
+
     public const ADMIN_TRASHPOSTS = '/admin/trashposts';
 
     public const ADMIN_USERS = '/admin/users';
@@ -48,6 +50,7 @@ class SpaRoutes {
         self::ACCOUNT => false,
         self::UPLOAD => false,
         self::VERIFY_EMAIL => false,
+        self::FORGOT_PASSWORD => false,
         self::ADMIN_TRASHPOSTS => false,
         self::ADMIN_USERS => false,
     ];
@@ -135,6 +138,7 @@ class SpaRoutes {
             self::ACCOUNT,
             self::UPLOAD,
             self::VERIFY_EMAIL,
+            self::FORGOT_PASSWORD,
             '/admin/',
         ];
     }

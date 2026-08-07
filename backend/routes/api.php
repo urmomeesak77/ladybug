@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\UserAdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\EmailVerificationController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\TrashpostsApiController;
 use Database\Seeders\E2eSeeder;
 use Illuminate\Support\Facades\Artisan;
@@ -85,6 +86,16 @@ Route::get('/user', [AuthController::class, 'user'])->name('api.auth.user');
 Route::patch('/user', [AuthController::class, 'updateProfile'])
     ->middleware('auth:sanctum')
     ->name('api.auth.profile.update');
+
+// Password recovery (022). Anonymous and session-free: the account is the one the
+// submitted address names, never the signed-in one. The 200 is UNCONDITIONAL — the same
+// status, body and headers for a real account, an unknown address, a disabled account, a
+// re-send inside the broker's interval, and a failed mail transport alike (FR-004). The
+// `password` limiter is a separate bucket from `auth` at the same cap, so exhausting the
+// recovery allowance never blocks signing in with a remembered password (research D7).
+Route::post('/password/forgot', [PasswordResetController::class, 'request'])
+    ->middleware('throttle:password')
+    ->name('api.password.forgot');
 
 // Admin moderation console (010). The whole group is gated by auth:sanctum (guest → 401)
 // then role:admin (member → 403; admin/superuser through) — the boundary protects the

@@ -252,6 +252,16 @@ describe('LoginPage', () => {
     const link = screen.getByRole('link', { name: 'No account? Register here....' });
     expect(link.getAttribute('href')).toBe('/register');
   });
+
+  // Feature 022 (FR-001): the only entry point to recovery, and it has to be on the form
+  // itself — a visitor who cannot get in is already at the page where they discovered that.
+  it('offers a way to recover a forgotten password', () => {
+    renderLogin(okResult);
+
+    const link = screen.getByRole('link', { name: 'Forgot password?' });
+    expect(link.getAttribute('href')).toBe('/forgot-password');
+    expect(link.closest('form')?.className).toContain('auth-form');
+  });
 });
 
 // Feature 017 (US1). The password form above is untouched; these cases cover the Google

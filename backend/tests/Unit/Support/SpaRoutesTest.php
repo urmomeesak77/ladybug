@@ -29,6 +29,17 @@ final class SpaRoutesTest extends TestCase {
         $this->assertSame(SpaRoutes::ADMIN_USERS, SpaRoutes::match('/admin/users'));
     }
 
+    public function test_the_recovery_request_address_is_a_known_address(): void {
+        $this->assertSame(SpaRoutes::FORGOT_PASSWORD, SpaRoutes::match('/forgot-password'));
+    }
+
+    public function test_a_malformed_recovery_request_address_matches_nothing(): void {
+        // A fixed address matches exactly or not at all — no prefix, no trailing segment.
+        $this->assertNull(SpaRoutes::match('/forgot-password/'));
+        $this->assertNull(SpaRoutes::match('/forgot-password/extra'));
+        $this->assertNull(SpaRoutes::match('/forgot-passwords'));
+    }
+
     public function test_the_signed_verification_address_is_a_known_dynamic_address(): void {
         $this->assertSame(SpaRoutes::VERIFY_EMAIL_HASH, SpaRoutes::match('/verify-email/' . self::HASH));
     }
@@ -59,7 +70,7 @@ final class SpaRoutesTest extends TestCase {
 
     public function test_the_account_and_admin_addresses_are_not_indexable(): void {
         foreach (['/login', '/register', '/account', '/upload', '/verify-email',
-            '/verify-email/' . self::HASH, '/admin/trashposts', '/admin/users'] as $path) {
+            '/verify-email/' . self::HASH, '/forgot-password', '/admin/trashposts', '/admin/users'] as $path) {
             $this->assertFalse(SpaRoutes::isIndexable($path), $path . ' must not be indexable');
         }
     }
@@ -75,11 +86,11 @@ final class SpaRoutesTest extends TestCase {
     /**
      * robots.txt is generated from this list, so FR-012's noindex set and FR-021's
      * Disallow set cannot drift apart. `/verify-email` and `/admin/` are prefixes
-     * that cover their dynamic children, which is why there are six and not eight.
+     * that cover their dynamic children, which is why there are seven and not nine.
      */
     public function test_the_disallowed_prefixes_are_the_noindex_areas(): void {
         $this->assertSame(
-            ['/login', '/register', '/account', '/upload', '/verify-email', '/admin/'],
+            ['/login', '/register', '/account', '/upload', '/verify-email', '/forgot-password', '/admin/'],
             SpaRoutes::disallowedPaths(),
         );
     }

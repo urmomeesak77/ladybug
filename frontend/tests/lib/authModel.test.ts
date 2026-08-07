@@ -80,6 +80,34 @@ describe('validateLogin', () => {
   });
 });
 
+// Feature 022 (FR-003). The recovery request form judges the address shape and nothing
+// else — whether an account exists for it is the one thing the client must never learn.
+describe('validateForgotPassword', () => {
+  it('returns no errors for a well-formed address', () => {
+    expect(AuthModel.validateForgotPassword({ email: 'ada@example.com' })).toEqual({});
+  });
+
+  it('flags a missing address', () => {
+    expect(AuthModel.validateForgotPassword({ email: '' })).toEqual({ email: ['E-mail is required.'] });
+  });
+
+  it('flags a malformed address', () => {
+    expect(AuthModel.validateForgotPassword({ email: 'not-an-address' }))
+      .toEqual({ email: ['Enter a valid email address.'] });
+  });
+
+  it('stays silent about an untouched field', () => {
+    expect(AuthModel.validateForgotPassword({ email: '' }, new Set())).toEqual({});
+  });
+
+  it('applies the same e-mail check the sign-in form applies', () => {
+    // Stated once (research D9's reasoning, applied to the e-mail rule): a divergence
+    // between the two forms' judgements has to fail here.
+    expect(AuthModel.validateForgotPassword({ email: 'not-an-address' }).email)
+      .toEqual(AuthModel.validateLogin({ email: 'not-an-address', password: 'x' }).email);
+  });
+});
+
 describe('mergeServerErrors', () => {
   it('lets server errors win and keeps client-only fields', () => {
     const merged = AuthModel.mergeServerErrors(

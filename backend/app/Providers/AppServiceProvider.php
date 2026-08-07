@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -32,6 +34,25 @@ class AppServiceProvider extends ServiceProvider {
         RateLimiter::for('comments', $this->commentLimit(...));
         RateLimiter::for('password', $this->passwordLimit(...));
         VerifyEmail::createUrlUsing(self::verificationLinkFor(...));
+        ResetPassword::createUrlUsing(self::recoveryLinkFor(...));
+    }
+
+    /**
+     * Build the recovery email's link (022, contracts/recovery-link.md):
+     *
+     *     {FRONTEND_URL}/reset-password/{sha1(email)}#token={token}
+     *
+     * The path carries the same address digest the verification link above carries, so no
+     * page in the journey — and no address bar — prints an account detail (FR-011). The
+     * token rides in the FRAGMENT, which no browser ever sends to a server: in production
+     * every SPA address is proxied to Laravel's ShellController, so a token in the path or
+     * the query would land in nginx's access log AND in PHP. The fragment makes FR-018 a
+     * property of this line rather than of three nginx configs kept in step (research D2).
+     */
+    private static function recoveryLinkFor(CanResetPassword $notifiable, string $token): string {
+        $hash = sha1((string) $notifiable->getEmailForPasswordReset());
+
+        return config('app.frontend_url') . '/reset-password/' . $hash . '#token=' . $token;
     }
 
     /**

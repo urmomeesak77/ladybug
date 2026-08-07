@@ -9,6 +9,7 @@ import RequireRole from './components/RequireRole';
 import RequireVerified from './components/RequireVerified';
 import { useTheme } from './hooks/useTheme';
 import AccountPage from './pages/AccountPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import ModerationPage from './pages/ModerationPage';
@@ -59,6 +60,10 @@ function App() {
               {/* Deliberately unguarded: the emailed link must verify even in a
                   logged-out browser — the signed URL itself proves inbox control. */}
               <Route path="/verify-email/:hash" element={<VerifyEmailPage />} />
+              {/* Deliberately unguarded, unlike /login and /register: RequireAnon would
+                  bounce a signed-in person away from a recovery view the spec requires to
+                  be honoured for the account it names, not the signed-in one (022, D11). */}
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </PageLayout>

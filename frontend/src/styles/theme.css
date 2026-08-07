@@ -1095,7 +1095,11 @@ main {
   margin-bottom: var(--space-lg);
 }
 
-.verify__status {
+/* One neutral, bordered sentence stating an outcome: the verification result, and the
+   recovery request's confirmation (022). Shared rather than restated so the two outcome
+   boxes cannot drift apart — and neither carries meaning by colour (Principle IV). */
+.verify__status,
+.auth-form__notice {
   padding: var(--space-sm) var(--space-md);
   margin-bottom: var(--space-md);
   color: var(--color-text);

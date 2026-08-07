@@ -113,6 +113,9 @@ function LoginPage() {
           </div>
           <BusyButton type="submit" busy={form.submitting} disabled={form.hasErrors}>Login</BusyButton>
         </fieldset>
+        {/* The only entry point to recovery (022, FR-001), and it belongs here: someone
+            who cannot get in is already on the page where they found that out. */}
+        <p className="auth-form__link"><Link to="/forgot-password">Forgot password?</Link></p>
         <p className="auth-form__link"><Link to="/register">No account? Register here....</Link></p>
       </form>
       {/* The same location.state.from the password path reads above. Clicking is a

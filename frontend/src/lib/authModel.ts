@@ -17,6 +17,8 @@ export type RegisterValues = {
 
 export type LoginValues = { email: string; password: string };
 
+export type ForgotPasswordValues = { email: string };
+
 // Pragmatic email shape check for instant client feedback; the server remains the
 // authority (FR-002). Not RFC-exhaustive by design.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -60,6 +62,22 @@ export class AuthModel {
     }
     if (AuthModel.isTouched(touched, 'password') && !values.password) {
       errors.password = ['Password is required.'];
+    }
+    return errors;
+  }
+
+  // The recovery request form's validator (022): the same e-mail check login and register
+  // already use, stated once here rather than a fourth time on the page. Feedback only —
+  // the server re-validates, and it is deliberately the ONLY judgement made client-side,
+  // because whether an account exists for the address is something the client must never
+  // learn (FR-003, FR-004).
+  static validateForgotPassword(values: ForgotPasswordValues, touched?: Set<string>): FieldErrors {
+    const errors: FieldErrors = {};
+    if (AuthModel.isTouched(touched, 'email')) {
+      const emailErrors = AuthModel.emailFieldErrors(values.email);
+      if (emailErrors.length > 0) {
+        errors.email = emailErrors;
+      }
     }
     return errors;
   }
