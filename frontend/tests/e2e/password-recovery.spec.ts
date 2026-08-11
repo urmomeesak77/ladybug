@@ -36,15 +36,21 @@ test.describe('Password recovery', () => {
     await page.goto('/login');
     await page.getByRole('link', { name: 'Forgot password?' }).click();
     await expect(page).toHaveURL('/forgot-password');
+    // Unlike every other page transition in this file, this one is a client-side Link
+    // navigation, not a hard page.goto(). toHaveURL only proves the browser's location
+    // changed, not that ForgotPasswordPage has actually mounted — under CI's slower,
+    // more contended runners the two can land a tick apart, and filling into that gap
+    // hits whatever the previous page's own "E-mail" field was (or an unmounted one),
+    // so the value never reaches this form (root-caused from CI's compose logs: two
+    // straight failures never even sent a POST /api/password/forgot). Waiting for this
+    // page's own heading closes that gap.
+    await expect(page.getByRole('heading', { name: 'Reset password' })).toBeVisible();
 
-    // FR-004: submitting a real address produces the confirmation. Like register()'s own
-    // wait above, this crosses a synchronous real e-mail send (QUEUE_CONNECTION=sync), so it
-    // gets the same generous timeout rather than the config default (root-caused via two
-    // consecutive CI failures: the request was still in flight past the default 15s).
+    // FR-004: submitting a real address produces the confirmation.
     await page.getByLabel('E-mail').fill(email);
     await page.getByRole('button', { name: 'Send recovery link' }).click();
     await expect(page.getByText('If an account exists for that address, a password recovery link is on its way.'))
-      .toBeVisible({ timeout: 25000 });
+      .toBeVisible();
 
     const link = MailLog.latestResetLink(email);
     expect(link).not.toBeNull();
