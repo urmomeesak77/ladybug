@@ -254,13 +254,36 @@ from the account page), confirm both existing sessions are refused on their next
 
 > Write these first and confirm they FAIL before implementing.
 
-- [ ] T062 [P] [US5] Create `backend/tests/Unit/Support/SessionRevokerTest.php`: with `$keepSessionId = null` every `sessions` row for the account is deleted; with an id, that one row survives and the rest go; other accounts' rows are never touched; an account with no rows is a no-op
-- [ ] T063 [P] [US5] Extend `backend/tests/Feature/Http/Controllers/PasswordResetControllerTest.php`: after a successful reset **all** the account's `sessions` rows are gone (there is no acting session to keep — FR-021), `remember_token` is rotated, and the **SC-007 field-by-field** snapshot holds — every `users` column except `password` and `remember_token` is byte-identical before and after, `email_verified_at` included (FR-017, FR-020, INV-5). Assert the snapshot **column-wise over the live schema** (iterate the table's columns, don't hand-list them): that way it doubles as FR-034's guard — the day someone adds a `password_changed_at`, this test fails and says so, which is the only automated hold on a requirement whose whole content is that nothing is recorded
-- [ ] T064 [P] [US5] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`: after a successful `PUT /api/user/password` the acting session row **survives** and the client's next request is still authenticated (FR-028), every other row is gone, a 018 "remember me" session from before no longer restores access, and the same schema-driven SC-007 snapshot holds for this route — carrying the same FR-034 guard (no audit row, no timestamp, no new column)
+- [X] T062 [P] [US5] Create `backend/tests/Unit/Support/SessionRevokerTest.php`: with `$keepSessionId = null` every `sessions` row for the account is deleted; with an id, that one row survives and the rest go; other accounts' rows are never touched; an account with no rows is a no-op
+- [X] T063 [P] [US5] Extend `backend/tests/Feature/Http/Controllers/PasswordResetControllerTest.php`: after a successful reset **all** the account's `sessions` rows are gone (there is no acting session to keep — FR-021), `remember_token` is rotated, and the **SC-007 field-by-field** snapshot holds — every `users` column except `password` and `remember_token` is byte-identical before and after, `email_verified_at` included (FR-017, FR-020, INV-5). Assert the snapshot **column-wise over the live schema** (iterate the table's columns, don't hand-list them): that way it doubles as FR-034's guard — the day someone adds a `password_changed_at`, this test fails and says so, which is the only automated hold on a requirement whose whole content is that nothing is recorded
+- [X] T064 [P] [US5] Extend `backend/tests/Feature/Http/Controllers/AuthControllerTest.php`: after a successful `PUT /api/user/password` the acting session row **survives** and the client's next request is still authenticated (FR-028), every other row is gone, a 018 "remember me" session from before no longer restores access, and the same schema-driven SC-007 snapshot holds for this route — carrying the same FR-034 guard (no audit row, no timestamp, no new column)
+
+  **Built (2026-08-11).** T002's premise correction resolved first: `SESSION_DRIVER` moved to
+  `database` in every real env (`.env`, `.env.example`, `.env.e2e`, `.env.e2e.example`) and in
+  `phpunit.xml`, since the file/array drivers left the `sessions` table permanently empty —
+  option (a) from T002's note, confirmed safe by a full suite run before touching Phase 7 code
+  (one casualty: `RobotsControllerTest` needed `RefreshDatabase` to migrate the table its
+  `web.php` route now touches via `StartSession`; `RememberMeSessionExpiryTest` and
+  `OAuthFlowStateTest` got docblock corrections, no behaviour change).
+
+  Both feature tests needed real cookie-carrying, cross-request replay (`loginSession` /
+  `withSessionCookie`, extended into `AuthControllerTest`), and that surfaced a second,
+  unrelated masking bug in the same family `RememberMeSessionExpiryTest`'s docblock already
+  names: `Illuminate\Session\Store::loadSession()` does `array_replace($this->attributes,
+  $this->readFromHandler())`, so once `SessionRevoker` deletes a row, that session's NEXT
+  simulated read (empty) leaves the PRIOR request's stale attributes in place, because a
+  single PHPUnit process shares one Store singleton across every request it makes — production
+  boots a fresh one per request and has no such gap. Every "is this session really dead"
+  assertion in both files was therefore moved to the DB layer (`assertDatabaseMissing('sessions',
+  …)`) rather than a further simulated request, including T057a's pre-existing 401 assertion
+  (Phase 6), which this phase's real row-deletion superseded — its stale-hash 401 came from
+  `AuthenticateSession` alone, before `SessionRevoker` existed; the row is now actually gone,
+  and this file's own masking bug can no longer tell the difference between "gone" and "empty
+  read" through a live round trip.
 
 ### Implementation for User Story 5
 
-- [ ] T065 [US5] Create `backend/app/Support/SessionRevoker.php` — `revoke(User $user, ?string $keepSessionId): void`, one `DELETE FROM sessions WHERE user_id = ? [AND id != ?]` through the query builder; document why this and not `Auth::logoutOtherDevices` (research D6: it needs the plaintext password the recovery route never has, and depends on `AuthenticateSession`, which this app does not run)
+- [X] T065 [US5] Create `backend/app/Support/SessionRevoker.php` — `revoke(User $user, ?string $keepSessionId): void`, one `DELETE FROM sessions WHERE user_id = ? [AND id != ?]` through the query builder; document why this and not `Auth::logoutOtherDevices` (research D6: it needs the plaintext password the recovery route never has, and depends on `AuthenticateSession`, which this app does not run)
 
   **Premise correction (2026-08-07, found while building Phase 5).** The app **does** run
   `Laravel\Sanctum\Http\Middleware\AuthenticateSession` — `$middleware->statefulApi()` in
@@ -277,7 +300,13 @@ from the account page), confirm both existing sessions are refused on their next
   - It also means a feature test cannot switch accounts mid-test without `flushSession()` +
     `forgetGuards()` first — see `AuthControllerTest::actAsFreshClient`, which T063/T064 will
     want to reuse rather than rediscover.
-- [ ] T066 [US5] Wire `SessionRevoker::revoke` and the `remember_token` rotation into `applyNewPassword` in `backend/app/Services/PasswordService.php`, **inside** the existing transaction — `null` on the recovery route, `session()->getId()` on the account-page route — so the password's death and its dependent credentials' death are simultaneous (INV-3)
+- [X] T066 [US5] Wire `SessionRevoker::revoke` and the `remember_token` rotation into `applyNewPassword` in `backend/app/Services/PasswordService.php`, **inside** the existing transaction — `null` on the recovery route, `session()->getId()` on the account-page route — so the password's death and its dependent credentials' death are simultaneous (INV-3)
+
+  **Built (2026-08-11).** `applyNewPassword` gained `?string $keepSessionId = null` as its
+  third parameter, defaulted so `reset()` can still hand the broker's fixed 2-argument
+  callback `$this->applyNewPassword(...)` unmodified (research D6) — no closure needed.
+  `change()` now takes `?string $keepSessionId` and `AuthController::updatePassword` passes
+  `session()->getId()`; every other existing caller (tests) now passes `null` explicitly.
 
 **Checkpoint**: All five stories are independently functional.
 

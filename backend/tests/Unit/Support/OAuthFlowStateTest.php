@@ -10,8 +10,9 @@ use Illuminate\Contracts\Session\Session;
 use Tests\TestCase;
 
 /**
- * No HTTP anywhere in this file: the flow state is pure given a session store, and
- * phpunit.xml pins SESSION_DRIVER to `array` (data-model §4, research D3).
+ * No HTTP anywhere in this file: the flow state is pure given a session store, and never
+ * calls ->save(), so it never touches whichever handler SESSION_DRIVER resolves to
+ * (data-model §4, research D3).
  */
 final class OAuthFlowStateTest extends TestCase {
     public function test_mint_writes_the_whole_flow_under_one_key(): void {

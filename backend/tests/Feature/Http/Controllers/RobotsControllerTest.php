@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Controllers;
 
 use App\Support\SpaRoutes;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
@@ -13,8 +14,15 @@ use Tests\TestCase;
  * The content type is the case that matters most: today this address answers with
  * the SPA shell as text/html, which no crawler reads as robots.txt at all. Asserting
  * text/plain is the regression guard against sliding back into that.
+ *
+ * `web.php` routes run StartSession unconditionally (unlike the `api` group's
+ * stateful-domain check), so since 022's SESSION_DRIVER=database this route now touches
+ * the `sessions` table — RefreshDatabase is required to migrate it, not for any state
+ * this test itself sets up.
  */
 final class RobotsControllerTest extends TestCase {
+    use RefreshDatabase;
+
     protected function setUp(): void {
         parent::setUp();
         config([

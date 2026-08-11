@@ -806,6 +806,132 @@ class AuthControllerTest extends TestCase {
     }
 
     /**
+     * FR-028: unlike the recovery route (which keeps none), the account-page change keeps
+     * the ACTING session alive — it names itself via session()->getId() so the owner who
+     * just typed their own current password is not immediately signed out by the change
+     * they made. Every other row for the account is gone (FR-016).
+     */
+    public function test_a_password_change_keeps_the_acting_session_and_ends_every_other_one(): void {
+        $user = User::factory()->create(['email' => 'ada@example.com', 'password' => 'OldPassw0rd']);
+        $acting = $this->loginSession($user->email, 'OldPassw0rd');
+        $other = $this->loginSession($user->email, 'OldPassw0rd');
+
+        $this->withSessionCookie($acting['cookie'])->putJson('/api/user/password', [
+            'current_password' => 'OldPassw0rd',
+            'password' => 'NewPassw0rd',
+            'password_confirmation' => 'NewPassw0rd',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('sessions', ['id' => $acting['id']]);
+        $this->withSessionCookie($acting['cookie'])->getJson('/api/user')
+            ->assertOk()->assertJsonPath('data.email', 'ada@example.com');
+
+        // Checked at the DB layer, not through a further simulated request on $other's
+        // cookie: this single PHP process shares ONE Session Store singleton across every
+        // request it makes (unlike production, where every request boots its own), and
+        // Store::loadSession()'s array_replace() silently keeps stale attributes on an empty
+        // read — the same masking RememberMeSessionExpiryTest's docblock names.
+        $this->assertDatabaseMissing('sessions', ['id' => $other['id']]);
+    }
+
+    /**
+     * FR-016: 018's "remember me" is a lifetime extension on the SAME session row, not a
+     * separate token (research D6) — so a password change must end a remembered session
+     * exactly as it ends any other one, and the leftover flag cookie grants nothing on its
+     * own once the row is gone.
+     */
+    public function test_a_password_change_ends_a_previously_remembered_session(): void {
+        $user = User::factory()->create(['email' => 'ada@example.com', 'password' => 'OldPassw0rd']);
+        $this->app['auth']->forgetGuards();
+        $remembered = $this->withHeader('Origin', 'http://localhost')->postJson('/api/login', [
+            'email' => 'ada@example.com',
+            'password' => 'OldPassw0rd',
+            'remember' => true,
+        ]);
+        $remembered->assertOk();
+        $rememberedId = (string) $remembered->getCookie((string) config('session.cookie'), true)->getValue();
+        Cookie::flushQueuedCookies();
+        $acting = $this->loginSession($user->email, 'OldPassw0rd');
+
+        $this->withSessionCookie($acting['cookie'])->putJson('/api/user/password', [
+            'current_password' => 'OldPassw0rd',
+            'password' => 'NewPassw0rd',
+            'password_confirmation' => 'NewPassw0rd',
+        ])->assertOk();
+
+        // See the sibling test above for why this stays at the DB layer.
+        $this->assertDatabaseMissing('sessions', ['id' => $rememberedId]);
+    }
+
+    /**
+     * SC-007/FR-017/FR-020, the same schema-driven snapshot T063 asserts for the recovery
+     * route — read from the live schema so a future column this feature is not supposed to
+     * touch (FR-034) fails this test rather than passing it unnoticed (INV-5).
+     */
+    public function test_a_password_change_leaves_every_other_user_column_byte_identical(): void {
+        $user = User::factory()->create(['password' => 'OldPassw0rd']);
+        $before = $this->userSnapshot($user);
+
+        $this->actingAs($user)->putJson('/api/user/password', [
+            'current_password' => 'OldPassw0rd',
+            'password' => 'NewPassw0rd',
+            'password_confirmation' => 'NewPassw0rd',
+        ])->assertOk();
+
+        $this->assertSame($before, $this->userSnapshot($user->fresh()));
+    }
+
+    /**
+     * Sign in for real and hand back both the session cookie a browser would keep afterward
+     * AND the plain `sessions.id` it carries — the cookie's own value is encrypted (Laravel's
+     * EncryptCookies), so a DB assertion needs the decrypted form while a cookie replay needs
+     * the encrypted one. Mirrors PasswordResetControllerTest's helper of the same name —
+     * flushing the queued jar between successive logins keeps one client's cookie from
+     * leaking into the next.
+     *
+     * @return array{cookie: \Symfony\Component\HttpFoundation\Cookie, id: string}
+     */
+    private function loginSession(string $email, string $password): array {
+        $this->app['auth']->forgetGuards();
+        $response = $this->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/login', ['email' => $email, 'password' => $password]);
+        $response->assertOk();
+        $cookie = $response->getCookie((string) config('session.cookie'), false);
+        $id = (string) $response->getCookie((string) config('session.cookie'), true)->getValue();
+        Cookie::flushQueuedCookies();
+
+        return ['cookie' => $cookie, 'id' => $id];
+    }
+
+    /**
+     * Replay a captured session cookie on the next request. `forgetGuards()` is required for
+     * the same reason `actAsFreshClient` needs it: the guard singleton caches whichever user
+     * its LAST resolution found, and a single test process shares that singleton across every
+     * request it makes — a real browser never does.
+     */
+    private function withSessionCookie(\Symfony\Component\HttpFoundation\Cookie $cookie): self {
+        $this->app['auth']->forgetGuards();
+
+        return $this->withHeader('Origin', 'http://localhost')
+            ->withCredentials()
+            ->withUnencryptedCookie($cookie->getName(), $cookie->getValue());
+    }
+
+    /**
+     * Every `users` column except the two this feature is allowed to move — read from the
+     * live schema, not a hand-written list (SC-007). Mirrors PasswordResetControllerTest's
+     * helper of the same name.
+     *
+     * @return array<string, mixed>
+     */
+    private function userSnapshot(User $user): array {
+        $row = (array) DB::table('users')->where('id', $user->id)->first();
+        unset($row['password'], $row['remember_token']);
+
+        return $row;
+    }
+
+    /**
      * Act as a fresh client for $user: a second owner is a second browser, and three pieces
      * of process state would otherwise leak between them here — the shared session (whose
      * stored password hash makes Sanctum's AuthenticateSession tear the second client down),

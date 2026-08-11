@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\User;
+use App\Support\SessionRevoker;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -85,9 +87,11 @@ class PasswordService {
      * saw the token. That ordering is what keeps a rejected password from spending a good
      * link (US2 scenarios 3–4).
      *
-     * One transaction spans the broker call, so the credential write and the token's
-     * deletion — which the broker performs after the callback returns — land together or
-     * not at all (data-model §4, INV-3).
+     * One transaction spans the broker call, so the credential write, the session
+     * revocation and the token's deletion — which the broker performs after the callback
+     * returns — land together or not at all (data-model §4, INV-3). `applyNewPassword`'s
+     * `$keepSessionId` defaults to null here (this route keeps no session at all, FR-021),
+     * which is why the broker's own 2-argument callback can call it unmodified.
      */
     public function reset(string $hash, string $token, string $password): bool {
         $user = $this->recoverableAccount($hash);
@@ -126,11 +130,15 @@ class PasswordService {
      * this is it — changing the password here shuts a link an attacker has already asked for.
      * It shares the write's transaction, so a link is never left alive beside a password it
      * no longer belongs to (INV-3).
+     *
+     * `$keepSessionId` is the acting session — session()->getId() at the call site — so the
+     * owner who just proved their own current password is not signed out by the change they
+     * made (FR-028), unlike the recovery route, which keeps none.
      */
-    public function change(User $user, string $password): User {
+    public function change(User $user, string $password, ?string $keepSessionId): User {
         DB::beginTransaction();
         try {
-            $this->applyNewPassword($user, $password);
+            $this->applyNewPassword($user, $password, $keepSessionId);
             Password::broker()->deleteToken($user);
             DB::commit();
         }
@@ -144,15 +152,22 @@ class PasswordService {
 
     /**
      * The one place either route writes a credential, so neither can grow a step the other
-     * lacks.
+     * lacks — including the after-effects FR-016/FR-028 require: every OTHER session for the
+     * account ends, and `remember_token` is rotated as defence in depth (research D6).
      *
      * Assigned, not pre-hashed: the model's `hashed` cast does the hashing on save, and
      * handing it an already-hashed value would double-hash it and lock the holder out of the
      * password they just chose (data-model §2).
+     *
+     * `$keepSessionId` defaults to null so `reset()` can pass this method straight to the
+     * broker's 2-argument callback (research D6) — the recovery route never has a session to
+     * spare, so the default IS its behaviour, not a placeholder for one.
      */
-    private function applyNewPassword(User $user, string $password): void {
+    private function applyNewPassword(User $user, string $password, ?string $keepSessionId = null): void {
         $user->password = $password;
+        $user->remember_token = Str::random(60);
         $user->save();
+        SessionRevoker::revoke($user, $keepSessionId);
     }
 
     /**

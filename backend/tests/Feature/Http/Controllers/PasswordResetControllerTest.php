@@ -336,6 +336,38 @@ class PasswordResetControllerTest extends TestCase {
     }
 
     /**
+     * FR-021/FR-016: the recovery route keeps no session of its own, so EVERY row the
+     * account had — there is no acting session to spare — is gone once the reset lands.
+     * `remember_token` is rotated as defence in depth alongside it (research D6).
+     */
+    public function test_a_successful_reset_ends_every_session_for_the_account_and_rotates_the_remember_token(): void {
+        ['user' => $user, 'token' => $token] = $this->liveLink();
+        $this->seedSession('session-one', $user->id);
+        $this->seedSession('session-two', $user->id);
+        $rememberTokenBefore = $user->remember_token;
+
+        $this->postJson('/api/password/reset', $this->resetPayload($user, $token))->assertOk();
+
+        $this->assertDatabaseCount('sessions', 0);
+        $this->assertNotSame($rememberTokenBefore, $user->fresh()->remember_token);
+    }
+
+    /**
+     * SC-007/FR-017/FR-020: nothing else about the row moves. Compared column-wise over the
+     * LIVE schema rather than a hand-picked list, so a future column — say
+     * `password_changed_at`, which FR-034 forbids outright — makes this test fail rather than
+     * pass silently (INV-5).
+     */
+    public function test_a_successful_reset_leaves_every_other_user_column_byte_identical(): void {
+        ['user' => $user, 'token' => $token] = $this->liveLink();
+        $before = $this->userSnapshot($user);
+
+        $this->postJson('/api/password/reset', $this->resetPayload($user, $token))->assertOk();
+
+        $this->assertSame($before, $this->userSnapshot($user->fresh()));
+    }
+
+    /**
      * FR-033 names the reset form specifically, so the cap is asserted on all three endpoints
      * rather than on the request one alone — a bulk token-guessing run never touches /forgot.
      */
@@ -431,32 +463,62 @@ class PasswordResetControllerTest extends TestCase {
         $holder = User::factory()->create(['email' => 'ada-holder@example.com', 'password' => 'HolderPassw0rd']);
         $actor = User::factory()->create(['email' => 'grace-actor@example.com', 'password' => 'ActorPassw0rd']);
 
-        $holderCookie = $this->loginSession($holder->email, 'HolderPassw0rd');
-        $actorCookie = $this->loginSession($actor->email, 'ActorPassw0rd');
+        $holder = ['user' => $holder, ...$this->loginSession($holder->email, 'HolderPassw0rd')];
+        $actor = ['user' => $actor, ...$this->loginSession($actor->email, 'ActorPassw0rd')];
 
-        $holdersToken = Password::broker()->createToken($holder);
-        $this->withSessionCookie($actorCookie)
-            ->postJson('/api/password/reset', $this->resetPayload($holder, $holdersToken))
+        $holdersToken = Password::broker()->createToken($holder['user']);
+        $this->withSessionCookie($actor['cookie'])
+            ->postJson('/api/password/reset', $this->resetPayload($holder['user'], $holdersToken))
             ->assertOk();
 
         // The link changed the account it NAMES — the holder's, not the caller's.
-        $this->assertTrue(Hash::check('NewPassw0rd', $holder->fresh()->password));
+        $this->assertTrue(Hash::check('NewPassw0rd', $holder['user']->fresh()->password));
 
-        // The holder's own client is signed out by a link it never asked anyone to use.
-        // AuthenticateSession catches the stale `password_hash_web` and throws rather than
-        // degrading to anonymous, so the next request is a hard 401, not a quiet `data: null`.
-        $this->withSessionCookie($holderCookie)->getJson('/api/user')->assertStatus(401);
-        // The actor who performed the reset keeps their own, unrelated session.
-        $this->withSessionCookie($actorCookie)->getJson('/api/user')
+        // The holder's own client is signed out by a link it never asked anyone to use — the
+        // row SessionRevoker deletes is checked directly (data-model), not through a further
+        // simulated request on holderCookie: this single PHP process shares ONE Session Store
+        // singleton across every request it makes (unlike production, where every request
+        // boots its own), and Store::loadSession()'s array_replace() silently keeps stale
+        // attributes on an empty read — the same masking RememberMeSessionExpiryTest's
+        // docblock names for the identical reason.
+        $this->assertDatabaseMissing('sessions', ['id' => $holder['id']]);
+        // The actor who performed the reset keeps their own, unrelated session — its row was
+        // never SessionRevoker's target, so a live round trip is a faithful check here.
+        $this->withSessionCookie($actor['cookie'])->getJson('/api/user')
             ->assertOk()->assertJsonPath('data.email', 'grace-actor@example.com');
 
         // Spending one's OWN link ends the acting session too — the recovery route keeps none.
-        $ownToken = Password::broker()->createToken($actor);
-        $this->withSessionCookie($actorCookie)
-            ->postJson('/api/password/reset', $this->resetPayload($actor, $ownToken, 'ActorsNewPassw0rd'))
+        $ownToken = Password::broker()->createToken($actor['user']);
+        $this->withSessionCookie($actor['cookie'])
+            ->postJson('/api/password/reset', $this->resetPayload($actor['user'], $ownToken, 'ActorsNewPassw0rd'))
             ->assertOk();
 
-        $this->withSessionCookie($actorCookie)->getJson('/api/user')->assertStatus(401);
+        $this->assertDatabaseMissing('sessions', ['id' => $actor['id']]);
+    }
+
+    /** A row in `sessions` for $userId, as if another device were signed in. */
+    private function seedSession(string $id, int $userId): void {
+        DB::table('sessions')->insert([
+            'id' => $id,
+            'user_id' => $userId,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'phpunit',
+            'payload' => base64_encode('irrelevant'),
+            'last_activity' => time(),
+        ]);
+    }
+
+    /**
+     * Every `users` column except the two this feature is allowed to move — read from the
+     * live schema, not a hand-written list (SC-007).
+     *
+     * @return array<string, mixed>
+     */
+    private function userSnapshot(User $user): array {
+        $row = (array) DB::table('users')->where('id', $user->id)->first();
+        unset($row['password'], $row['remember_token']);
+
+        return $row;
     }
 
     /**
@@ -488,18 +550,24 @@ class PasswordResetControllerTest extends TestCase {
     }
 
     /**
-     * Sign in for real and hand back the session cookie a browser would keep afterward.
-     * Flushing the queued jar between successive logins in the same test keeps one client's
-     * cookie from leaking into the next capture (mirrors AuthControllerTest's FR-007 test).
+     * Sign in for real and hand back both the session cookie a browser would keep afterward
+     * AND the plain `sessions.id` it carries. The cookie's own value is encrypted (Laravel's
+     * EncryptCookies), so a DB assertion needs the decrypted form while a cookie replay needs
+     * the encrypted one (mirrors AuthControllerTest's helper of the same name). Flushing the
+     * queued jar between successive logins in the same test keeps one client's cookie from
+     * leaking into the next capture (mirrors AuthControllerTest's FR-007 test).
+     *
+     * @return array{cookie: ResponseCookie, id: string}
      */
-    private function loginSession(string $email, string $password): ResponseCookie {
+    private function loginSession(string $email, string $password): array {
         $this->app['auth']->forgetGuards();
         $response = $this->attemptLogin($email, $password);
         $response->assertOk();
         $cookie = $response->getCookie((string) config('session.cookie'), false);
+        $id = (string) $response->getCookie((string) config('session.cookie'), true)->getValue();
         Cookie::flushQueuedCookies();
 
-        return $cookie;
+        return ['cookie' => $cookie, 'id' => $id];
     }
 
     /**
@@ -624,7 +692,7 @@ class PasswordResetControllerTest extends TestCase {
     private function voidedByAccountChangeLink(): array {
         $user = User::factory()->create(['email' => 'ada-voided@example.com', 'password' => 'OldPassw0rd']);
         $token = Password::broker()->createToken($user);
-        app(PasswordService::class)->change($user, 'ChangedPassw0rd');
+        app(PasswordService::class)->change($user, 'ChangedPassw0rd', null);
 
         return $this->scenario($user, $token, 'ChangedPassw0rd');
     }

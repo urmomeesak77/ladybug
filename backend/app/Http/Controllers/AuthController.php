@@ -132,11 +132,11 @@ class AuthController extends Controller {
      * second door, and the account page reads that field to decide which shape of the
      * section to render and which sign-in methods to name (contracts/account-password-api.md).
      *
-     * The acting client is deliberately NOT signed out — no logout, no session invalidation,
-     * no CSRF rotation on this path (FR-028).
+     * The acting client is deliberately NOT signed out — every OTHER session ends, but this
+     * one is named as the one to keep (FR-028).
      */
     public function updatePassword(UpdatePasswordRequest $request): JsonResponse {
-        $user = $this->passwords->change($request->user(), $request->validated()['password']);
+        $user = $this->passwords->change($request->user(), $request->validated()['password'], session()->getId());
 
         return (new UserResource($user))->response();
     }

@@ -262,7 +262,7 @@ class PasswordServiceTest extends TestCase {
         $user = User::factory()->create(['email' => 'ada@example.com', 'password' => 'OldPassw0rd']);
         Password::broker()->createToken($user);
 
-        $this->service()->change($user, 'NewPassw0rd');
+        $this->service()->change($user, 'NewPassw0rd', null);
 
         $this->assertTrue(Hash::check('NewPassw0rd', $user->fresh()->password));
         $this->assertDatabaseCount('password_reset_tokens', 0);
@@ -273,7 +273,7 @@ class PasswordServiceTest extends TestCase {
         $grace = User::factory()->create(['email' => 'grace@example.com']);
         Password::broker()->createToken($grace);
 
-        $this->service()->change($ada, 'NewPassw0rd');
+        $this->service()->change($ada, 'NewPassw0rd', null);
 
         $this->assertDatabaseHas('password_reset_tokens', ['email' => 'grace@example.com']);
     }
@@ -282,7 +282,7 @@ class PasswordServiceTest extends TestCase {
     public function test_the_change_stores_the_password_hashed_by_the_model_cast(): void {
         $user = User::factory()->create(['password' => 'OldPassw0rd']);
 
-        $this->service()->change($user, 'NewPassw0rd');
+        $this->service()->change($user, 'NewPassw0rd', null);
 
         $stored = (string) $user->fresh()->password;
         $this->assertNotSame('NewPassw0rd', $stored);
@@ -293,7 +293,7 @@ class PasswordServiceTest extends TestCase {
     public function test_the_change_gives_a_google_only_account_its_first_password(): void {
         $user = User::factory()->googleOnly()->create();
 
-        $changed = $this->service()->change($user, 'FirstPassw0rd');
+        $changed = $this->service()->change($user, 'FirstPassw0rd', null);
 
         $this->assertTrue(Hash::check('FirstPassw0rd', $changed->password));
         $this->assertTrue(Hash::check('FirstPassw0rd', $user->fresh()->password));
