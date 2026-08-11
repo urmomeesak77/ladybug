@@ -245,6 +245,14 @@ class PasswordResetControllerTest extends TestCase {
 
         $response->assertNoContent();
         $this->assertEquals($before, DB::table('password_reset_tokens')->where('email', $user->email)->first());
+
+        // FR-018's at-rest half, asserted where the row is already in hand: the emailed token
+        // is not what is stored. Without this, storing the token verbatim — or swapping the
+        // broker for a repository that did — would pass every other test in this file, because
+        // they all supply the plaintext token anyway, and a database read alone would then
+        // hand an attacker a usable link.
+        $this->assertNotSame($token, $before->token);
+        $this->assertTrue(Hash::check($token, $before->token));
     }
 
     public function test_the_check_refuses_a_tampered_token_with_the_one_refusal_message(): void {
@@ -511,6 +519,10 @@ class PasswordResetControllerTest extends TestCase {
     /**
      * Every `users` column except the two this feature is allowed to move — read from the
      * live schema, not a hand-written list (SC-007).
+     *
+     * `updated_at` is deliberately still compared: FR-034 says a password change leaves no
+     * record of when it happened, and Eloquent's timestamp would be exactly such a record.
+     * PasswordService suppresses it for that one save, and this assertion is what proves it.
      *
      * @return array<string, mixed>
      */

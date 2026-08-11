@@ -146,3 +146,29 @@ describe('ForgotPasswordPage', () => {
     expect(await screen.findByText(CONFIRMATION)).toBeTruthy();
   });
 });
+
+/**
+ * FR-023 wants every outcome announced, not merely printed. A live region has to be in the
+ * accessibility tree BEFORE its text changes; one that appears already carrying its own
+ * role="status" is generally not announced. It matters more here than elsewhere, because the
+ * submit button the visitor activated is unmounted at the same moment, dropping focus to
+ * <body> — so a silent swap leaves them with no signal at all that the request went through.
+ */
+describe('ForgotPasswordPage, announcing the outcome', () => {
+  it('keeps one status region mounted from the first render and only changes its words', async () => {
+    vi.spyOn(PasswordApi, 'requestLink').mockResolvedValue({ ok: true });
+    render(
+      <MemoryRouter initialEntries={['/forgot-password']}>
+        <ForgotPasswordPage />
+      </MemoryRouter>,
+    );
+    const region = screen.getByRole('status');
+    expect(region.textContent).toBe('');
+
+    submit('ada@example.com');
+
+    await screen.findByText(CONFIRMATION);
+    expect(screen.getByRole('status')).toBe(region);
+    expect(region.textContent).toBe(CONFIRMATION);
+  });
+});

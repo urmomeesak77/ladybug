@@ -19,7 +19,7 @@ use Illuminate\Validation\Rules\Password;
  * The compromised-password check (`uncompromised()`) stays deferred: it calls an external
  * service on every submission, which is a dependency decision, not a rule change.
  */
-class PasswordPolicy {
+final class PasswordPolicy {
     /**
      * @return array<int, mixed>
      */

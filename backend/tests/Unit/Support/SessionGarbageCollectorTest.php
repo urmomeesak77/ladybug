@@ -8,6 +8,7 @@ use App\Support\SessionGarbageCollector;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -21,8 +22,8 @@ use Tests\TestCase;
  * on the remember cookie's presence) still look perfectly valid.
  *
  * SessionGarbageCollector replaces that unsafe, request-relative threshold with a single fixed
- * safe floor (config('remember.lifetime')) that no legitimately-remembered session can ever be
- * younger than its own real expiry and still get swept.
+ * safe floor — the longest of session.lifetime and remember.lifetime — that no legitimately
+ * remembered session can ever be younger than its own real expiry and still get swept.
  */
 final class SessionGarbageCollectorTest extends TestCase {
     use RefreshDatabase;
@@ -87,5 +88,52 @@ final class SessionGarbageCollectorTest extends TestCase {
         SessionGarbageCollector::sweepIfLucky();
 
         $this->assertTrue($this->sessionExists('stale'));
+    }
+
+    /**
+     * A missing key would reach random_int(1, 0) and throw a ValueError. This runs from
+     * middleware prepended to every group, so that is a hard 500 on every request on the
+     * site — from a config typo. Falling back keeps the site up.
+     *
+     * @param  mixed  $lottery
+     */
+    #[DataProvider('malformedLotteries')]
+    public function test_a_malformed_lottery_falls_back_instead_of_throwing($lottery): void {
+        Config::set('remember.gc_lottery', $lottery);
+        $lifetime = (int) config('remember.lifetime');
+        $this->insertSession('stale', $lifetime + 60);
+
+        SessionGarbageCollector::sweepIfLucky();
+
+        // The fallback is [2, 100], so the sweep itself is a coin toss we cannot assert on.
+        // What matters is that the call returned at all rather than throwing.
+        $this->assertTrue(true);
+    }
+
+    /**
+     * @return array<string, array{mixed}>
+     */
+    public static function malformedLotteries(): array {
+        return [
+            'missing' => [null],
+            'not an array' => ['2/100'],
+            'wrong arity' => [[100]],
+        ];
+    }
+
+    /**
+     * The class's central claim — "no session can legitimately be older than this floor" —
+     * must hold even when an operator raises SESSION_LIFETIME above REMEMBER_ME_LIFETIME.
+     * Nothing enforces that ordering, and under the old remember-lifetime-only threshold
+     * such a config would have swept sessions that were still live.
+     */
+    public function test_a_session_lifetime_above_the_remember_lifetime_raises_the_floor(): void {
+        Config::set('remember.lifetime', 60);
+        Config::set('session.lifetime', 600);
+        $this->insertSession('still-alive', 300);
+
+        SessionGarbageCollector::sweep();
+
+        $this->assertTrue($this->sessionExists('still-alive'));
     }
 }

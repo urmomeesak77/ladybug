@@ -73,7 +73,7 @@ class PasswordService {
             return false;
         }
 
-        return Password::getRepository()->exists($user, $token);
+        return Password::broker()->getRepository()->exists($user, $token);
     }
 
     /**
@@ -94,13 +94,21 @@ class PasswordService {
      * which is why the broker's own 2-argument callback can call it unmodified.
      */
     public function reset(string $hash, string $token, string $password): bool {
-        $user = $this->recoverableAccount($hash);
-        if ($user === null) {
-            return false;
-        }
-
         DB::beginTransaction();
         try {
+            // Resolved INSIDE the transaction and locked, unlike the pure read in
+            // checkResetToken(). change() deletes any outstanding token in its own
+            // transaction; without the lock the broker's exists() check below could pass
+            // just before that delete and this write land just after, which would revive a
+            // link the owner had already shut — the one lever FR-008 offers someone whose
+            // inbox is compromised. Both write paths take the same row lock, so they queue.
+            $user = $this->recoverableAccount($hash, lock: true);
+            if ($user === null) {
+                DB::rollBack();
+
+                return false;
+            }
+
             $status = Password::broker()->reset([
                 'email' => $user->email,
                 'password' => $password,
@@ -138,6 +146,11 @@ class PasswordService {
     public function change(User $user, string $password, ?string $keepSessionId): User {
         DB::beginTransaction();
         try {
+            // The same row lock reset() takes, for the same reason: it is what makes the
+            // deleteToken below actually final rather than merely first (FR-008). The lock
+            // is on the ROW, so holding it here is enough — the write still goes through the
+            // instance the caller handed us.
+            User::whereKey($user->getKey())->lockForUpdate()->first();
             $this->applyNewPassword($user, $password, $keepSessionId);
             Password::broker()->deleteToken($user);
             DB::commit();
@@ -166,7 +179,13 @@ class PasswordService {
     private function applyNewPassword(User $user, string $password, ?string $keepSessionId = null): void {
         $user->password = $password;
         $user->remember_token = Str::random(60);
+        // Timestamps suppressed for this one save: FR-034 says a password change leaves no
+        // record of WHEN it happened, and `users.updated_at` is exactly such a record — it
+        // would let anyone with read access to the row date the change. Nothing else writes
+        // to this account in the same request, so nothing legitimate loses its timestamp.
+        $user->timestamps = false;
         $user->save();
+        $user->timestamps = true;
         SessionRevoker::revoke($user, $keepSessionId);
     }
 
@@ -178,8 +197,8 @@ class PasswordService {
      * nothing about `disabled_at`, so the broker would honour a revoked account's link
      * (FR-006, INV-4).
      */
-    private function recoverableAccount(string $hash): ?User {
-        $user = $this->users->findByEmailDigest($hash);
+    private function recoverableAccount(string $hash, bool $lock = false): ?User {
+        $user = $this->users->findByEmailDigest($hash, $lock);
         if ($user === null || $user->isDisabled()) {
             return null;
         }

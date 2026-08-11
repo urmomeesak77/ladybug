@@ -18,10 +18,21 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class CollectStaleSessions {
     /**
+     * The liveness probe, which is contractually database-free (routes/api.php,
+     * contracts/health.md) so it can answer before any migrations exist. deploy.sh,
+     * restore.sh and CI all poll it while MySQL may still be starting; sweeping on it would
+     * make the lottery's share of those probes 500 instead of answer, turning a deterministic
+     * readiness gate into a probabilistic one.
+     */
+    private const UNSWEPT_PATHS = ['api/health'];
+
+    /**
      * @param  Closure(Request): Response  $next
      */
     public function handle(Request $request, Closure $next): Response {
-        SessionGarbageCollector::sweepIfLucky();
+        if (! $request->is(...self::UNSWEPT_PATHS)) {
+            SessionGarbageCollector::sweepIfLucky();
+        }
 
         return $next($request);
     }

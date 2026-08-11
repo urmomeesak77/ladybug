@@ -52,8 +52,13 @@ test.describe('Password recovery', () => {
     await expect(page.getByText('If an account exists for that address, a password recovery link is on its way.'))
       .toBeVisible();
 
+    // Polled rather than read once. The mail is written before the 200 that the assertion
+    // above waits on, so a single read is ORDERED correctly — but it is still a synchronous
+    // filesystem read racing a container's log flush, and it is the last unguarded timing
+    // assumption in this spec. Two of the recent fixes here were timing fixes; this removes
+    // the remaining one instead of waiting to be bitten by it.
+    await expect.poll(() => MailLog.latestResetLink(email), { timeout: 15000 }).not.toBeNull();
     const link = MailLog.latestResetLink(email);
-    expect(link).not.toBeNull();
 
     // FR-011: the form asks for a new password twice and prints no account detail.
     await page.goto(link ?? '');
@@ -82,5 +87,42 @@ test.describe('Password recovery', () => {
     await page.goto(link ?? '');
     await expect(page.getByText('This password recovery link is no longer valid.')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Request a new link' })).toBeVisible();
+  });
+
+  /**
+   * US3 in a real browser. The unit tests reach FR-028 only by replaying a captured cookie;
+   * this is the one place the actual claim gets tested as a user experiences it — the client
+   * that made the change is still signed in afterwards, with no re-login and no bounce to
+   * /login, and the new password is the one that now works.
+   */
+  test('changing the password from the account page keeps that client signed in', async ({ page }) => {
+    const email = uniqueEmail();
+    await register(page, email);
+
+    await page.goto('/account');
+    await expect(page.getByRole('heading', { name: 'Password' })).toBeVisible();
+    await page.getByLabel('Current password').fill('Password1');
+    await page.getByLabel('New password', { exact: true }).fill('SecondPassw0rd');
+    await page.getByLabel('Confirm new password').fill('SecondPassw0rd');
+    await page.getByRole('button', { name: 'Save password' }).click();
+
+    // FR-028: the acting client survives its own change — still on /account, still signed in.
+    await expect(page.getByText('Password updated.')).toBeVisible();
+    await expect(page).toHaveURL('/account');
+    await expect(page.getByRole('link', { name: 'Account' })).toBeVisible();
+
+    // And the change was real: only the new password signs in afterwards.
+    await page.getByRole('button', { name: 'Log out' }).click();
+    await expect(page.getByRole('link', { name: 'Login' })).toBeVisible();
+    await page.goto('/login');
+    await page.getByLabel('E-mail').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill('Password1');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await expect(page.getByText('Email or password is incorrect.')).toBeVisible();
+
+    await page.getByLabel('Password', { exact: true }).fill('SecondPassw0rd');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await expect(page).toHaveURL('/');
+    await expect(page.getByRole('link', { name: 'Account' })).toBeVisible();
   });
 });

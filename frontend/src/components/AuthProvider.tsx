@@ -61,9 +61,16 @@ function AuthProvider({ children }: { children: ReactNode }) {
   // still probing (status 'unknown') — future privilege gating reads this (009, OOS-001).
   const role = user?.role ?? 'guest';
 
+  // Adopt a profile the caller was already handed, instead of re-probing for it. Only for
+  // responses that carry the authoritative UserResource — never for a locally-built guess.
+  const adopt = useCallback((current: AuthUser): void => {
+    setUser(current);
+    setStatus('authenticated');
+  }, []);
+
   const value = useMemo(
-    () => ({ status, user, role, register, login, logout, refresh }),
-    [status, user, role, register, login, logout, refresh],
+    () => ({ status, user, role, register, login, logout, refresh, adopt }),
+    [status, user, role, register, login, logout, refresh, adopt],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

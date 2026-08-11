@@ -27,6 +27,7 @@ const ada: AuthUser = {
 
 function renderForm(hasPassword = true) {
   const refresh = vi.fn().mockResolvedValue(undefined);
+  const adopt = vi.fn();
   const value: AuthContextValue = {
     status: 'authenticated',
     user: { ...ada, hasPassword },
@@ -35,13 +36,14 @@ function renderForm(hasPassword = true) {
     login: vi.fn(),
     logout: vi.fn(),
     refresh,
+    adopt,
   };
   render(
     <AuthContext.Provider value={value}>
       <AccountPasswordForm hasPassword={hasPassword} />
     </AuthContext.Provider>,
   );
-  return { refresh };
+  return { refresh, adopt };
 }
 
 function field(label: string): HTMLInputElement {
@@ -77,9 +79,9 @@ describe('AccountPasswordForm — an account with a password', () => {
     expect((screen.getByRole('button', { name: 'Save password' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('reports success in words, clears every field and refreshes the session', async () => {
+  it('reports success in words, clears every field and adopts the returned profile', async () => {
     const change = vi.spyOn(PasswordApi, 'changePassword').mockResolvedValue({ ok: true, user: ada });
-    const { refresh } = renderForm();
+    const { refresh, adopt } = renderForm();
 
     compose();
     save();
@@ -95,8 +97,11 @@ describe('AccountPasswordForm — an account with a password', () => {
     expect(field('Current password').value).toBe('');
     expect(field('New password').value).toBe('');
     expect(field('Confirm new password').value).toBe('');
-    // The refreshed profile is what flips `hasPassword` and the sign-in method line.
-    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    // The profile that flips `hasPassword` and the sign-in method line comes from the
+    // response itself — the endpoint answers with a UserResource precisely so this costs no
+    // second round trip (contracts/account-password-api.md).
+    await waitFor(() => expect(adopt).toHaveBeenCalledWith(ada));
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it('shows the server refusal and clears all three fields (US3 scenario 3)', async () => {
@@ -105,7 +110,7 @@ describe('AccountPasswordForm — an account with a password', () => {
       kind: 'validation',
       errors: { current_password: ['The password is incorrect.'] },
     });
-    const { refresh } = renderForm();
+    const { adopt } = renderForm();
 
     compose('GuessedPassw0rd');
     save();
@@ -122,7 +127,8 @@ describe('AccountPasswordForm — an account with a password', () => {
     expect(field('New password').value).toBe('');
     expect(field('Confirm new password').value).toBe('');
     expect(field('Current password').value).toBe('');
-    expect(refresh).not.toHaveBeenCalled();
+    // A refusal must not install a profile: the account is exactly as it was.
+    expect(adopt).not.toHaveBeenCalled();
   });
 
   it('marks the new-password field when the server refuses the password itself', async () => {
@@ -241,5 +247,66 @@ describe('AccountPasswordForm — a Google-only account', () => {
       password: 'NewPassw0rd',
       passwordConfirmation: 'NewPassw0rd',
     });
+  });
+});
+
+/**
+ * The button is `disabled` (not `aria-disabled`), so it is unfocusable and carries no
+ * explanation of its own. If the rules are never stated in words, a password that fails the
+ * policy leaves the form a silent dead end — and the server 422 that WOULD state them is
+ * unreachable, because the client blocks the submit. That is fatal for the Google-only shape,
+ * whose entire purpose here is to set a first password (FR-013, FR-029, FR-031).
+ */
+describe('AccountPasswordForm — the policy is stated, not just enforced', () => {
+  it('names each unmet rule once the new-password field is left', async () => {
+    renderForm(false);
+
+    fireEvent.change(field('New password'), { target: { value: 'hunter2' } });
+    fireEvent.blur(field('New password'));
+
+    // One node per field carrying every unmet rule, joined — the same shape AuthField uses
+    // on the login and register forms.
+    const message = await screen.findByText(/must be at least 8 characters/);
+    expect(message.textContent).toContain('The password field must be at least 8 characters.');
+    expect(message.textContent)
+      .toContain('The password field must contain at least one uppercase and one lowercase letter.');
+  });
+
+  it('ties the message to the field it is about, for sighted and assistive readers alike', async () => {
+    renderForm(false);
+
+    fireEvent.change(field('New password'), { target: { value: 'hunter2' } });
+    fireEvent.blur(field('New password'));
+
+    const message = await screen.findByText(/must be at least 8 characters/);
+    expect(message.getAttribute('role')).toBe('alert');
+    expect(field('New password').getAttribute('aria-describedby')).toBe(message.getAttribute('id'));
+    // Inside its own field, so the sighted reading agrees with the accessible one: this used
+    // to render under "Confirm new password", three rows from the input it described.
+    expect(field('New password').closest('.auth-field')?.contains(message)).toBe(true);
+  });
+
+  it('says nothing about a field the visitor has not finished with yet', () => {
+    renderForm(false);
+
+    fireEvent.change(field('New password'), { target: { value: 'h' } });
+
+    expect(screen.queryByText(/must be at least 8 characters/)).toBeNull();
+  });
+
+  it('lets a Google-only account reach Save once the policy is met', () => {
+    renderForm(false);
+
+    fireEvent.change(field('New password'), { target: { value: 'FirstPassw0rd' } });
+    fireEvent.change(field('Confirm new password'), { target: { value: 'FirstPassw0rd' } });
+
+    expect((screen.getByRole('button', { name: 'Save password' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  /** FR-026: the section has a name, so it is not just three unexplained password boxes. */
+  it('names the password section', () => {
+    renderForm();
+
+    expect(screen.getByRole('heading', { name: 'Password' })).toBeTruthy();
   });
 });

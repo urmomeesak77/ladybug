@@ -214,3 +214,75 @@ describe('ResetPasswordPage, dead links', () => {
     expect(screen.getByRole('button', { name: 'Set password' })).toBeTruthy();
   });
 });
+
+/**
+ * The CHECK has to make the same distinction the submit path above makes, and for a sharper
+ * reason. Calling a rate-limited check "dead" does not merely mislead: the dead view offers
+ * "Request a new link", and taking that offer SUPERSEDES the live link the visitor is holding
+ * (FR-008). The `password` limiter is keyed by IP and shared with the request form, so an
+ * impatient visitor on an office or CGNAT address trips it routinely.
+ */
+describe('ResetPasswordPage, a check that could not be answered', () => {
+  it('does not call a rate-limited link dead, and offers a retry instead of a new link', async () => {
+    stubApi({ ok: false, kind: 'rate-limited' });
+
+    renderPage();
+
+    expect(await screen.findByText('Too many attempts. Please try again in a minute.')).toBeTruthy();
+    expect(screen.queryByText('This password recovery link is no longer valid.')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Request a new link' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+  });
+
+  it('reports a lost connection as itself, not as a dead link', async () => {
+    stubApi({ ok: false, kind: 'network' });
+
+    renderPage();
+
+    expect(
+      await screen.findByText('Something went wrong. Please check your connection and try again.'),
+    ).toBeTruthy();
+    expect(screen.queryByText('This password recovery link is no longer valid.')).toBeNull();
+  });
+
+  it('re-asks on retry and shows the form when the second answer arrives', async () => {
+    const api = stubApi({ ok: false, kind: 'rate-limited' });
+    renderPage();
+    await screen.findByRole('button', { name: 'Try again' });
+
+    api.checkToken.mockResolvedValue({ ok: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    // Without resetting the once-per-mount guard, a retry would be a no-op and the only way
+    // out would be a page reload.
+    await screen.findByRole('heading', { name: 'Choose a new password' });
+    expect(api.checkToken).toHaveBeenCalledTimes(2);
+  });
+
+  it('still refuses a link the server actually called dead', async () => {
+    stubApi({ ok: false, kind: 'invalid' });
+
+    renderPage();
+
+    expect(await screen.findByText('This password recovery link is no longer valid.')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Request a new link' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  /**
+   * The status line is one node that lives for the page's whole life and changes only its
+   * words. A live region inserted already carrying its text is generally not announced, and
+   * on this page the control that had focus is unmounted at the same moment — so a silent
+   * swap leaves a screen reader user with nothing at all (FR-023).
+   */
+  it('keeps one status region mounted from the first render', async () => {
+    stubApi({ ok: false, kind: 'invalid' });
+    renderPage();
+    const initial = screen.getByRole('status');
+    expect(initial.textContent).toBe('Checking this link…');
+
+    await screen.findByText('This password recovery link is no longer valid.');
+
+    expect(screen.getByRole('status')).toBe(initial);
+  });
+});

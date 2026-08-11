@@ -14,6 +14,10 @@ export type AuthContextValue = {
   logout: () => Promise<void>;
   // Re-probe /api/user so server-side changes (e.g. emailVerifiedAt) propagate (008).
   refresh: () => Promise<void>;
+  // Take a profile the caller already has, without asking the server again. Endpoints that
+  // answer with the updated UserResource (022's password change) are the reason this exists:
+  // re-probing /api/user after one would be a second round trip for bytes already in hand.
+  adopt: (user: AuthUser) => void;
 };
 
 // The provider (components/AuthProvider) supplies the value; consumers read it via the

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -17,12 +17,7 @@ const CONFIRMATION = 'If an account exists for that address, a password recovery
   + 'Check that inbox.';
 
 function ForgotPasswordConfirmation() {
-  return (
-    <>
-      <p className="auth-form__notice" role="status">{CONFIRMATION}</p>
-      <p className="auth-form__link"><Link to="/login">Back to login</Link></p>
-    </>
-  );
+  return <p className="auth-form__link"><Link to="/login">Back to login</Link></p>;
 }
 
 // Ask for a recovery link (022, US1). Structurally the same form as /login — useAuthForm +
@@ -32,6 +27,10 @@ function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [formError, setFormError] = useState('');
   const form = useAuthForm<ForgotPasswordValues>({ email: '' }, AuthModel.validateForgotPassword);
+
+  useEffect(() => {
+    document.title = 'Reset password';
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -56,6 +55,13 @@ function ForgotPasswordPage() {
   return (
     <section className="auth">
       <h1>Reset password</h1>
+      {/*
+        Mounted for the life of the page, not swapped in on success. A live region must exist
+        in the accessibility tree BEFORE its text changes, or the announcement is missed — and
+        on submit the button that had focus is unmounted, so a silent swap leaves a screen
+        reader user with nothing at all (FR-023).
+      */}
+      <p className="auth-form__notice" role="status">{sent ? CONFIRMATION : ''}</p>
       {sent ? <ForgotPasswordConfirmation /> : (
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
           {formError ? <p className="auth-form__error" role="alert">{formError}</p> : null}

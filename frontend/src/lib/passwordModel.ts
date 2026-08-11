@@ -109,6 +109,21 @@ export class PasswordModel {
     return PasswordModel.requestFailureMessage(result.kind);
   }
 
+  // Which field a refusal belongs to, so the message can be tied to that input alone: a
+  // wrong current password says nothing about the new one and must not mark it invalid.
+  // Travels with changeFailureMessage above, which is why it lives beside it rather than
+  // loose in the component (docs/CODING_CONVENTIONS.md — helpers belong on a class).
+  //
+  // '' means the failure names no field — a lapsed session, a spent rate limit — and belongs
+  // to the form as a whole. Laravel's `confirmed` rule reports a mismatch against `password`,
+  // so the confirmation input is never the one the server names.
+  static changeFailureField(result: ChangePasswordResult): string {
+    if (result.ok || result.kind !== 'validation') {
+      return '';
+    }
+    return result.errors.current_password ? 'currentPassword' : 'password';
+  }
+
   // Mirrors the server policy (min 8, mixed case, a number — research D9), one message
   // per violation like the prototype, so users see exactly what is missing.
   static policyErrors(password: string): string[] {

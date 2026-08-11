@@ -102,8 +102,14 @@ return [
         'users' => [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => env('AUTH_PASSWORD_RESET_EXPIRE', 60),
-            'throttle' => env('AUTH_PASSWORD_RESET_THROTTLE', 60),
+            // max(1, ...) for the same reason config/remember.php casts its lifetime: a
+            // present-but-empty AUTH_PASSWORD_RESET_EXPIRE casts to 0, which would expire
+            // every recovery link the instant it is issued — a feature that silently does
+            // nothing, with no error anywhere to say why.
+            'expire' => max(1, (int) env('AUTH_PASSWORD_RESET_EXPIRE', 60)),
+            // Not max(1, ...): 0 is a MEANINGFUL value here (no re-send interval at all),
+            // and the e2e stack sets exactly that to exercise a re-send.
+            'throttle' => max(0, (int) env('AUTH_PASSWORD_RESET_THROTTLE', 60)),
         ],
     ],
 

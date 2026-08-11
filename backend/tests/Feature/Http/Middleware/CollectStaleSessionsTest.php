@@ -51,4 +51,43 @@ final class CollectStaleSessionsTest extends TestCase {
 
         $this->assertTrue(DB::table(config('session.table'))->where('id', 'ancient')->exists());
     }
+
+    /**
+     * The tests above prove the MECHANISM on a throwaway route. This one proves the WIRING:
+     * that bootstrap/app.php actually prepends the middleware to the real `api` group.
+     * Without it, deleting that one line would restore the 7-day remember-me logout bug
+     * (018) with a fully green suite.
+     */
+    public function test_the_sweep_is_wired_into_the_real_api_group(): void {
+        Config::set('remember.gc_lottery', [100, 100]);
+        $this->insertStaleSession();
+
+        $this->getJson('/api/posts')->assertOk();
+
+        $this->assertFalse(DB::table(config('session.table'))->where('id', 'ancient')->exists());
+    }
+
+    /**
+     * The liveness probe is contractually database-free so it can answer before migrations
+     * have run; deploy.sh, restore.sh and CI all poll it during startup. Sweeping on it would
+     * make the lottery's share of those probes 500.
+     */
+    public function test_the_liveness_probe_never_sweeps(): void {
+        Config::set('remember.gc_lottery', [100, 100]);
+        $this->insertStaleSession();
+
+        $this->getJson('/api/health')->assertOk();
+
+        $this->assertTrue(DB::table(config('session.table'))->where('id', 'ancient')->exists());
+    }
+
+    /**
+     * The other half of the same fix: Laravel's own request-triggered GC must stay off. It
+     * sweeps against the TRIGGERING request's session.lifetime — the short default on almost
+     * every request — and would delete remembered sessions hours into their real allowance.
+     * Restoring the framework default here is a one-line change that this pins.
+     */
+    public function test_laravels_own_unsafe_session_gc_stays_disabled(): void {
+        $this->assertSame([0, 100], config('session.lottery'));
+    }
 }

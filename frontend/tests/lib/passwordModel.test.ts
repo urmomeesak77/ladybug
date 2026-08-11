@@ -267,3 +267,48 @@ describe('changeFailureMessage', () => {
       .toBe(PasswordModel.requestFailureMessage(kind));
   });
 });
+
+describe('PasswordModel.changeFailureField', () => {
+  it('names the current-password field when the server refused that one', () => {
+    expect(PasswordModel.changeFailureField({
+      ok: false,
+      kind: 'validation',
+      errors: { current_password: ['The password is incorrect.'] },
+    })).toBe('currentPassword');
+  });
+
+  it('names the new-password field for any other validation refusal', () => {
+    // Laravel's `confirmed` rule reports a mismatch against `password`, so the confirmation
+    // input is never the one the server names.
+    expect(PasswordModel.changeFailureField({
+      ok: false,
+      kind: 'validation',
+      errors: { password: ['The password field confirmation does not match.'] },
+    })).toBe('password');
+  });
+
+  it('names no field for a refusal that is about neither password', () => {
+    // A lapsed session or a spent rate limit says nothing about what was typed, so no input
+    // may be marked invalid — the sentence belongs to the form.
+    expect(PasswordModel.changeFailureField({ ok: false, kind: 'auth' })).toBe('');
+    expect(PasswordModel.changeFailureField({ ok: false, kind: 'rate-limited' })).toBe('');
+    expect(PasswordModel.changeFailureField({ ok: false, kind: 'network' })).toBe('');
+  });
+
+  it('names no field on success', () => {
+    expect(PasswordModel.changeFailureField({
+      ok: true,
+      user: {
+        hash: 'usr0000001',
+        name: 'Ada',
+        email: 'ada@example.com',
+        emailVerifiedAt: null,
+        role: 'member',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+        hasPassword: true,
+        googleLinkedAt: null,
+      },
+    })).toBe('');
+  });
+});

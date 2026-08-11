@@ -376,8 +376,24 @@ Second, `deploy/php/entrypoint.sh` recreates the Laravel storage skeleton
 cosmetic: the compose bind-mount `./data/storage:/var/www/html/storage`
 shadows whatever the image baked in, and on a fresh server that host
 directory starts empty. Without the entrypoint recreating it, the first
-request would fail — `SESSION_DRIVER=file`, `CACHE_STORE=file`, and the log
-channel all write into that tree.
+request would fail — `CACHE_STORE=file` and the log channel both write into
+that tree.
+
+Third, `SESSION_DRIVER` must be `database`, not `file`. Feature 022 ends every
+other session when a password changes, and it does so with a
+`DELETE FROM sessions WHERE user_id = ?` (`App\Support\SessionRevoker`). Under
+the `file` driver that table is permanently empty, so the delete is a no-op
+while the API still reports success — and rotating `remember_token` does not
+compensate, because 018's "remember me" is a presence cookie plus an extended
+session lifetime rather than Laravel's recaller token. A stolen session would
+therefore survive the victim's password reset for its full 7-day allowance.
+No test can catch this: every other environment already sets `database`, so
+the gap would exist in production alone.
+
+**Cutover note:** switching an already-running server from `file` to
+`database` does not migrate existing sessions. Every signed-in user is signed
+out once, at the deploy. The `sessions` table already exists (it predates 022),
+so no migration is required.
 
 ## 6. Backups
 

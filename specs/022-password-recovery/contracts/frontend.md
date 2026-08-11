@@ -17,9 +17,16 @@ browser.
 | `/reset-password/{hash}` | `ResetPasswordPage` | **none** | no | yes (`/reset-password` prefix) |
 
 `SpaRoutes` additions: `FORGOT_PASSWORD` in `STATIC_ROUTES` (`=> false`) and
-`RESET_PASSWORD_HASH` in `DYNAMIC_ROUTES` with pattern `#^/reset-password/[0-9a-f]{40}$#`
-(sha1 is 40 lowercase hex characters — a narrower shape than the 10-char meme pattern, so a
-malformed digest never becomes a query).
+`RESET_PASSWORD_HASH` in `DYNAMIC_ROUTES` with pattern `#^/reset-password/[^/]+$#`.
+
+The handle is a sha1 digest — 40 lowercase hex characters — but the route matches **any single
+non-empty segment**, deliberately looser than the value it carries. Mail clients damage long
+links routinely (a trailing `.` or `)` swallowed from the surrounding sentence, a wrapped
+line), and under a strict pattern every one of those became a **404**: a dead end with no way
+back. FR-015 / US4 scenario 3 wants every altered link to reach the one shared refusal, which
+carries the "request a new one" control. Admitting a garbage handle costs nothing — it resolves
+to no account and answers the same `403` as any other dead link, and `throttle:password` bounds
+the attempt rate.
 
 **No guard on either route** (research D11): `RequireAnon` would bounce a signed-in person away
 from a link the spec requires to be honoured for the account it names. `/account` keeps its
@@ -49,18 +56,33 @@ Built on `useAuthForm` + `AuthField`, so it is structurally the same form as `/l
 
 ## 3. `ResetPasswordPage` — `/reset-password/:hash`
 
-Four states, all at one address, all restored correctly by Back/Forward/Refresh (FR-024).
+Five states, all at one address, all restored correctly by Back/Forward/Refresh (FR-024).
 
 | State | Entered when | Rendered |
 |---|---|---|
 | **checking** | on mount | the shared pending state |
 | **form** | `POST /api/password/reset/check` → `204` | H1 "Choose a new password", new-password + confirmation fields, submit "Set password". **No current-password field** (FR-011). **No e-mail, name, or any other account detail anywhere on the page** (FR-011, INV-7) |
 | **dead** | check → `403`, or the fragment is missing/malformed | *"This password recovery link is no longer valid."* plus a `<Link to="/forgot-password">Request a new link</Link>* (FR-015, US4 scenario 5) |
+| **unavailable** | check → `429`, or the request could not be made at all | the matching `PasswordModel.resetFailureMessage` sentence plus a **"Try again"** button. **Never** the dead-link wording, and **never** the "Request a new link" control |
 | **done** | `POST /api/password/reset` → `200` | *"Your password has been changed. Please log in."* plus a link to `/login` (FR-014, FR-021) |
 
+- **`unavailable` is not a synonym for `dead`.** Only the server's `403` means the link is
+  finished; a spent rate limit or a lost connection says nothing about it. Collapsing the two
+  is actively harmful rather than merely imprecise: the `dead` view offers "Request a new
+  link", and taking that offer **supersedes the live link the visitor is holding** (FR-008).
+  The `password` limiter is keyed by IP and shared with the request form, so an impatient
+  visitor on an office or CGNAT address trips it routinely. The submit path draws the same
+  line (below).
 - The check runs **once, on mount** — not again after a failed submit, because a policy failure
   leaves the link untouched (FR-013) and re-checking would burn the rate-limit budget (research
-  D8).
+  D8). The **"Try again"** button in `unavailable` is the one deliberate exception: it resets
+  the once-per-mount guard, because otherwise the only way out of a transient failure would be
+  a page reload.
+- The status line is **one node, mounted for the life of the page**, whose text changes between
+  states — never an element inserted already carrying its message. A live region has to be in
+  the accessibility tree before its content changes, and on submit the control that had focus
+  is unmounted at the same moment, so a silent swap leaves a screen-reader user with no signal
+  at all (FR-023). `/forgot-password` follows the same rule.
 - A `422` from the submit renders the server's field messages inline and **stays in the `form`
   state** — the link is still good (US2 scenarios 3 & 4).
 - A `403` from the submit moves the page to `dead`.

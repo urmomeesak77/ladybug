@@ -8,8 +8,9 @@ set -e
 # The compose stack bind-mounts a host directory over /var/www/html/storage, which
 # shadows the skeleton baked into the image -- on a fresh server that host directory
 # is empty. Recreate it here so the container is self-sufficient wherever it is
-# mounted. These are needed beyond view:cache: SESSION_DRIVER=file, CACHE_STORE=file
-# and file logging all write here on the first request.
+# mounted. These are needed beyond view:cache: CACHE_STORE=file and file logging both
+# write here on the first request. (Sessions do NOT: SESSION_DRIVER is `database` since
+# 022, because session revocation on a password change is a DELETE against that table.)
 mkdir -p storage/app/public \
          storage/app/private \
          storage/framework/cache/data \

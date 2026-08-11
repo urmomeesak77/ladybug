@@ -9,32 +9,40 @@ import { PasswordApi } from '../lib/passwordApi';
 import { PasswordModel } from '../lib/passwordModel';
 import type { ResetPasswordValues } from '../lib/passwordModel';
 
-// One address, four states, all restored by Back/Forward/Refresh (FR-024).
-type ResetViewState = 'checking' | 'form' | 'dead' | 'done';
+// One address, five states, all restored by Back/Forward/Refresh (FR-024). `unavailable` is
+// NOT a synonym for `dead`: the link is presumed alive and the visitor is asked to retry,
+// because we could not reach an answer rather than because we got a refusal.
+type ResetViewState = 'checking' | 'form' | 'dead' | 'done' | 'unavailable';
 
-function ResetOutcome({ view }: { view: ResetViewState }) {
-  if (view === 'done') {
-    return (
-      <>
-        <p className="auth-form__notice" role="status">Your password has been changed. Please log in.</p>
-        <p className="auth-form__link"><Link to="/login">Go to login</Link></p>
-      </>
-    );
+// The status line, mounted for the life of the page rather than swapped in when an outcome
+// arrives. A live region has to be in the accessibility tree BEFORE its text changes; an
+// element that appears already carrying its own role="status" is not reliably announced.
+// Mirrors VerifyEmailPage, which keeps one node and changes only its words.
+function statusTextFor(view: ResetViewState): string {
+  if (view === 'checking') {
+    return 'Checking this link…';
   }
-  return (
-    <>
-      <p className="auth-form__notice" role="status">{PasswordModel.resetFailureMessage('invalid')}</p>
-      <p className="auth-form__link"><Link to="/forgot-password">Request a new link</Link></p>
-    </>
-  );
+  if (view === 'done') {
+    return 'Your password has been changed. Please log in.';
+  }
+  if (view === 'dead') {
+    return PasswordModel.resetFailureMessage('invalid');
+  }
+  return '';
 }
 
 // Ask the server whether the link is alive, ONCE per mount. Not again after a refused
 // password: a 422 is about the password and leaves the link untouched, so re-checking would
 // spend rate-limit budget on a question already answered (research D8).
-function useLinkCheck(hash: string, token: string | null, setView: (view: ResetViewState) => void): void {
+function useLinkCheck(
+  hash: string,
+  token: string | null,
+  attempt: number,
+  setView: (view: ResetViewState) => void,
+  setCheckError: (message: string) => void,
+): void {
   // StrictMode mounts effects twice in development; one check per link value, like the
-  // verification page's.
+  // verification page's. `attempt` is part of the key so an explicit retry re-asks.
   const checkedFor = useRef('');
 
   useEffect(() => {
@@ -42,12 +50,30 @@ function useLinkCheck(hash: string, token: string | null, setView: (view: ResetV
       setView('dead');
       return;
     }
-    if (checkedFor.current === hash + token) {
+    const key = `${attempt}:${hash}${token}`;
+    if (checkedFor.current === key) {
       return;
     }
-    checkedFor.current = hash + token;
-    PasswordApi.checkToken(hash, token).then((result) => setView(result.ok ? 'form' : 'dead'));
-  }, [hash, token, setView]);
+    checkedFor.current = key;
+    PasswordApi.checkToken(hash, token).then((result) => {
+      if (result.ok) {
+        setView('form');
+        return;
+      }
+      // Only the server's 403 means the LINK is dead. A spent rate limit or a lost
+      // connection says nothing about it — and calling those `dead` is actively harmful,
+      // because the refusal offers "Request a new link", which SUPERSEDES the live link the
+      // visitor is holding (FR-008). The `password` limiter is keyed by IP and shared with
+      // the request form, so an impatient visitor on an office or CGNAT address trips it
+      // routinely. Same split the submit handler below makes.
+      if (result.kind === 'invalid') {
+        setView('dead');
+        return;
+      }
+      setCheckError(PasswordModel.resetFailureMessage(result.kind));
+      setView('unavailable');
+    });
+  }, [hash, token, attempt, setView, setCheckError]);
 }
 
 // Choose a new password from an emailed link (022, US2). The account is the LINK's, never
@@ -60,13 +86,25 @@ function ResetPasswordPage() {
   const hash = useParams().hash ?? '';
   const token = PasswordModel.parseResetFragment(useLocation().hash);
   const [view, setView] = useState<ResetViewState>('checking');
+  const [attempt, setAttempt] = useState(0);
+  const [checkError, setCheckError] = useState('');
   const [formError, setFormError] = useState('');
   const form = useAuthForm<ResetPasswordValues>(
     { password: '', passwordConfirmation: '' },
     PasswordModel.validateReset,
   );
 
-  useLinkCheck(hash, token, setView);
+  useEffect(() => {
+    document.title = 'Reset password';
+  }, []);
+
+  useLinkCheck(hash, token, attempt, setView, setCheckError);
+
+  function retryCheck(): void {
+    setCheckError('');
+    setView('checking');
+    setAttempt((previous) => previous + 1);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -97,7 +135,15 @@ function ResetPasswordPage() {
   return (
     <section className="auth">
       <h1>{view === 'form' ? 'Choose a new password' : 'Reset password'}</h1>
-      {view === 'checking' ? <p className="auth-form__notice" role="status">Checking this link…</p> : null}
+      <p className="auth-form__notice" role="status">{statusTextFor(view)}</p>
+      {view === 'unavailable' ? (
+        <>
+          <p className="auth-form__error" role="alert">{checkError}</p>
+          <p className="auth-form__link">
+            <button type="button" className="auth-form__retry" onClick={retryCheck}>Try again</button>
+          </p>
+        </>
+      ) : null}
       {view === 'form' ? (
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
           {formError ? <p className="auth-form__error" role="alert">{formError}</p> : null}
@@ -126,7 +172,10 @@ function ResetPasswordPage() {
           </fieldset>
         </form>
       ) : null}
-      {view === 'done' || view === 'dead' ? <ResetOutcome view={view} /> : null}
+      {view === 'done' ? <p className="auth-form__link"><Link to="/login">Go to login</Link></p> : null}
+      {view === 'dead' ? (
+        <p className="auth-form__link"><Link to="/forgot-password">Request a new link</Link></p>
+      ) : null}
     </section>
   );
 }

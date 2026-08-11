@@ -47,6 +47,7 @@ function renderAccount(user: AuthUser | null) {
     login: vi.fn(),
     logout: vi.fn(),
     refresh: vi.fn(),
+    adopt: vi.fn(),
   };
   const { container } = render(
     <MemoryRouter initialEntries={['/account']}>

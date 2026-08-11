@@ -51,9 +51,19 @@ class UserService {
      * Resolve the account a verification link points at: the link's {hash}
      * segment is sha1 of the recipient's email, mirrored in the indexed
      * email_sha1 column so no session is needed to find the account.
+     *
+     * $lock takes a row lock for the caller's transaction, which the two password-write
+     * paths use to serialise against each other (022, FR-008) — see PasswordService.
+     * SQLite compiles the lock clause away, so it is a no-op under test.
      */
-    public function findByEmailDigest(string $digest): ?User {
-        return User::where('email_sha1', $digest)->first();
+    public function findByEmailDigest(string $digest, bool $lock = false): ?User {
+        $query = User::where('email_sha1', $digest);
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return $query->first();
     }
 
     /**

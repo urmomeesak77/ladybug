@@ -67,16 +67,36 @@ final class SpaRoutesTest extends TestCase {
     }
 
     /**
-     * The digest is sha1 — 40 LOWERCASE hex characters, a narrower shape than the 10-char
-     * meme identifier. Anything else fails here and never becomes a query (contracts §1).
+     * A DAMAGED recovery link still reaches the page, which answers the one shared refusal
+     * with its "request a new one" control (FR-015, US4 scenario 3). Mail clients mangle long
+     * links routinely — a trailing `.` or `)` swallowed from the surrounding sentence, a
+     * wrapped line — and under a strict sha1 pattern every one of those became a 404: a dead
+     * end with no way back. A garbage handle resolves to no account and answers the same 403
+     * as any other dead link, so admitting it costs nothing.
      */
-    public function test_a_malformed_recovery_link_address_matches_nothing(): void {
-        $this->assertNull(SpaRoutes::match('/reset-password/' . substr(self::EMAIL_DIGEST, 0, 39)));
-        $this->assertNull(SpaRoutes::match('/reset-password/' . self::EMAIL_DIGEST . 'a'));
-        $this->assertNull(SpaRoutes::match('/reset-password/' . strtoupper(self::EMAIL_DIGEST)));
-        $this->assertNull(SpaRoutes::match('/reset-password/' . substr(self::EMAIL_DIGEST, 0, 39) . 'z'));
+    public function test_a_damaged_recovery_link_address_still_reaches_the_shared_refusal(): void {
+        $this->assertSame(
+            SpaRoutes::RESET_PASSWORD_HASH,
+            SpaRoutes::match('/reset-password/' . self::EMAIL_DIGEST . '.'),
+        );
+        $this->assertSame(
+            SpaRoutes::RESET_PASSWORD_HASH,
+            SpaRoutes::match('/reset-password/' . substr(self::EMAIL_DIGEST, 0, 39)),
+        );
+        $this->assertSame(
+            SpaRoutes::RESET_PASSWORD_HASH,
+            SpaRoutes::match('/reset-password/' . strtoupper(self::EMAIL_DIGEST)),
+        );
+    }
+
+    /**
+     * The segment must still EXIST, though: `/reset-password` names no view of its own, and
+     * an empty handle is a typo rather than a damaged link.
+     */
+    public function test_a_recovery_link_address_with_no_handle_matches_nothing(): void {
         $this->assertNull(SpaRoutes::match('/reset-password'));
         $this->assertNull(SpaRoutes::match('/reset-password/'));
+        $this->assertNull(SpaRoutes::match('/reset-password/' . self::EMAIL_DIGEST . '/extra'));
     }
 
     public function test_a_permalink_whose_hash_holds_a_disallowed_character_matches_nothing(): void {

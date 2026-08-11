@@ -45,11 +45,18 @@ class SpaRoutes {
     private const HASH_PATTERN = '[A-Za-z0-9_-]{10}';
 
     /**
-     * A recovery link's account handle: sha1 of the address, so 40 LOWERCASE hex characters
-     * (022). Narrower than HASH_PATTERN on purpose — a malformed digest fails here and never
-     * becomes a query.
+     * A recovery link's account handle: sha1 of the address, so 40 lowercase hex characters
+     * (022) — but matched loosely, as any single non-empty segment.
+     *
+     * Deliberately NOT the strict digest here. Mail clients damage long links (a trailing `.`
+     * or `)` swallowed from the surrounding sentence, a wrapped line), and under a strict
+     * pattern such a link 404s. FR-015/US4 scenario 3 wants EVERY altered link to reach the
+     * one shared refusal, which carries the control for requesting a new one — a 404 is a
+     * dead end with no way back. A garbage handle is safe to admit: it resolves to no account
+     * and answers the same 403 as any other dead link, and `throttle:password` bounds the
+     * cost at 5 requests a minute per address.
      */
-    private const EMAIL_DIGEST_PATTERN = '[0-9a-f]{40}';
+    private const EMAIL_DIGEST_PATTERN = '[^/]+';
 
     /** Fixed addresses, each mapped to whether a search engine may index it. */
     private const STATIC_ROUTES = [

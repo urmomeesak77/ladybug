@@ -71,3 +71,60 @@ describe('App', () => {
     expect(screen.queryByRole('heading', { name: 'Users' })).toBeNull();
   });
 });
+
+/**
+ * Both recovery routes are deliberately UNGUARDED, and nothing but this enforces it. The
+ * account a recovery link names is the LINK's, never the signed-in one (research D11), so a
+ * signed-in visitor must be able to open someone else's link and change THAT account. Wrapping
+ * either route in RequireAnon would bounce them to `/` and silently break the behaviour the
+ * server-side test proves — with the rest of the suite still green.
+ */
+describe('App, the recovery routes', () => {
+  const DIGEST = '356a192b7913b04c54574d18c28d46e6395428ab';
+
+  const ada = {
+    hash: 'usr0000001',
+    name: 'Ada',
+    email: 'ada@example.com',
+    emailVerifiedAt: '2026-01-01T00:00:00Z',
+    role: 'member' as const,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    hasPassword: true,
+    googleLinkedAt: null,
+  };
+
+  it('mounts the request page at /forgot-password', async () => {
+    window.history.pushState({}, '', '/forgot-password');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Reset password' })).toBeTruthy();
+  });
+
+  it('mounts the reset page at /reset-password/:hash', async () => {
+    window.history.pushState({}, '', `/reset-password/${DIGEST}#token=${'a'.repeat(64)}`);
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Reset password' })).toBeTruthy();
+  });
+
+  it('lets a SIGNED-IN visitor open a recovery link rather than bouncing them home', async () => {
+    vi.spyOn(AuthApi, 'fetchCurrentUser').mockResolvedValue(ada);
+    window.history.pushState({}, '', `/reset-password/${DIGEST}#token=${'a'.repeat(64)}`);
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Reset password' })).toBeTruthy();
+  });
+
+  it('lets a SIGNED-IN visitor reach the request page too', async () => {
+    vi.spyOn(AuthApi, 'fetchCurrentUser').mockResolvedValue(ada);
+    window.history.pushState({}, '', '/forgot-password');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Reset password' })).toBeTruthy();
+  });
+});

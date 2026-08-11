@@ -762,6 +762,33 @@ class AuthControllerTest extends TestCase {
     }
 
     /**
+     * The two tests above key the bucket through `actingAs`, which installs the user resolver
+     * directly — so they would pass even if the REAL cookie-session path resolved no user
+     * inside the limiter and silently fell back to keying by IP. That is not a hypothetical
+     * failure mode here: `auth:sanctum` switches the default guard mid-request, and this
+     * project has already been bitten by after-phase middleware reading the ambient guard.
+     *
+     * This drives the limiter over a real signed-in cookie instead. Two accounts share one
+     * IP; the first spends its whole allowance, and the second must still be served. Under
+     * IP keying the second would get a 429.
+     */
+    public function test_the_per_account_bucket_holds_over_a_real_session_cookie(): void {
+        config(['app.auth_throttle' => 2]);
+        User::factory()->create(['email' => 'ada@example.com', 'password' => 'OldPassw0rd']);
+        User::factory()->create(['email' => 'grace@example.com', 'password' => 'OldPassw0rd']);
+
+        $ada = $this->loginSession('ada@example.com', 'OldPassw0rd');
+        for ($i = 0; $i < 3; $i++) {
+            $this->withSessionCookie($ada['cookie'])->putJson('/api/user/password', $this->guess());
+        }
+
+        $grace = $this->loginSession('grace@example.com', 'OldPassw0rd');
+        $this->withSessionCookie($grace['cookie'])
+            ->putJson('/api/user/password', $this->guess())
+            ->assertStatus(422);
+    }
+
+    /**
      * FR-019 / FR-031: an account created through Google has `password IS NULL`, so there
      * is no current password to prove — the live session is the proof. The field is absent
      * from the rule set entirely, not present-and-optional.
@@ -893,6 +920,13 @@ class AuthControllerTest extends TestCase {
      */
     private function loginSession(string $email, string $password): array {
         $this->app['auth']->forgetGuards();
+        // Restore the DEFAULT guard as well, not just the resolved instances. `auth:sanctum`
+        // calls shouldUse('sanctum'), which sticks for the rest of the process, so a second
+        // login in the same test would reach RequestGuard::attempt() — which does not exist.
+        // Hard-coded 'web' rather than read from config: shouldUse() OVERWRITES
+        // auth.defaults.guard, so by now that key holds 'sanctum' and reading it back would
+        // restore nothing. A real browser gets a fresh process here; the test has to say so.
+        $this->app['auth']->shouldUse('web');
         $response = $this->withHeader('Origin', 'http://localhost')
             ->postJson('/api/login', ['email' => $email, 'password' => $password]);
         $response->assertOk();
@@ -926,6 +960,10 @@ class AuthControllerTest extends TestCase {
      */
     private function userSnapshot(User $user): array {
         $row = (array) DB::table('users')->where('id', $user->id)->first();
+        // Only the two columns the change is ALLOWED to move are excluded. `updated_at` is
+        // deliberately NOT excluded: FR-034 says a password change leaves no record of when
+        // it happened, and Eloquent's timestamp would be exactly such a record, so
+        // PasswordService suppresses it for that save and this assertion is what proves it.
         unset($row['password'], $row['remember_token']);
 
         return $row;
