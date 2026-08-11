@@ -114,6 +114,12 @@ test.describe('Password recovery', () => {
     // And the change was real: only the new password signs in afterwards.
     await page.getByRole('button', { name: 'Log out' }).click();
     await expect(page.getByRole('link', { name: 'Login' })).toBeVisible();
+    // Home first, so the /login entry this signs in from carries no redirect target. Logging
+    // out of /account leaves RequireAuth's `state.from` on the history entry the browser is
+    // sitting on, and a goto to the URL already showing is a reload, which PRESERVES that
+    // state — the sign-in would then return to /account, which is correct behaviour but says
+    // nothing about the default landing this asserts.
+    await page.goto('/');
     await page.goto('/login');
     await page.getByLabel('E-mail').fill(email);
     await page.getByLabel('Password', { exact: true }).fill('Password1');
