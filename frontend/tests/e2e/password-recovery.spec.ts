@@ -37,11 +37,14 @@ test.describe('Password recovery', () => {
     await page.getByRole('link', { name: 'Forgot password?' }).click();
     await expect(page).toHaveURL('/forgot-password');
 
-    // FR-004: submitting a real address produces the confirmation.
+    // FR-004: submitting a real address produces the confirmation. Like register()'s own
+    // wait above, this crosses a synchronous real e-mail send (QUEUE_CONNECTION=sync), so it
+    // gets the same generous timeout rather than the config default (root-caused via two
+    // consecutive CI failures: the request was still in flight past the default 15s).
     await page.getByLabel('E-mail').fill(email);
     await page.getByRole('button', { name: 'Send recovery link' }).click();
     await expect(page.getByText('If an account exists for that address, a password recovery link is on its way.'))
-      .toBeVisible();
+      .toBeVisible({ timeout: 25000 });
 
     const link = MailLog.latestResetLink(email);
     expect(link).not.toBeNull();
