@@ -197,7 +197,11 @@ Supporting files:
   restore scripts. Runbook in `docs/DEPLOYMENT.md`.
 
 **Local toolchain note:** there is no local PHP — run backend tests/artisan/coverage
-through the `php:8.3-cli` Docker container (project convention). The implemented code
+through the `php:8.3-cli` Docker container (project convention). For the **test suite**
+use `scripts\test-backend.ps1`, not `artisan test`: the suite is not slow, the Windows
+bind mount is (every test rebuilds the app, and the per-boot filesystem probes cost
+~150ms each across the mount), so the script mirrors the tree into a container-local
+volume and runs there — 0:43 vs 5:04, same tests, same assertion count. The implemented code
 uses the prototype's vocabulary (**`Trashpost`** / **`hash`**), not the "Meme" /
 "public code" names used as placeholders in the structure sketch below.
 

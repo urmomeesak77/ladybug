@@ -1,0 +1,8 @@
+# Shell scripts must keep LF in the WORKING COPY, not just in the repo. Git already
+# stores them LF, but core.autocrlf=true (the Windows default here) rewrites them to
+# CRLF on checkout — and every .sh in this repo is consumed by Linux: docker build
+# COPYs deploy/php/entrypoint.sh into the prod image, and scripts/test-backend.ps1
+# mounts scripts/test-backend.sh straight into a container. A CR on the shebang line
+# makes the kernel look for `/bin/sh\r` and fail. Prod has never hit this only
+# because the server builds from a fresh Linux clone.
+*.sh text eol=lf

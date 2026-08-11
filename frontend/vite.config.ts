@@ -19,6 +19,16 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.test.{ts,tsx}'],
+    // 85 of the 104 spec files ask for the jsdom environment, and with isolation ON
+    // Vitest constructs a fresh jsdom per FILE: measured 352s of cumulative
+    // environment setup against 113s of actual test execution, i.e. the suite spent
+    // three quarters of its time building DOMs it then threw away. Reusing one
+    // environment per worker cut the wall clock from 61.6s to 16.0s with all 1164
+    // tests still passing. The cost of the trade is that specs sharing a worker also
+    // share globals, so anything a spec pins on window/document/globalThis must be
+    // restored by that spec (afterEach/restoreAllMocks) rather than left for the
+    // teardown to sweep up.
+    isolate: false,
     // Date output renders in the runtime's local zone (PostDate uses local getters, by
     // design), so a '...Z' fixture would read differently on a UTC+3 dev machine and the
     // UTC CI runner. This pin is a safety net for that, NOT a guarantee to lean on: setting

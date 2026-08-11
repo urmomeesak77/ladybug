@@ -14,6 +14,13 @@ docker compose exec backend php artisan test --coverage-clover=coverage.clover
 python .github\scripts\check_coverage.py backend\coverage.clover 90
 ```
 
+**Prefer `scripts\test-backend.ps1` for the suite** — same image, same `phpunit.xml`,
+same 1097 tests and 3038 assertions, but ~**0:43 instead of 5:04** (measured
+2026-08-11). `artisan test` above reads the framework straight off the Windows bind
+mount, and since every test rebuilds the application, the per-boot filesystem probes
+cost ~150ms/test; the script mirrors the tree into a container-local volume first and
+runs there. Arguments pass through (`scripts\test-backend.ps1 --filter FooTest`).
+
 Tests run on **sqlite `:memory:` only** — `Tests\TestCase` hard-aborts otherwise, so a
 test run can never touch the dev database. Note that `lockForUpdate()` is a no-op there:
 concurrency guarantees are verified by hand against MySQL, per each feature's quickstart.
