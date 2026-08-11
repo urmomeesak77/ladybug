@@ -114,9 +114,16 @@ return [
     | rid of old sessions from storage. Here are the chances that it will
     | happen on a given request. By default, the odds are 2 out of 100.
     |
+    | Disabled (never fires): StartSession::collectGarbage() would delete every session row
+    | older than THIS request's session.lifetime, which for almost any request site-wide is
+    | the short default (120 min), not a remembered session's real 7-day allowance — silently
+    | destroying still-valid "remember me" sessions hours after login (018-remember-me-login).
+    | App\Http\Middleware\CollectStaleSessions (config('remember.gc_lottery')) replaces this
+    | with an equivalent-odds sweep against a fixed, safe threshold instead.
+    |
     */
 
-    'lottery' => [2, 100],
+    'lottery' => [0, 100],
 
     /*
     |--------------------------------------------------------------------------

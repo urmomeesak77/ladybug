@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\ApplyRememberMeLifetime;
+use App\Http\Middleware\CollectStaleSessions;
 use App\Http\Middleware\EnsureAccountEnabled;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\SlideRememberMeCookie;
@@ -34,6 +35,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // this, that request would start/read the session at the default 120-minute lifetime and could
         // silently downgrade or destroy an already-remembered 7-day session.
         $middleware->prependToGroup('web', ApplyRememberMeLifetime::class);
+
+        // Replaces Laravel's own request-triggered session GC (session.lottery is disabled in
+        // config/session.php — see SessionGarbageCollector's docblock): that built-in sweep
+        // deletes every session row older than THIS request's config('session.lifetime'), which
+        // for almost any request site-wide is the short default, not a remembered session's
+        // real 7-day allowance. This always sweeps against the fixed, safe remember.lifetime
+        // floor instead, so a remembered session can never be deleted before its actual expiry.
+        $middleware->prependToGroup('api', CollectStaleSessions::class);
+        $middleware->prependToGroup('web', CollectStaleSessions::class);
 
         // Live-session revocation (FR-014): appended AFTER statefulApi so the session is
         // started and $request->user() resolves before it runs. A disabled account's next
