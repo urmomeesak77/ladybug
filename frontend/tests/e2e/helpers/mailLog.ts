@@ -18,6 +18,21 @@ export class MailLog {
   // The newest /verify-email/... link in the log, optionally scoped to the most
   // recent message addressed to `recipient`. Null when no message has arrived.
   static latestVerificationLink(recipient?: string): string | null {
+    return MailLog.extractLink('verify-email', recipient);
+  }
+
+  // The newest /reset-password/{hash}#token=… link in the log (022), optionally scoped to the
+  // most recent message addressed to `recipient`. The fragment must survive the
+  // quoted-printable unfolding intact — page.goto() delivers it to the SPA unchanged
+  // (contracts/recovery-link.md "Test hook") — so it is matched by the same permissive
+  // char class the verification link uses, which does not treat '#' as a boundary.
+  static latestResetLink(recipient?: string): string | null {
+    return MailLog.extractLink('reset-password', recipient);
+  }
+
+  // Shared body for the two link finders above: read the log, optionally scope it to the
+  // last message addressed to `recipient`, then pick the newest link carrying `pathSegment`.
+  private static extractLink(pathSegment: string, recipient?: string): string | null {
     let content: string;
     try {
       content = readFileSync(MailLog.LOG_PATH, 'utf8');
@@ -30,7 +45,8 @@ export class MailLog {
       return null;
     }
     // The body HTML-escapes the query separator, so &amp; must fold back to &.
-    const links = scope.replace(/&amp;/g, '&').match(/http:\/\/[^\s"'<>)]+\/verify-email\/[^\s"'<>)]+/g);
+    const pattern = new RegExp(`http://[^\\s"'<>)]+/${pathSegment}/[^\\s"'<>)]+`, 'g');
+    const links = scope.replace(/&amp;/g, '&').match(pattern);
     return links === null ? null : links[links.length - 1];
   }
 

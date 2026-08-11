@@ -314,12 +314,38 @@ from the account page), confirm both existing sessions are refused on their next
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T067 [P] Add `latestResetLink(recipient?)` to `frontend/tests/e2e/helpers/mailLog.ts` beside `latestVerificationLink`, matching `/reset-password/…#token=…` — the fragment must survive the quoted-printable unfolding intact, since `page.goto()` delivers it to the SPA
-- [ ] T068 Create `frontend/tests/e2e/password-recovery.spec.ts` against the isolated `docker-compose.e2e.yml` stack: request a link → read it from the log → open it → set a new password → the old password is refused → the new one signs in → re-opening the link is refused. Run it with `.\scripts\e2e.ps1`
-- [ ] T069 [P] Add a **022-password-recovery** entry to the Current State list in `C:\projects\ladybug\CLAUDE.md` and drop "password reset" from the "Not built yet" line — naming the no-migration decision, the fragment-carried token, the single `PasswordService` collapse point, and the shared `PasswordPolicy`
-- [ ] T070 Run the backend gates in the container and fix what they find: `vendor/bin/pint --test`, `php artisan test`, `php artisan test --coverage-clover=coverage.xml`, then `python .github/scripts/check_coverage.py coverage.xml` (≥90%)
-- [ ] T071 Run the frontend gates from `frontend/` and fix what they find: `npm run lint`, `npm test`, `npm run test:coverage` (the gate spans **all** of `src/`)
-- [ ] T072 Walk `specs/022-password-recovery/quickstart.md` §3–§10 by hand against `docker compose up -d` — the four journeys, the rate-limit bucket separation, the light/dark and 320px passes, and §10's proof that the token appears in **neither** nginx's access log nor `laravel.log`. Remember `docker compose restart backend` after PHP edits (opcache) and `restart frontend` after a merge
+- [X] T067 [P] Add `latestResetLink(recipient?)` to `frontend/tests/e2e/helpers/mailLog.ts` beside `latestVerificationLink`, matching `/reset-password/…#token=…` — the fragment must survive the quoted-printable unfolding intact, since `page.goto()` delivers it to the SPA
+
+  **Built (2026-08-11).** Both link finders now share a private `extractLink(pathSegment,
+  recipient?)`, added after the commit-quality-verifier flagged the initial copy-paste
+  (the two methods were identical but for the path segment).
+- [X] T068 Create `frontend/tests/e2e/password-recovery.spec.ts` against the isolated `docker-compose.e2e.yml` stack: request a link → read it from the log → open it → set a new password → the old password is refused → the new one signs in → re-opening the link is refused. Run it with `.\scripts\e2e.ps1`
+
+  **Built (2026-08-11).** Passes against the isolated stack.
+- [X] T069 [P] Add a **022-password-recovery** entry to the Current State list in `C:\projects\ladybug\CLAUDE.md` and drop "password reset" from the "Not built yet" line — naming the no-migration decision, the fragment-carried token, the single `PasswordService` collapse point, and the shared `PasswordPolicy`
+- [X] T070 Run the backend gates in the container and fix what they find: `vendor/bin/pint --test`, `php artisan test`, `php artisan test --coverage-clover=coverage.xml`, then `python .github/scripts/check_coverage.py coverage.xml` (≥90%)
+
+  **Run (2026-08-11).** Pint clean (198 files); 1081 tests passed (3015 assertions);
+  coverage 97.86%.
+- [X] T071 Run the frontend gates from `frontend/` and fix what they find: `npm run lint`, `npm test`, `npm run test:coverage` (the gate spans **all** of `src/`)
+
+  **Run (2026-08-11).** ESLint clean; 1145 tests passed (104 files); coverage 98.43%
+  lines (98.39% statements, 95% branches).
+- [X] T072 Walk `specs/022-password-recovery/quickstart.md` §3–§10 by hand against `docker compose up -d` — the four journeys, the rate-limit bucket separation, the light/dark and 320px passes, and §10's proof that the token appears in **neither** nginx's access log nor `laravel.log`. Remember `docker compose restart backend` after PHP edits (opcache) and `restart frontend` after a merge
+
+  **Walked (2026-08-11), against the isolated e2e stack rather than dev** (dev's
+  `backend/.env` has `MAIL_MAILER=smtp` pointed at a real mailbox, not the log
+  `quickstart.md` §0 assumes — a pre-existing environment gap outside this feature's
+  scope). Confirmed by hand: the full recovery journey (register → forgot → link from
+  `laravel.log` → check → reset → old password refused → new one signs in → re-opening
+  the spent link refused); the rate-limit bucket separation on the real 5/min config
+  (6th `/forgot-password` call → `429`, `/login` right after still answers on its own
+  terms, `401` for wrong credentials — not `429`); and §10 — the token string appears in
+  neither the e2e nginx access log nor `laravel.log` outside the mail body. **Not
+  verified**: §9's light/dark and 320px visual pass — no browser automation was
+  available in this session. That gate still needs a manual or Playwright visual pass
+  before considering presentation fully proven, though the component/page test suites
+  already assert the underlying a11y attributes (labels, `role="alert"`, focus).
 
 ---
 

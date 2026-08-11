@@ -12,7 +12,7 @@ backend over a JSON API, backed by **MySQL** via Eloquent.
 ## Current State (as of 2026-08-07)
 
 The project is **past planning**: both `backend/` (Laravel 12) and `frontend/`
-(React 18 + Vite + TypeScript) are scaffolded and twenty-one features are implemented.
+(React 18 + Vite + TypeScript) are scaffolded and twenty-two features are implemented.
 Features follow the Spec Kit flow (specify → plan → tasks → implement) under `specs/`:
 
 **Documentation gap:** 016-seo-discoverability, 017-google-oauth-login,
@@ -153,8 +153,30 @@ and on `master` but have no entry below — read their `specs/` directories dire
   production's single origin, so both nginx configs send `Access-Control-Allow-Origin` on
   `/storage/` — without it the probe's `fetch` is blocked and the takeover silently never
   happens outside prod.
-
-Not built yet: password reset.
+- **022-password-recovery** — a "Forgot password?" link on `/login` leads to
+  `/forgot-password`, which answers the same `200` confirmation for every address —
+  real, unknown, or disabled — and mails a link only for a real, enabled account
+  (`PasswordService::sendRecoveryLink`, returns `void` on purpose so the controller has
+  no status to branch on). **No migration, no new column**: `password_reset_tokens` and
+  `sessions` already existed. The link carries **no plaintext address** — the path is
+  `sha1(email)`, resolved the same way 008's verification link is — and its one-time
+  token rides the URL **fragment** (`#token=…`), which is never sent to any server, so
+  it appears in neither nginx's access log nor `laravel.log` (contracts/recovery-link.md).
+  `ResetPasswordPage` at `/reset-password/:hash` never strips that fragment (no
+  `history.replaceState`), so Refresh keeps a live link live. One `PasswordService`
+  collapses every write path — the emailed-link reset, the account-page change
+  (`PUT /api/user/password`, current-password required only when the account has one,
+  FR-031's Google-only carve-out), and the shared `applyNewPassword` transaction they
+  both route through — so a successful change from either route deletes every other
+  `sessions` row for the account, rotates `remember_token`, and touches no other `users`
+  column (no audit row, no timestamp — FR-034). A single `App\Support\PasswordPolicy`
+  (min 8, mixed case, a number) is consumed by registration, recovery and account-page
+  change alike, mirrored client-side by `PasswordModel.policyErrors`, so the rule cannot
+  drift between forms. Every dead link — expired, spent, superseded, tampered, unknown,
+  disabled, deleted — answers the identical `403` "no longer valid" message; a rejected
+  password (`422`) leaves the link alive. A separate `password` rate limiter (not
+  `auth`'s bucket) keys anonymous requests by IP and the account-page change by account
+  id, so tripping one never locks out the other.
 
 Supporting files:
 
