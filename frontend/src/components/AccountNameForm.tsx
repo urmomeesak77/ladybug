@@ -57,7 +57,7 @@ function AccountNameForm({ name }: { name: string }) {
         </div>
         {/* Nothing to save until the value actually differs from the stored name. */}
         <BusyButton className="account__save" type="submit" busy={saving} disabled={!trimmed || trimmed === name}>
-          Save name
+          Save
         </BusyButton>
       </fieldset>
     </form>

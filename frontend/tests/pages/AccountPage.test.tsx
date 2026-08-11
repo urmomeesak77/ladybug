@@ -163,15 +163,19 @@ describe('AccountPage — sign-in method', () => {
 });
 
 // Feature 022 (US3, FR-025/FR-026): the deliberate half of password management lives on
-// the page the owner already has, directly under the name editor — no new address, no new
-// guard, and two independent sections that cannot disturb each other.
+// the page the owner already has, below the name editor and the read-only details — no
+// new address, no new guard, and two independent sections that cannot disturb each other.
 describe('AccountPage — password section', () => {
-  it('renders the password section directly after the name section', () => {
-    const { container } = renderAccount({ ...ada, hasPassword: true });
+  it('renders the password section after the name and details sections', () => {
+    const { container } = renderAccount({
+      ...ada,
+      hasPassword: true,
+      emailVerifiedAt: '2026-07-07T10:00:00Z',
+    });
 
-    const name = container.querySelector('.account__name');
-    expect(name).not.toBeNull();
-    expect((name as HTMLElement).nextElementSibling?.className).toContain('account__password');
+    const details = container.querySelector('.account__details');
+    expect(details).not.toBeNull();
+    expect((details as HTMLElement).nextElementSibling?.className).toContain('account__password');
   });
 
   it('offers the current-password field for an account that has one', () => {
@@ -194,7 +198,7 @@ describe('AccountPage — password section', () => {
     renderAccount({ ...ada, hasPassword: true });
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Grace' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save name' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText(/Something went wrong/)).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'OldPassw0rd' } });

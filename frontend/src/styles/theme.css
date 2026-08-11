@@ -966,6 +966,12 @@ main {
   padding: 0;
 }
 
+/* Clear separation from the name editor and the read-only details above, so the two
+   forms don't read as one continuous block. */
+.account__password {
+  margin-top: var(--space-xl);
+}
+
 .account__name fieldset:disabled,
 .account__password fieldset:disabled {
   opacity: 0.5;

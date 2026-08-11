@@ -31,13 +31,9 @@ function AccountPage() {
   }
 
   return (
-    <section className="account">
+    <section className="account auth">
       <h1>Your account</h1>
       <AccountNameForm name={user.name} />
-      {/* 022/FR-025: the deliberate half of password management, on the page the owner
-          already has — no new address and no new guard. Its state is its own: neither
-          section can clear or block the other. */}
-      <AccountPasswordForm hasPassword={user.hasPassword} />
       <dl className="account__details">
         <dt>Email</dt>
         <dd>{user.email}</dd>
@@ -55,6 +51,10 @@ function AccountPage() {
           </BusyButton>
         )
         : null}
+      {/* 022/FR-025: the deliberate half of password management, on the page the owner
+          already has — no new address and no new guard. Its state is its own: neither
+          section can clear or block the other. */}
+      <AccountPasswordForm hasPassword={user.hasPassword} />
     </section>
   );
 }

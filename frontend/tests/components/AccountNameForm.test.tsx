@@ -45,7 +45,7 @@ function renderForm(name = 'Ada') {
 }
 
 function save(): void {
-  fireEvent.click(screen.getByRole('button', { name: 'Save name' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 }
 
 describe('AccountNameForm', () => {
@@ -53,7 +53,7 @@ describe('AccountNameForm', () => {
     const { input } = renderForm();
 
     expect(input.value).toBe('Ada');
-    expect((screen.getByRole('button', { name: 'Save name' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('refuses to submit a blank name', () => {
@@ -61,7 +61,7 @@ describe('AccountNameForm', () => {
 
     fireEvent.change(input, { target: { value: '   ' } });
 
-    expect((screen.getByRole('button', { name: 'Save name' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('saves the trimmed new name, reports it in words and refreshes the session', async () => {
@@ -129,7 +129,7 @@ describe('AccountNameForm', () => {
     fireEvent.change(input, { target: { value: 'Grace' } });
     save();
 
-    const button = screen.getByRole('button', { name: 'Save name' });
+    const button = screen.getByRole('button', { name: 'Save' });
     await waitFor(() => expect(button.getAttribute('aria-busy')).toBe('true'));
     expect(button.querySelector('.busy-button__spinner')).not.toBeNull();
     // The whole fieldset is disabled during the request, which disables the field within it.
