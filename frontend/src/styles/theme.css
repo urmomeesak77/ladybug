@@ -49,6 +49,13 @@ ol {
   margin: 0;
 }
 
+/* Every page heading is an h1; keep the size the same everywhere it's used as page
+   chrome. PostPage's h1 opts out via a more specific selector — it's a meme title
+   styled to match the feed's card component, not a page-chrome heading. */
+h1 {
+  font-size: 1.17rem;
+}
+
 html {
   /* Stop iOS text auto-inflation while honoring user font-size choices. */
   -webkit-text-size-adjust: 100%;
@@ -722,7 +729,6 @@ main {
 }
 
 .auth h1 {
-  font-size: 1.17rem; /* Prototype renders the heading as an <h3>; keep <h1> semantics. */
   border-bottom: 1px solid var(--color-control-border);
   padding: 10px 0;
   margin-bottom: var(--space-lg);
@@ -1105,7 +1111,6 @@ main {
 }
 
 .verify h1 {
-  font-size: 1.17rem; /* Matches the auth headings' prototype scale. */
   border-bottom: 1px solid var(--color-control-border);
   padding: 10px 0;
   margin-bottom: var(--space-lg);
@@ -1159,7 +1164,6 @@ main {
  * ------------------------------------------------------------------ */
 
 .moderation h1 {
-  font-size: 1.375rem;
   margin: var(--space-md) 0 var(--space-lg);
 }
 
