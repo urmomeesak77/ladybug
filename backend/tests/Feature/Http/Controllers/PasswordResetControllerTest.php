@@ -6,15 +6,19 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Models\User;
 use App\Models\UserIdentity;
+use App\Services\PasswordService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Testing\TestResponse;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Cookie as ResponseCookie;
 use Tests\TestCase;
 
 class PasswordResetControllerTest extends TestCase {
@@ -37,6 +41,20 @@ class PasswordResetControllerTest extends TestCase {
      * - `set-cookie` carries a per-request session id.
      */
     private const VOLATILE_HEADERS = ['x-ratelimit-limit', 'x-ratelimit-remaining', 'retry-after', 'date', 'set-cookie'];
+
+    /** Every way US4 names a link as dead (FR-015, SC-004). */
+    private const DEAD_LINK_SCENARIOS = [
+        'expired',
+        'already-consumed',
+        'superseded',
+        'altered-token',
+        'altered-digest',
+        'missing-token',
+        'unknown-digest',
+        'deleted-account',
+        'disabled-account',
+        'voided-by-account-change',
+    ];
 
     /**
      * FR-004 / SC-003, the requirement that can only exist as a test. Five account states,
@@ -341,6 +359,107 @@ class PasswordResetControllerTest extends TestCase {
     }
 
     /**
+     * The refusal matrix (FR-015, SC-004). Every way a link can be dead — expired, spent,
+     * superseded, tampered, unknown, deleted, disabled — answers the SAME 403 on BOTH
+     * endpoints, naming no account detail, and never changes a password.
+     */
+    public function test_every_dead_link_answers_the_one_refusal_on_both_endpoints_and_changes_nothing(): void {
+        // Ten scenarios, two requests each: raised for the same reason T011 raises it — the
+        // cap is a real, separate concern (FR-010) this test is not the one to exercise.
+        config(['app.auth_throttle' => 1000]);
+
+        foreach (self::DEAD_LINK_SCENARIOS as $scenario) {
+            ['hash' => $hash, 'token' => $token, 'verify' => $verify] = $this->deadLink($scenario);
+
+            $check = $this->postJson('/api/password/reset/check', ['hash' => $hash, 'token' => $token]);
+            $check->assertStatus(403, "check should refuse the '{$scenario}' scenario");
+            $check->assertExactJson(['message' => self::REFUSAL]);
+
+            $reset = $this->postJson('/api/password/reset', [
+                'hash' => $hash,
+                'token' => $token,
+                'password' => 'AttemptedPassw0rd',
+                'password_confirmation' => 'AttemptedPassw0rd',
+            ]);
+            $reset->assertStatus(403, "reset should refuse the '{$scenario}' scenario");
+            $reset->assertExactJson(['message' => self::REFUSAL]);
+
+            $verify();
+        }
+    }
+
+    /**
+     * US2 scenarios 3-4: a rejected PASSWORD is not a rejected LINK. A 422 leaves the token
+     * spendable, so a later, valid submission over the same link still succeeds.
+     */
+    public function test_a_policy_failure_leaves_the_link_alive_for_a_later_valid_attempt(): void {
+        ['user' => $user, 'token' => $token] = $this->liveLink();
+
+        $this->postJson('/api/password/reset', [
+            'hash' => sha1($user->email),
+            'token' => $token,
+            'password' => 'short',
+            'password_confirmation' => 'short',
+        ])->assertStatus(422);
+
+        $this->postJson('/api/password/reset', $this->resetPayload($user, $token))->assertOk();
+        $this->attemptLogin($user->email, 'NewPassw0rd')->assertOk();
+    }
+
+    /** FR-012: three checks in a row, and the row that answers them never moves. */
+    public function test_checking_a_link_repeatedly_never_writes_to_it(): void {
+        ['user' => $user, 'token' => $token] = $this->liveLink();
+        $payload = ['hash' => sha1($user->email), 'token' => $token];
+
+        $this->postJson('/api/password/reset/check', $payload)->assertNoContent();
+        $this->postJson('/api/password/reset/check', $payload)->assertNoContent();
+        $before = DB::table('password_reset_tokens')->where('email', $user->email)->first();
+
+        $this->postJson('/api/password/reset/check', $payload)->assertNoContent();
+
+        $this->assertEquals($before, DB::table('password_reset_tokens')->where('email', $user->email)->first());
+    }
+
+    /**
+     * Edge Cases / FR-016: the recovery route acts on the account the LINK names, never the
+     * one the caller happens to be signed in as (research D11, which registers the route
+     * unguarded for exactly this). A signed-in actor spending someone else's link ends that
+     * someone's sessions, not their own; spending their OWN link ends their own session too,
+     * because the recovery route keeps none (FR-021).
+     */
+    public function test_a_signed_in_actor_can_only_end_the_link_holders_sessions(): void {
+        $holder = User::factory()->create(['email' => 'ada-holder@example.com', 'password' => 'HolderPassw0rd']);
+        $actor = User::factory()->create(['email' => 'grace-actor@example.com', 'password' => 'ActorPassw0rd']);
+
+        $holderCookie = $this->loginSession($holder->email, 'HolderPassw0rd');
+        $actorCookie = $this->loginSession($actor->email, 'ActorPassw0rd');
+
+        $holdersToken = Password::broker()->createToken($holder);
+        $this->withSessionCookie($actorCookie)
+            ->postJson('/api/password/reset', $this->resetPayload($holder, $holdersToken))
+            ->assertOk();
+
+        // The link changed the account it NAMES — the holder's, not the caller's.
+        $this->assertTrue(Hash::check('NewPassw0rd', $holder->fresh()->password));
+
+        // The holder's own client is signed out by a link it never asked anyone to use.
+        // AuthenticateSession catches the stale `password_hash_web` and throws rather than
+        // degrading to anonymous, so the next request is a hard 401, not a quiet `data: null`.
+        $this->withSessionCookie($holderCookie)->getJson('/api/user')->assertStatus(401);
+        // The actor who performed the reset keeps their own, unrelated session.
+        $this->withSessionCookie($actorCookie)->getJson('/api/user')
+            ->assertOk()->assertJsonPath('data.email', 'grace-actor@example.com');
+
+        // Spending one's OWN link ends the acting session too — the recovery route keeps none.
+        $ownToken = Password::broker()->createToken($actor);
+        $this->withSessionCookie($actorCookie)
+            ->postJson('/api/password/reset', $this->resetPayload($actor, $ownToken, 'ActorsNewPassw0rd'))
+            ->assertOk();
+
+        $this->withSessionCookie($actorCookie)->getJson('/api/user')->assertStatus(401);
+    }
+
+    /**
      * An enabled account with one live link, plus the plaintext token only the email would
      * carry.
      *
@@ -366,6 +485,161 @@ class PasswordResetControllerTest extends TestCase {
     private function attemptLogin(string $email, string $password): TestResponse {
         return $this->withHeader('Origin', 'http://localhost')
             ->postJson('/api/login', ['email' => $email, 'password' => $password]);
+    }
+
+    /**
+     * Sign in for real and hand back the session cookie a browser would keep afterward.
+     * Flushing the queued jar between successive logins in the same test keeps one client's
+     * cookie from leaking into the next capture (mirrors AuthControllerTest's FR-007 test).
+     */
+    private function loginSession(string $email, string $password): ResponseCookie {
+        $this->app['auth']->forgetGuards();
+        $response = $this->attemptLogin($email, $password);
+        $response->assertOk();
+        $cookie = $response->getCookie((string) config('session.cookie'), false);
+        Cookie::flushQueuedCookies();
+
+        return $cookie;
+    }
+
+    /**
+     * Replay a captured session cookie on the next request, the way a real browser would.
+     * `forgetGuards()` is required here for the same reason AuthControllerTest's
+     * `actAsFreshClient` needs it: the guard singleton caches whichever user its LAST
+     * resolution found, and a single test process shares that singleton across every request
+     * it makes — a real browser never does, because every request there boots a fresh one.
+     */
+    private function withSessionCookie(ResponseCookie $cookie): self {
+        $this->app['auth']->forgetGuards();
+
+        return $this->withHeader('Origin', 'http://localhost')
+            ->withCredentials()
+            ->withUnencryptedCookie($cookie->getName(), $cookie->getValue());
+    }
+
+    /**
+     * One dead link, built the way US4's scenario names it.
+     *
+     * @return array{hash: string, token: string, verify: callable(): void}
+     */
+    private function deadLink(string $scenario): array {
+        return match ($scenario) {
+            'expired' => $this->expiredLink(),
+            'already-consumed' => $this->consumedLink(),
+            'superseded' => $this->supersededLink(),
+            'altered-token' => $this->alteredTokenLink(),
+            'altered-digest' => $this->alteredDigestLink(),
+            'missing-token' => $this->missingTokenLink(),
+            'unknown-digest' => $this->unknownDigestLink(),
+            'deleted-account' => $this->deletedAccountLink(),
+            'disabled-account' => $this->disabledAccountLink(),
+            'voided-by-account-change' => $this->voidedByAccountChangeLink(),
+        };
+    }
+
+    /** @return array{hash: string, token: string, verify: callable(): void} */
+    private function expiredLink(): array {
+        $user = User::factory()->create(['email' => 'ada-expired@example.com', 'password' => 'OldPassw0rd']);
+        $token = Password::broker()->createToken($user);
+        $expire = (int) config('auth.passwords.users.expire');
+        DB::table('password_reset_tokens')->where('email', $user->email)
+            ->update(['created_at' => now()->subMinutes($expire + 1)]);
+
+        return $this->scenario($user, $token, 'OldPassw0rd');
+    }
+
+    /** @return array{hash: string, token: string, verify: callable(): void} */
+    private function consumedLink(): array {
+        $user = User::factory()->create(['email' => 'ada-consumed@example.com', 'password' => 'OldPassw0rd']);
+        $token = Password::broker()->createToken($user);
+        app(PasswordService::class)->reset(sha1($user->email), $token, 'FirstNewPassw0rd');
+
+        return $this->scenario($user, $token, 'FirstNewPassw0rd');
+    }
+
+    /** A second request replaces the first row entirely, leaving the stale token dangling. */
+    private function supersededLink(): array {
+        $user = User::factory()->create(['email' => 'ada-superseded@example.com', 'password' => 'OldPassw0rd']);
+        $staleToken = Password::broker()->createToken($user);
+        Password::broker()->createToken($user);
+
+        return $this->scenario($user, $staleToken, 'OldPassw0rd');
+    }
+
+    /** @return array{hash: string, token: string, verify: callable(): void} */
+    private function alteredTokenLink(): array {
+        $user = User::factory()->create(['email' => 'ada-altered-token@example.com', 'password' => 'OldPassw0rd']);
+        $token = Password::broker()->createToken($user);
+
+        return $this->scenario($user, strrev($token), 'OldPassw0rd');
+    }
+
+    /** @return array{hash: string, token: string, verify: callable(): void} */
+    private function alteredDigestLink(): array {
+        $user = User::factory()->create(['email' => 'ada-altered-digest@example.com', 'password' => 'OldPassw0rd']);
+        $token = Password::broker()->createToken($user);
+
+        return ['hash' => strrev(sha1($user->email)), 'token' => $token, 'verify' => fn () => $this->assertUnchanged($user, 'OldPassw0rd')];
+    }
+
+    /** A real account with no outstanding request at all — the token is guessed, not tampered. */
+    private function missingTokenLink(): array {
+        $user = User::factory()->create(['email' => 'ada-missing-token@example.com', 'password' => 'OldPassw0rd']);
+
+        return ['hash' => sha1($user->email), 'token' => str_repeat('c', 64), 'verify' => fn () => $this->assertUnchanged($user, 'OldPassw0rd')];
+    }
+
+    /** No account owns this digest at all — there is nothing to verify afterward. */
+    private function unknownDigestLink(): array {
+        return [
+            'hash' => sha1('nobody-at-all@example.com'),
+            'token' => str_repeat('d', 64),
+            'verify' => static function (): void {
+            },
+        ];
+    }
+
+    private function deletedAccountLink(): array {
+        $user = User::factory()->create(['email' => 'ada-deleted@example.com', 'password' => 'OldPassw0rd']);
+        $token = Password::broker()->createToken($user);
+        $hash = sha1($user->email);
+        $user->delete();
+
+        return [
+            'hash' => $hash,
+            'token' => $token,
+            'verify' => fn () => $this->assertDatabaseMissing('users', ['email' => 'ada-deleted@example.com']),
+        ];
+    }
+
+    /** @return array{hash: string, token: string, verify: callable(): void} */
+    private function disabledAccountLink(): array {
+        $user = User::factory()->disabled()->create(['email' => 'ada-disabled@example.com', 'password' => 'OldPassw0rd']);
+        $token = Password::broker()->createToken($user);
+
+        return $this->scenario($user, $token, 'OldPassw0rd');
+    }
+
+    /** An account-page change (FR-008) revokes any outstanding recovery link on the spot. */
+    private function voidedByAccountChangeLink(): array {
+        $user = User::factory()->create(['email' => 'ada-voided@example.com', 'password' => 'OldPassw0rd']);
+        $token = Password::broker()->createToken($user);
+        app(PasswordService::class)->change($user, 'ChangedPassw0rd');
+
+        return $this->scenario($user, $token, 'ChangedPassw0rd');
+    }
+
+    /** @return array{hash: string, token: string, verify: callable(): void} */
+    private function scenario(User $user, string $token, string $expectedPassword): array {
+        return [
+            'hash' => sha1($user->email),
+            'token' => $token,
+            'verify' => fn () => $this->assertUnchanged($user, $expectedPassword),
+        ];
+    }
+
+    private function assertUnchanged(User $user, string $expectedPassword): void {
+        $this->assertTrue(Hash::check($expectedPassword, $user->fresh()->password));
     }
 
     /**

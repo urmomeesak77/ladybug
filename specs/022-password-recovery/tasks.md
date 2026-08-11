@@ -205,15 +205,37 @@ that no password changed.
 
 > Write these first and confirm they FAIL before implementing.
 
-- [ ] T057 [P] [US4] Extend `backend/tests/Feature/Http/Controllers/PasswordResetControllerTest.php` with the **refusal matrix** (FR-015, SC-004): expired (`created_at` pushed past `auth.passwords.users.expire`), already consumed, superseded by a newer request, altered token, altered digest, missing token, unknown digest, deleted account, disabled account, and voided by an account-page change — each on **both** `check` and `reset`, each answering an identical `403` body naming no account detail, and in **no** case a changed password. Also assert the `422`-vs-`403` split: a policy failure leaves the link **alive** and a second, valid submission succeeds (US2 scenarios 3–4); and that `check` is side-effect-free — call it three times and the row is byte-identical (FR-012)
-- [ ] T057a [US4] Extend the same file as T057 (so it follows it, not parallel to it) with the **signed-in holder** case the spec calls out by name (Edge Cases, FR-016): acting as account **B**, complete a reset for account **A**'s link — A's password changes and A's sessions die, while B's session is untouched and still authenticated on its next request, proving the link is honoured for the account it *names* and never for the signed-in one (research D11, which registers the route unguarded for exactly this). Then the same reset for **B's own** link — B's own session dies too, because FR-016 applies whenever the session belongs to the reset account, and the recovery route keeps none (FR-021)
-- [ ] T058 [P] [US4] Extend `frontend/tests/pages/ResetPasswordPage.test.tsx` for the `dead` state: entered from a `403` on check, from a `403` on submit, and from a missing or malformed fragment; each renders the same sentence plus a `<Link to="/forgot-password">` control, and the page issues no further requests
+- [X] T057 [P] [US4] Extend `backend/tests/Feature/Http/Controllers/PasswordResetControllerTest.php` with the **refusal matrix** (FR-015, SC-004): expired (`created_at` pushed past `auth.passwords.users.expire`), already consumed, superseded by a newer request, altered token, altered digest, missing token, unknown digest, deleted account, disabled account, and voided by an account-page change — each on **both** `check` and `reset`, each answering an identical `403` body naming no account detail, and in **no** case a changed password. Also assert the `422`-vs-`403` split: a policy failure leaves the link **alive** and a second, valid submission succeeds (US2 scenarios 3–4); and that `check` is side-effect-free — call it three times and the row is byte-identical (FR-012)
+- [X] T057a [US4] Extend the same file as T057 (so it follows it, not parallel to it) with the **signed-in holder** case the spec calls out by name (Edge Cases, FR-016): acting as account **B**, complete a reset for account **A**'s link — A's password changes and A's sessions die, while B's session is untouched and still authenticated on its next request, proving the link is honoured for the account it *names* and never for the signed-in one (research D11, which registers the route unguarded for exactly this). Then the same reset for **B's own** link — B's own session dies too, because FR-016 applies whenever the session belongs to the reset account, and the recovery route keeps none (FR-021)
+
+  **Built (2026-08-11).** Confirms the premise-correction note under T065: Sanctum's
+  `AuthenticateSession` (pulled in by `statefulApi()`, not opt-in) already tears a stale
+  session down on its very next request, ahead of anything `SessionRevoker` (Phase 7) will
+  add — a mismatched `password_hash_web` throws `AuthenticationException` (a hard `401`), it
+  does **not** degrade to the anonymous `{"data": null}` shape an unauthenticated request gets.
+  Exercising this needed real cross-request cookie replay (`loginSession` / `withSessionCookie`
+  helpers, mirroring `AuthControllerTest::actAsFreshClient`) rather than `actingAs()`, and both
+  helpers call `$this->app['auth']->forgetGuards()` before every switch — the guard singleton
+  otherwise caches whichever user its last resolution found and leaks it across the next
+  request, the same caching hazard `actAsFreshClient`'s docblock already names.
+- [X] T058 [P] [US4] Extend `frontend/tests/pages/ResetPasswordPage.test.tsx` for the `dead` state: entered from a `403` on check, from a `403` on submit, and from a missing or malformed fragment; each renders the same sentence plus a `<Link to="/forgot-password">` control, and the page issues no further requests
+
+  **Already done.** Built ahead of schedule in T027–T042 (US2): a page that renders nothing
+  for a refused check isn't shippable, so the `dead` view state and its four tests were
+  already in place. Confirmed passing as part of this phase, no diff.
 
 ### Implementation for User Story 4
 
-- [ ] T059 [US4] **Verification pass, not new code.** T019, T035 and T036 already specify the single-exit shape; this task re-reads `backend/app/Services/PasswordService.php` and `PasswordResetController.php` against T057/T057a's now-complete refusal matrix and confirms it held up: the account lookup, the disabled check and the token comparison all still fall through to the same `false`/refusal, and the controller still maps every one of them to a single `403` message (INV-7). If a branch grew a distinguishable exit while US2 was built, this is where it is collapsed back — but the expected outcome is no diff
-- [ ] T060 [US4] Add the `dead` state to `frontend/src/pages/ResetPasswordPage.tsx` — the one sentence plus `<Link to="/forgot-password">Request a new link</Link>`, entered from a failed check, a `403` on submit, or a `null` from `parseResetFragment` (US4 scenario 5)
-- [ ] T061 [US4] Add `resetFailureMessage(kind)` cases to `frontend/src/lib/passwordModel.ts` so every failure — invalid link, rate-limited, network — is one plain sentence, never colour or an icon (FR-023)
+- [X] T059 [US4] **Verification pass, not new code.** T019, T035 and T036 already specify the single-exit shape; this task re-reads `backend/app/Services/PasswordService.php` and `PasswordResetController.php` against T057/T057a's now-complete refusal matrix and confirms it held up: the account lookup, the disabled check and the token comparison all still fall through to the same `false`/refusal, and the controller still maps every one of them to a single `403` message (INV-7). If a branch grew a distinguishable exit while US2 was built, this is where it is collapsed back — but the expected outcome is no diff
+
+  **Confirmed (2026-08-11).** All 24 `PasswordResetControllerTest` cases, including the new
+  10-scenario refusal matrix, pass against the unmodified service and controller — no diff.
+- [X] T060 [US4] Add the `dead` state to `frontend/src/pages/ResetPasswordPage.tsx` — the one sentence plus `<Link to="/forgot-password">Request a new link</Link>`, entered from a failed check, a `403` on submit, or a `null` from `parseResetFragment` (US4 scenario 5)
+
+  **Already done** in T027–T042, alongside T058. No diff.
+- [X] T061 [US4] Add `resetFailureMessage(kind)` cases to `frontend/src/lib/passwordModel.ts` so every failure — invalid link, rate-limited, network — is one plain sentence, never colour or an icon (FR-023)
+
+  **Already done** in T027–T042, alongside T058. No diff.
 
 **Checkpoint**: The most common non-happy path is now a dead end no longer.
 
