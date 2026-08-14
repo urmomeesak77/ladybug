@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\ApplyRememberMeLifetime;
+use App\Http\Middleware\CaptureAccessLogActor;
 use App\Http\Middleware\CollectStaleSessions;
 use App\Http\Middleware\EnsureAccountEnabled;
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\RecordAccessLog;
 use App\Http\Middleware\SlideRememberMeCookie;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,6 +21,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // The access log (023): PREPENDED so it is the outermost global frame, ahead of
+        // TrustProxies, HandleCors, PreventRequestsDuringMaintenance and ValidatePostSize.
+        // Only from there does it see the requests FR-001 is hardest about — the ones a
+        // guard rejected, and the ones whose thrown Throwable the routing pipeline rendered
+        // into a response while unwinding (research D1). Registered first here so the
+        // "outermost" property is visible at the top of the file, where it can be noticed
+        // before anything else is prepended in front of it.
+        $middleware->prepend(RecordAccessLog::class);
+
         // Sanctum SPA auth: requests from the configured stateful frontend domains
         // are authenticated via the session cookie (CSRF-protected) instead of a token.
         $middleware->statefulApi();
@@ -44,6 +55,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // floor instead, so a remembered session can never be deleted before its actual expiry.
         $middleware->prependToGroup('api', CollectStaleSessions::class);
         $middleware->prependToGroup('web', CollectStaleSessions::class);
+
+        // The access log's actor capture (023, research D2): the outer recorder runs before
+        // the session exists, so the account a request ARRIVED as is stashed here instead.
+        // Append order is group order, so this MUST stay above the EnsureAccountEnabled line
+        // below — otherwise a disabled account's 401 would be attributed to nobody, and that
+        // is precisely the row an operator investigating that account came for. The `web`
+        // group has no such anchor (EnsureAccountEnabled is appended to `api` only), so
+        // there it just needs to be appended, which already places it after StartSession.
+        $middleware->appendToGroup('api', CaptureAccessLogActor::class);
+        $middleware->appendToGroup('web', CaptureAccessLogActor::class);
 
         // Live-session revocation (FR-014): appended AFTER statefulApi so the session is
         // started and $request->user() resolves before it runs. A disabled account's next
