@@ -196,6 +196,24 @@ application's file handling at all — PHP discards the body and `ValidatePostSi
 so it would prove nothing about FR-017. The two sizes test two different criteria and both are
 wanted.
 
+The limits form a deliberate ladder, loosest last, so that each oversize is rejected by the
+layer that can explain itself:
+
+| Body size | Rejected by | Visitor sees | Recorded? |
+|---|---|---|---|
+| ≤ 20 MiB | nobody | `201` | yes |
+| 20 MiB – 25M | `CreatePostRequest`'s `max:20480` | `422` "must not be greater than 20 MB" | yes |
+| 25M – 26M | PHP (`upload_max_filesize`), surfaced by the `file` rule | `422` "failed to upload" — **generic, not limit-naming** | yes |
+| 26M – 28M | `ValidatePostSize` | `413` | **yes** |
+| > 28M | nginx | bare `413` page | **no** (never reaches PHP) |
+
+Row 3 is the reason `upload_max_filesize` (25M) sits **above** the app's 20 MiB cap rather than
+at it: PHP zeroes out a file it rejects itself (`UPLOAD_ERR_INI_SIZE`), so `max:20480` never gets
+to run and Laravel falls back to the generic "failed to upload" message that names no limit.
+Keeping the gap wide means every *realistically* oversized upload lands in row 2 and gets the
+friendly message SC-002 wants. Reproduce SC-005b's 422 case in row 2, not row 3 — a file chosen
+above 25M answers `422` with the wrong message and looks like a regression it is not.
+
 **At the ceiling (SC-005).** Upload a ~20 MiB video through `/upload`, then:
 
 ```sql
@@ -207,11 +225,16 @@ Expect exactly one row; `files` holding only `{field, name, mime, size}`; no fil
 anywhere; the row small (SC-005's 64 KB ceiling for this case) — bounded by *what is recorded*,
 not by truncation.
 
-**Past the ceiling (SC-005b).** Send something comfortably over `post_max_size` — a 100 MB file
-is the natural choice — and expect a `413`:
+**Past the ceiling (SC-005b).** The size here is not free to choose: the body must land in the
+**26M–28M window** — over `post_max_size` (26M) so PHP refuses it, but under
+`client_max_body_size` (28M) so it reaches PHP at all. Go above 28M and *nginx* answers the
+`413` without ever invoking PHP, which produces **no row** and tests nothing (FR-032). That
+window is why nginx is configured looser than PHP rather than tighter; before 2026-08-14 nginx
+sat at `12M` and no such window existed.
 
 ```powershell
-curl.exe -X POST http://localhost:8000/api/posts -F "video=@huge.mp4"
+# ~27 MB: over post_max_size, under client_max_body_size
+curl.exe -X POST http://localhost:8000/api/posts -F "video=@window.mp4"
 ```
 
 ```sql
