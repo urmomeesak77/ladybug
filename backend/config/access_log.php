@@ -37,9 +37,43 @@ return [
     'prune_enabled' => env('ACCESS_LOG_PRUNE_ENABLED', true),
     'prune_cron' => env('ACCESS_LOG_PRUNE_CRON', '0 3 * * *'),
 
-    // The single name-based sensitive list (FR-015) — filled from
-    // specs/023-access-log/contracts/redaction.md when the redaction pass lands.
-    'sensitive' => [],
-    'sensitive_prefixes' => [],
+    // The single name-based sensitive list (FR-015): one list, applied identically to query,
+    // input and cookies at every nesting depth, so a rule cannot be enforced in one place and
+    // forgotten in another. Matching is on the NAME a value was submitted under, never on what
+    // the value looks like — content sniffing would both miss a weak password and shred a
+    // legitimate high-entropy meme hash. Matching is case-insensitive; the matched value is
+    // replaced with `[redacted]` rather than removed (FR-014), and everything not listed here
+    // is recorded in full (FR-016). Full rationale: contracts/redaction.md.
+    'sensitive' => [
+        'password',                 // 007 registration/login, 022 reset
+        'password_confirmation',    // 007 registration, 022 reset
+        'current_password',         // 022 account-page password change
+        'new_password',             // defensive: a plausible field name for the same secret
+        // Load-bearing today, not defensive: 022's reset token rides the LINK's fragment but is
+        // SUBMITTED as a form field by ResetPasswordRequest and CheckResetTokenRequest, so a
+        // live one-time credential is in the body of every reset and every link-validity probe.
+        'token',
+        '_token',                   // Laravel's CSRF field
+        'remember_token',           // the users column 022 rotates on every password change
+        'api_token',                // bearer credentials (FR-013 "authorization credential")
+        'access_token',
+        'refresh_token',
+        'id_token',
+        'secret',
+        'client_secret',            // Google OAuth client secret (017)
+        'authorization',            // the header name as a field/cookie namesake
+        'signature',                // 008's signed verification links sign in the QUERY STRING
+        'code',                     // Google OAuth authorisation code (017) — exchangeable for a session
+        'state',                    // Google OAuth CSRF state (017)
+        'credential',               // Google One Tap's credential (a signed ID token)
+    ],
+
+    // Matched with str_starts_with instead of an exact name, for the names that carry a
+    // per-deployment suffix. Laravel's own recaller cookie is remember_web_<sha1 of the guard
+    // name>, which cannot be listed exactly. The three OTHER per-deployment names — the session
+    // cookie, XSRF-TOKEN and 018's remember cookie — are resolved from their own config at call
+    // time by AccessLogRedactor, since config/remember.php derives its name from APP_NAME and a
+    // literal here would silently stop matching on a deployment that renamed the app.
+    'sensitive_prefixes' => ['remember_web_'],
 
 ];

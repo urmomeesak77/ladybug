@@ -37,6 +37,12 @@ final class AccessLogRedactor {
     private const MARKER = ' …[truncated]';
 
     /**
+     * What a withheld value is replaced BY. It replaces rather than removes, because a
+     * removed key would be indistinguishable from a field that was never submitted (FR-014).
+     */
+    private const REDACTED = '[redacted]';
+
+    /**
      * Shape a recorded parameter map — query, input or cookies — at every nesting depth.
      *
      * Returns null for an empty map: an absent cookie header and an empty cookie jar are
@@ -50,8 +56,12 @@ final class AccessLogRedactor {
             return null;
         }
 
+        // The fixed redact -> coerce -> truncate order, spelled out as one expression so it
+        // cannot drift. Any other order breaks something concrete: truncating first leaves a
+        // 64 KB PARTIAL password in the row, and cutting bytes before coercion can split a
+        // multi-byte character into the invalid sequence FR-019 exists to prevent.
         /** @var array<mixed, mixed> $shaped */
-        $shaped = self::shape($values);
+        $shaped = self::shape(self::redact($values));
 
         return $shaped;
     }
@@ -117,6 +127,81 @@ final class AccessLogRedactor {
         }
 
         return $described === [] ? null : $described;
+    }
+
+    /**
+     * Withhold every value submitted under a listed name, at every nesting depth (FR-015).
+     *
+     * The two lists are resolved once here and carried down, rather than read from config at
+     * each leaf: they are assembled per call so a deployment that renamed its cookies is
+     * matched, and rebuilding them inside the recursion would pay for that on every key.
+     *
+     * @param  array<mixed, mixed>  $values
+     * @return array<mixed, mixed>
+     */
+    private static function redact(array $values): array {
+        return self::withhold(
+            $values,
+            self::sensitiveNames(),
+            array_map('strtolower', (array) config('access_log.sensitive_prefixes')),
+        );
+    }
+
+    /**
+     * @param  array<mixed, mixed>  $values
+     * @param  array<int, string>  $names
+     * @param  array<int, string>  $prefixes
+     * @return array<mixed, mixed>
+     */
+    private static function withhold(array $values, array $names, array $prefixes): array {
+        $withheld = [];
+        foreach ($values as $key => $value) {
+            $name = strtolower((string) $key);
+            if (in_array($name, $names, true) || self::hasSensitivePrefix($name, $prefixes)) {
+                // Replaced whole and never recursed into: password[first] and password[second]
+                // are still the password.
+                $withheld[$key] = self::REDACTED;
+                continue;
+            }
+
+            $withheld[$key] = is_array($value) ? self::withhold($value, $names, $prefixes) : $value;
+        }
+
+        return $withheld;
+    }
+
+    /**
+     * The configured names, plus the three whose spelling is a per-deployment decision.
+     *
+     * Those three are resolved from their own config HERE rather than listed in
+     * config/access_log.php, because config/session.php and config/remember.php both derive
+     * their cookie name from APP_NAME: a literal would silently stop matching on a deployment
+     * that renamed the app, and a redaction rule that fails open is worse than no rule.
+     *
+     * @return array<int, string>
+     */
+    private static function sensitiveNames(): array {
+        return array_map('strtolower', array_merge((array) config('access_log.sensitive'), [
+            (string) config('session.cookie'),   // the session id — the one value that is impersonation
+            'XSRF-TOKEN',                        // Laravel's CSRF cookie
+            (string) config('remember.cookie'),  // 018's remember-me cookie
+        ]));
+    }
+
+    /**
+     * Prefix, not substring: FR-016 keeps everything not listed, and a substring rule would
+     * start withholding fields nobody put on the list.
+     *
+     * @param  array<int, string>  $prefixes
+     */
+    private static function hasSensitivePrefix(string $name, array $prefixes): bool {
+        foreach ($prefixes as $prefix) {
+            if (str_starts_with($name, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

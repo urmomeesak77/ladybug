@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Middleware;
 
 use App\Models\AccessLog;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Cookie;
 use Tests\TestCase;
 
 /**
@@ -19,6 +22,9 @@ use Tests\TestCase;
  */
 final class RecordAccessLogTest extends TestCase {
     use RefreshDatabase;
+
+    /** Spelled out rather than read from the redactor, so a change fails a test. */
+    private const REDACTED = '[redacted]';
 
     protected function setUp(): void {
         parent::setUp();
@@ -160,6 +166,98 @@ final class RecordAccessLogTest extends TestCase {
         $this->assertSame('POST', $entry->method);
         $this->assertNull($entry->input);
         $this->assertNull($entry->files);
+    }
+
+    // --- Secrets never come to rest (US2, FR-013-FR-016, SC-003) -----------------------
+
+    public function test_a_real_sign_in_keeps_the_address_and_withholds_the_password(): void {
+        // The unit tests prove the redactor withholds a name; this proves the recorder
+        // actually routes a real request's parameters through it. FR-016 keeps the address,
+        // which is what identifies the actor on a row FR-008b deliberately leaves unnamed.
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $this->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password'])
+            ->assertOk();
+
+        $entry = $this->entryFor('api/login');
+        $this->assertSame('ada@example.com', $entry->input['email']);
+        $this->assertSame(self::REDACTED, $entry->input['password']);
+    }
+
+    public function test_a_sign_in_stores_no_raw_body_beside_the_redacted_map(): void {
+        // FR-005a / research D5: the raw body of this request is literally
+        // {"email":"…","password":"password"}, and name-based redaction cannot reach inside
+        // an opaque string. Storing it would defeat the whole of US2 in one column.
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $this->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password'])
+            ->assertOk();
+
+        $this->assertNull($this->entryFor('api/login')->body);
+    }
+
+    public function test_the_cookies_a_signed_in_browser_carries_are_withheld(): void {
+        // The session id is the one value in the whole exchange that would let anyone with
+        // read access to this table impersonate the visitor — the scenario US2 opens with,
+        // and what SC-003's second search looks for.
+        User::factory()->create(['email' => 'ada@example.com']);
+        $session = $this->signIn('ada@example.com');
+
+        // withCookie, not withUnencryptedCookie: the api group runs EncryptCookies, so these
+        // arrive encrypted and are decrypted IN PLACE before the recorder's after-phase sees
+        // them — which is the point. By the time the row is built, a real browser's session
+        // cookie is sitting in that bag in plaintext.
+        $this->replay($session)
+            ->withCookie('XSRF-TOKEN', 'the csrf token')
+            ->withCookie((string) config('remember.cookie'), '1')
+            ->withCookie('taste', 'vanilla')
+            ->getJson('/api/user')->assertOk();
+
+        $cookies = $this->entryFor('api/user')->cookies;
+        $this->assertSame(self::REDACTED, $cookies[(string) config('session.cookie')]);
+        $this->assertSame(self::REDACTED, $cookies['XSRF-TOKEN']);
+        $this->assertSame(self::REDACTED, $cookies[(string) config('remember.cookie')]);
+        // FR-016: everything else is kept, or the history stops being diagnostic.
+        $this->assertSame('vanilla', $cookies['taste']);
+    }
+
+    public function test_a_signed_links_signature_is_withheld_while_the_link_stays_legible(): void {
+        // 008's verification links carry their signature in the QUERY STRING, which is
+        // recorded like any other map — so a one-time credential would come to rest there
+        // unless `signature` is on the list (US2 scenario 3).
+        $user = User::factory()->unverified()->create(['email' => 'ada@example.com']);
+        $hash = sha1($user->email);
+        $url = URL::temporarySignedRoute('verification.verify', now()->addDay(), ['hash' => $hash], absolute: false);
+
+        $this->withHeader('Origin', 'http://localhost')->getJson($url);
+
+        $query = $this->entryFor("api/email/verify/{$hash}")->query;
+        $this->assertSame(self::REDACTED, $query['signature']);
+        // Not withheld: an operator has to be able to see the link had already expired, and
+        // an expiry stamp opens nothing on its own (FR-016).
+        $this->assertArrayHasKey('expires', $query);
+    }
+
+    /**
+     * Sign in for real and hand back the session cookie the browser would keep. The same
+     * shape CaptureAccessLogActorTest uses, and for the same reason: actingAs() would skip
+     * the cookies this file is asserting about.
+     */
+    private function signIn(string $email): Cookie {
+        $login = $this->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/login', ['email' => $email, 'password' => 'password']);
+        $login->assertOk();
+
+        return $login->getCookie((string) config('session.cookie'), false);
+    }
+
+    /** Send the session cookie back the way a browser does. */
+    private function replay(Cookie $session): static {
+        $this->app['auth']->forgetGuards();
+
+        return $this->withCredentials()->withUnencryptedCookie($session->getName(), $session->getValue());
     }
 
     /**
