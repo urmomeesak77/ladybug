@@ -34,6 +34,10 @@ final class RecordAccessLog {
      * @param  Closure(Request): Response  $next
      */
     public function handle(Request $request, Closure $next): Response {
+        if ($this->skips($request)) {
+            return $next($request);
+        }
+
         // Never LARAVEL_START: it is a process-global constant, so under the PHPUnit kernel
         // — where many requests share one process — every request after the first would
         // report a duration measured from process start (research D3). This entry timestamp
@@ -45,6 +49,27 @@ final class RecordAccessLog {
         $this->log->record($request, $response, $startedAt, $this->actor($request));
 
         return $response;
+    }
+
+    /**
+     * Whether this request passes straight through — recording switched off, or a path the
+     * operator excluded (FR-020, FR-022). Answered on the way IN and never revisited, so a
+     * pass-through touches neither the request nor the response on either phase: the visitor
+     * receives byte-for-byte what they would receive with the feature absent (FR-021).
+     */
+    private function skips(Request $request): bool {
+        // ?? true, not a bare read: a missing key resolves to null, and "nobody has set this"
+        // must mean ON — a fresh deployment records without anyone remembering to enable it
+        // (FR-020). Only an explicit false switches recording off.
+        if (! (config('access_log.enabled') ?? true)) {
+            return true;
+        }
+
+        $excluded = (array) (config('access_log.excluded_paths') ?? []);
+
+        // is() takes patterns as arguments and answers false when given none, so an empty
+        // list excludes nothing. Laravel's '*' wildcards work here for free.
+        return $request->is(...$excluded);
     }
 
     /**

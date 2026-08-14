@@ -240,6 +240,88 @@ final class RecordAccessLogTest extends TestCase {
         $this->assertArrayHasKey('expires', $query);
     }
 
+    // --- The operator's switch and the exclusion list (US3, FR-020-FR-022, SC-004) ------
+
+    public function test_recording_is_on_when_the_switch_was_never_set(): void {
+        // US3 scenario 1: a fresh deployment records without anyone remembering to enable
+        // it. offsetUnset() is how a missing key actually presents itself to the guard —
+        // Laravel's config repository stores null rather than removing the entry, so a
+        // guard written as a bare truthiness check would read "absent" as "off".
+        config()->offsetUnset('access_log.enabled');
+
+        $this->get('/api/_probe/ok')->assertOk();
+
+        $this->assertSame(200, $this->entryFor('api/_probe/ok')->status);
+    }
+
+    public function test_the_switch_off_writes_nothing_and_erases_nothing(): void {
+        // FR-021 / US3 scenario 3: off means "stop writing", never "erase". The history an
+        // operator switched recording off to stop growing is still the history they had.
+        $this->get('/api/_probe/ok')->assertOk();
+
+        config(['access_log.enabled' => false]);
+        $this->get('/api/_probe/redirect')->assertStatus(302);
+
+        $this->assertSame(0, AccessLog::query()->where('path', 'api/_probe/redirect')->count());
+        $this->assertSame(200, $this->entryFor('api/_probe/ok')->status);
+    }
+
+    public function test_the_switch_off_leaves_the_response_byte_identical(): void {
+        // SC-004's stronger half, which US1 could not assert because the comparison needs
+        // the switch to exist: a recorded response and an unrecorded one are the same
+        // response. The middleware stays in the stack and touches neither phase.
+        $recorded = $this->get('/api/_probe/ok');
+
+        config(['access_log.enabled' => false]);
+        $unrecorded = $this->get('/api/_probe/ok');
+
+        $this->assertSame($recorded->getStatusCode(), $unrecorded->getStatusCode());
+        $this->assertSame($recorded->getContent(), $unrecorded->getContent());
+        // Date moves by construction and Set-Cookie carries a fresh session id; every other
+        // header must match name for name and value for value.
+        $this->assertSame(
+            $this->comparableHeaders($recorded->headers->all()),
+            $this->comparableHeaders($unrecorded->headers->all())
+        );
+    }
+
+    public function test_an_excluded_path_is_skipped_while_its_neighbour_is_recorded(): void {
+        config(['access_log.excluded_paths' => ['api/_probe/ok']]);
+
+        $this->get('/api/_probe/ok')->assertOk();
+        $this->get('/api/_probe/redirect')->assertStatus(302);
+
+        $this->assertSame(0, AccessLog::query()->where('path', 'api/_probe/ok')->count());
+        $this->assertSame(302, $this->entryFor('api/_probe/redirect')->status);
+    }
+
+    public function test_an_exclusion_pattern_matches_laravels_wildcard_form(): void {
+        // Matched with $request->is(), so `admin/*` works and patterns carry no leading
+        // slash — the form contracts/configuration.md documents to operators.
+        config(['access_log.excluded_paths' => ['api/_probe/*']]);
+
+        $this->get('/api/_probe/ok')->assertOk();
+
+        $this->assertSame(0, AccessLog::query()->count());
+    }
+
+    public function test_the_health_probes_are_excluded_out_of_the_box(): void {
+        // FR-022: container health checks poll these continuously and would otherwise
+        // outnumber real traffic. Asserted against the shipped default, not a test-set
+        // value, so dropping either name from config/access_log.php fails here.
+        $this->getJson('/api/health')->assertOk();
+        $this->get('/up')->assertOk();
+
+        $this->assertSame(0, AccessLog::query()->count());
+    }
+
+    /** Header map minus the two entries that legitimately differ between two runs. */
+    private function comparableHeaders(array $headers): array {
+        unset($headers['date'], $headers['set-cookie']);
+
+        return $headers;
+    }
+
     /**
      * Sign in for real and hand back the session cookie the browser would keep. The same
      * shape CaptureAccessLogActorTest uses, and for the same reason: actingAs() would skip
