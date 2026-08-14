@@ -120,30 +120,38 @@ validation, because the row is machine-built and never user-submitted:
 
 | Index | Purpose | Criterion |
 |---|---|---|
-| `(created_at, id)` | newest-first paging | SC-011, FR-031 |
-| `(remote_addr, created_at)` | "every request from this address in the last hour" | SC-008, FR-012 |
-| `(forwarded_for(64), created_at)` *(prefix on MySQL)* | the same question asked of the claimed address | SC-008, FR-012 |
-| `(user_id, created_at)` | "every request by this account today" | SC-008, FR-012 |
-| `(status, created_at)` | "every request that returned a server error yesterday" | SC-008, FR-012 |
-| `(path(191), created_at)` *(prefix on MySQL)* | filter by endpoint | SC-011, FR-031 |
+| `(created_at, id)` | the nightly prune's range sweep, and newest-first paging | FR-027 |
+| `user_id` *(created by InnoDB, not declared)* | satisfies the FK's index requirement | FR-029 |
 
-Each composite leads with the filter column and trails `created_at`, so the time-range half of
-every SC-008 question is answered by the index rather than by a filesort.
+**One secondary index, and it is there for the writer.** `prune()` sweeps
+`WHERE created_at < cutoff LIMIT 1000` in a loop every night (FR-027); without
+`(created_at, id)` each pass would full-scan the whole history. Nothing else is indexed.
 
-**MySQL / SQLite split.** `varchar(2048)` under `utf8mb4` is 8192 bytes, well past InnoDB's
-3072-byte index key limit, so `path` and `forwarded_for` can only carry **prefix** indexes on
-MySQL. SQLite has no such limit and no prefix syntax. The migration branches on
-`Schema::getConnection()->getDriverName() === 'mysql'` — issuing the prefixed indexes as raw
-`CREATE INDEX` statements there and plain `$table->index([...])` on SQLite — exactly the
-pattern `2026_07_23_000000_create_comments_table.php` already uses for its `utf8mb4_bin`
-collation and `useCurrentOnUpdate`. Shortening `path` to fit a whole index was rejected: the
-path is the most-read field in the history and must not be lossy.
+**Why the five lookup indexes were dropped** (decision 2026-08-14, superseding the original
+six-index set). They covered `remote_addr`, `forwarded_for(64)`, `user_id`, `status` and
+`path(191)`, each to make one SC-008/SC-011 question fast. The history is read **rarely and by
+hand**, so that benefit never justified carrying what is effectively a second copy of a table
+that grows with every request. Two measurements settled it (T034, against real MySQL):
 
-**Write cost, acknowledged.** Six indexes is the dominant term in the SC-002 latency budget,
-and it is the deliberate trade FR-031 demands — pay at write time so a viewer that does not
-exist yet needs no new column and no backfill. This is why SC-002 must be *measured* against
-real MySQL (FR-001b) rather than assumed; [quickstart.md](./quickstart.md) scripts that
-measurement.
+- They were not buying write speed. All six together cost **0.10 ms** of a 5.03 ms insert —
+  the same row into a clone with no secondary index at all took 4.93 ms. The dominant term is
+  the commit itself (a one-column insert into an empty scratch table costs 4.71 ms), not the
+  index set. The original claim here — "six indexes is the dominant term in the SC-002 latency
+  budget" — was an assumption, and measuring it showed it to be false.
+- So the cost they impose is **disk**, on the one table in the schema with unbounded growth.
+
+The consequence is accepted rather than hidden: an operator's ad-hoc query now scans. At the
+retention window's steady state that is a table of days, not years, and a scan of it is
+seconds at a terminal — which is the access pattern this history actually has. SC-008 and
+SC-011 were revised to match (see [spec.md](./spec.md)); FR-031's forward-compatibility promise
+is unchanged, because it was always about **columns**, not indexes — a future viewer still
+needs no new column and no backfill, and can add whatever index it turns out to want.
+
+**The MySQL / SQLite split went away with them.** `varchar(2048)` under `utf8mb4` is 8192
+bytes, past InnoDB's 3072-byte key limit, so `path` and `forwarded_for` could only ever carry
+**prefix** indexes on MySQL, which SQLite has no syntax for — the migration branched on the
+driver to issue raw `CREATE INDEX` statements. With both columns unindexed there is nothing to
+branch on, and the migration is one plain `Schema::create` on either driver.
 
 ### State transitions
 
@@ -182,7 +190,7 @@ it are in [contracts/redaction.md](./contracts/redaction.md).
 | Worst-case row | value count × `ACCESS_LOG_VALUE_LIMIT` | FR-018b — stated, not hidden |
 | Retention | 30 days, configurable | FR-023 |
 | Prune cadence | daily, `0 3 * * *`, configurable, enabled by default | FR-027a |
-| Sizing target | 1,000,000 rows still answering SC-008/SC-011 in <5 s | SC-008, SC-011 |
+| Sizing target | 1,000,000 rows still **answerable** from the shipped columns (no latency bound — see Indexes) | SC-008, SC-011 |
 
 FR-018b's consequence is the one an operator must plan against: a pathological request carrying
 many large values yields a correspondingly large row, because no value is ever shortened to

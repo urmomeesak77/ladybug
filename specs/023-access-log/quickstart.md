@@ -61,8 +61,10 @@ Coverage must stay ≥90% (Constitution Principle VII); the CI Clover gate
 (`.github/scripts/check_coverage.py`) enforces it.
 
 **Note on the test database**: the suite runs on SQLite `:memory:` and `Tests\TestCase`
-hard-aborts on anything else. The MySQL-only halves of the migration (prefix indexes) are
-therefore *not* exercised by unit tests — section 3 below is where they get verified.
+hard-aborts on anything else. Since the prefix indexes were dropped (2026-08-14) the migration
+no longer branches on the driver, so it is the same statement on both — the one thing SQLite
+cannot show is the `user_id` index InnoDB creates by itself for the foreign key, which §3's
+`SHOW INDEX` covers.
 
 ---
 
@@ -98,18 +100,26 @@ value never displaces the observed one (FR-002a). A request sent without the hea
 
 ---
 
-## 3. SC-002 / SC-002a — the latency budget, measured
+## 3. SC-002 / SC-002a — the shape of the write, measured
 
-This is the criterion that cannot be reasoned about, only measured, and it must be measured
-against **real MySQL** with the shipped write path (FR-001b), because six indexes on a
-write-heavy table are the dominant cost ([data-model.md](./data-model.md) → Indexes).
+**There is no longer a numeric latency budget to gate on.** SC-002 originally required +≤5 ms
+median and +≤15 ms p95; that bound was withdrawn on 2026-08-14 after it was measured (tasks.md
+T034). What remains is the *shape* of the work: turning recording on adds exactly one row
+insert and nothing else — no extra round trip, no second connection, no `users` lookup.
 
-1. `ACCESS_LOG_ENABLED=false` in `backend/.env`, `docker compose restart backend`, run the same
-   scripted set of ~200 requests, record median and p95.
-2. `ACCESS_LOG_ENABLED=true`, restart, repeat.
+Confirm the shape rather than a stopwatch. `AccessLogService::record()` performs a single
+`save()`, and the run should show one `INSERT INTO access_logs` per recorded request:
 
-Expect: median up by ≤5 ms and p95 up by ≤15 ms. If the deltas exceed that, the index set is
-the first thing to re-examine, not the redactor.
+```powershell
+docker compose exec backend php artisan db:monitor   # or tail the query log while driving traffic
+```
+
+If you do want the numbers, measure the write directly rather than end to end — the end-to-end
+A/B could not resolve a 5 ms effect on the dev box, whose noise floor is ±30 ms median (T034).
+Measured in process against real MySQL, the write is ~5 ms median, of which **~4.7 ms is the
+commit floor of any single-row insert** on a datadir bind-mounted to Windows NTFS with
+`innodb_flush_log_at_trx_commit=1`. The redactor costs ~0.24 ms and index maintenance ~0.10 ms
+— so if a future measurement looks expensive, suspect the storage, not the shaping.
 
 SC-002a — "the entry is already retrievable at the instant the response is received" — follows
 from the write preceding delivery (FR-001a), and is checked by querying for a request's row
@@ -122,8 +132,11 @@ Also verify the MySQL-only schema here, since the test suite cannot:
 SHOW INDEX FROM access_logs;
 ```
 
-Expect the six indexes from [data-model.md](./data-model.md), with `path` and `forwarded_for`
-carrying **prefix** lengths (191 and 64).
+Expect exactly three keys: `PRIMARY`, `access_logs_created_at_id_index`, and
+`access_logs_user_id_foreign` on `user_id` — the last created by InnoDB to satisfy the foreign
+key, not declared by the migration. No prefix lengths appear anywhere; the columns that needed
+them (`path`, `forwarded_for`) are no longer indexed. Anything else means an index was
+reintroduced (see data-model.md → Indexes).
 
 ---
 
@@ -282,8 +295,11 @@ docker compose -f docker-compose.prod.yml ps ladybug-scheduler
 
 ## 9. SC-008 / SC-011 — the queries an operator (and a future viewer) will run
 
-Against a history of ~1,000,000 rows, each of these must return in under 5 seconds using only
-the shipped columns and indexes — no new column, no backfill (FR-031):
+Each of these must be answerable from the shipped columns alone — no new column, no derived
+table, no backfill (FR-031). **They are not timed.** As of 2026-08-14 the five lookup indexes
+were dropped (the history is read rarely and by hand; see data-model.md → Indexes), so every
+filter below except the time range is a scan, and SC-008/SC-011 were revised to require
+answerability rather than a latency bound. Run them to confirm each returns the right rows:
 
 ```sql
 -- every request from this address in the last hour, asked of either address field
@@ -304,7 +320,9 @@ SELECT * FROM access_logs ORDER BY created_at DESC, id DESC LIMIT 50;
 SELECT * FROM access_logs WHERE path = ? ORDER BY created_at DESC LIMIT 50;
 ```
 
-Check each with `EXPLAIN` and confirm the intended index is chosen and no filesort appears.
+`EXPLAIN` on the last-hour and paging queries should still show `access_logs_created_at_id_index`
+— that one is retained, because the nightly prune sweeps `created_at`. The rest will report a
+full scan, which is the accepted consequence of the index decision and not a regression.
 
 ---
 

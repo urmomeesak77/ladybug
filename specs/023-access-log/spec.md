@@ -405,11 +405,19 @@ schedule so that it runs without being invoked by hand.
   method, timestamp, response code, and elapsed time. Entries whose request carried a
   forwarded-address header also carry that value verbatim; entries whose request carried none
   have that field empty, and no entry has the two address fields conflated.
-- **SC-002**: Turning recording on increases the median time to answer a request by no more
-  than 5 ms and the 95th-percentile time by no more than 15 ms, measured over the same
-  scripted run with recording off and on. Since the entry is written before the response is
-  delivered (FR-001a), this budget covers the write itself and is measured against a real
-  store, not estimated.
+- **SC-002**: Turning recording on adds **one row insert** to a request and nothing else — no
+  extra round trip, no second connection, no `users` lookup. Since the entry is written before
+  the response is delivered (FR-001a), that insert is on the critical path, and its cost is
+  measured against a real store rather than estimated. *(Revised 2026-08-14. This criterion
+  previously fixed a budget of +5 ms median and +15 ms p95. Measured — see tasks.md T034 — the
+  shipped write costs 5–9 ms median on the dev stack, over that budget, and the overage is
+  **not** the feature: >90% of it is the commit floor of any single-row insert on that box's
+  storage, with shaping at ~0.3 ms and index maintenance at ~0.2 ms. The product owner's call
+  on seeing those numbers was that latency at this scale is not a concern for this site
+  ("7 ms is nothing, I'd say even 80 ms is nothing"), so the numeric budget is withdrawn rather
+  than left in the spec as a criterion nobody intends to enforce. What remains is the shape of
+  the work — one insert — which is what kept it cheap in the first place and is enforced by
+  `AccessLogService` doing exactly one `save()`.)*
 - **SC-002a**: For every request in that run, the entry is already retrievable from the history
   at the instant the response is received — zero requests observe a response whose entry has
   not yet landed.
@@ -449,17 +457,26 @@ schedule so that it runs without being invoked by hand.
   configured it.
 - **SC-008**: An operator can answer "every request from this address in the last hour" — asked
   against either address field — "every request by this account today", and "every request that
-  returned a server error yesterday" in under 5 seconds each against a history of 1,000,000
-  entries.
+  returned a server error yesterday" **from the shipped columns alone**, with no derived table,
+  no added column and no reprocessing of what was stored. Each is a single `SELECT` over
+  `access_logs`. *(Revised 2026-08-14: this criterion previously also required each query to
+  return in under 5 seconds against 1,000,000 entries. The five lookup indexes that bound was
+  written for were dropped — the history is read rarely and by hand, and measurement showed
+  they cost disk on the schema's only unbounded table while buying 0.10 ms of a 5.03 ms write.
+  Answerability is the requirement; latency at a terminal is not. See data-model.md → Indexes.)*
 - **SC-009**: The history is not reachable over HTTP at all: a scripted probe of every address
   the site exposes — public and operator-only alike — returns no access-log content in any
   response body or header, and this feature adds zero new addresses.
 - **SC-010**: A run that fetches 50 stored media files and the site's static assets produces
   zero entries, confirming the scope boundary holds in practice rather than by omission.
 - **SC-011**: The queries a future viewer would issue — newest-first paging, and filtering by
-  time range, network address, path, account, or response code — each return in under 5
-  seconds against a history of 1,000,000 entries, using only the fields and structure this
-  feature ships. No column is added and no entry is rewritten to make them fast.
+  time range, network address, path, account, or response code — are all expressible against
+  the fields and structure this feature ships. No column is added and no entry is rewritten to
+  serve them. *(Revised 2026-08-14, same decision as SC-008: the "under 5 seconds against
+  1,000,000 entries" bound came with the five lookup indexes and went with them. What
+  forward-compatibility promised was always the **columns** — a viewer that wants one of these
+  fast can add its own index then, against data already stored, with no backfill. Newest-first
+  paging stays indexed regardless, since `(created_at, id)` is retained for the prune.)*
 
 ## Assumptions
 

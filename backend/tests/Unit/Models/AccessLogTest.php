@@ -105,23 +105,37 @@ final class AccessLogTest extends TestCase {
         $this->assertNull($entry->fresh()->user_id);
     }
 
-    public function test_the_six_reading_indexes_from_the_data_model_exist(): void {
-        // SC-008/SC-011 are measured against real MySQL (T037), but the migration writing
-        // all six index definitions is driver-independent and asserted here.
+    public function test_created_at_is_indexed_so_the_nightly_prune_is_a_range_scan(): void {
+        // The one secondary index the table carries, and it exists for the WRITER:
+        // prune() sweeps `created_at < cutoff` in 1000-row passes every night, which
+        // without this would full-scan the history once per pass.
+        $indexed = array_map(
+            static fn (array $index): array => $index['columns'],
+            Schema::getIndexes('access_logs'),
+        );
+
+        $this->assertContains(['created_at', 'id'], $indexed);
+    }
+
+    public function test_the_dropped_lookup_indexes_are_not_reintroduced(): void {
+        // The history is read rarely and by hand, so these five were dropped rather than
+        // carried: they doubled the disk of a table that grows with every request while
+        // buying nothing at write time (measured in T034 — all six cost 0.10ms of a
+        // 5.03ms insert). Asserted negatively because the reflex on seeing an unindexed
+        // WHERE column is to add one back, and here that reflex is the regression.
         $indexed = array_map(
             static fn (array $index): array => $index['columns'],
             Schema::getIndexes('access_logs'),
         );
 
         foreach ([
-            ['created_at', 'id'],
             ['remote_addr', 'created_at'],
             ['forwarded_for', 'created_at'],
             ['user_id', 'created_at'],
             ['status', 'created_at'],
             ['path', 'created_at'],
-        ] as $expected) {
-            $this->assertContains($expected, $indexed);
+        ] as $dropped) {
+            $this->assertNotContains($dropped, $indexed);
         }
     }
 

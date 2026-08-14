@@ -246,6 +246,15 @@ even though the spec's prose says "access_log".
 
 ## D10 — Indexes, and the awkward `path` column
 
+> **SUPERSEDED 2026-08-14.** Five of the six indexes below were dropped, and with them the whole
+> prefix/driver-branch complication this entry exists to solve. The history is read rarely and by
+> hand, so their read benefit never justified a second copy of the schema's only unbounded table;
+> and the "cost accepted" paragraph at the end of this entry turned out to be **wrong on the
+> facts** — measured, all six cost 0.10 ms of a 5.03 ms insert, while the commit itself cost
+> 4.71 ms. Only `(created_at, id)` is retained, and for the nightly prune rather than for a
+> reader. See [data-model.md](./data-model.md) → Indexes and tasks.md T034/T037. Kept below as
+> the record of what was decided and why, which is what this file is for.
+
 **Decision**: six indexes — four plain composites `(created_at, id)`, `(remote_addr, created_at)`,
 `(user_id, created_at)` and `(status, created_at)`, plus two that are **prefix-limited on MySQL
 only**: `(path(191), created_at)` and `(forwarded_for(64), created_at)`. `path` is

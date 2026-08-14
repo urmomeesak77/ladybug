@@ -52,10 +52,14 @@ artisan serve` behind the dev nginx locally.
 **Project Type**: Web application; this feature is **backend-only** (FR-030: no page, no
 endpoint, no navigation entry).
 
-**Performance Goals**: SC-002 — enabling recording adds ≤5 ms median and ≤15 ms p95 to a
-request, measured against a real MySQL store, not estimated (FR-001b). SC-008/SC-011 — the
-operator/viewer queries answer in <5 s over 1,000,000 rows, which is what the index set in
-[data-model.md](./data-model.md) is sized for.
+**Performance Goals** *(revised 2026-08-14 — both numeric bounds withdrawn after measurement;
+see tasks.md T034/T037)*: SC-002 — enabling recording adds **one row insert** and nothing else:
+no extra round trip, no second connection, no `users` lookup. The original ≤5 ms median /
+≤15 ms p95 budget was dropped once measured, because the cost is dominated by the store's commit
+floor rather than by anything this feature does, and latency at this site's scale is not a
+concern. SC-008/SC-011 — the operator/viewer queries must be **answerable** from the shipped
+columns with no added column and no backfill; the "<5 s over 1,000,000 rows" bound went with the
+five lookup indexes that were dropped ([data-model.md](./data-model.md) → Indexes).
 
 **Constraints**: The write is on the critical path (FR-001a), so it must be a single INSERT
 with no extra round trips and no second connection handshake. It must be bounded (FR-025a):

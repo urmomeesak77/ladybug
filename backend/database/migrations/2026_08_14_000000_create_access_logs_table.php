@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class () extends Migration {
@@ -14,13 +13,7 @@ return new class () extends Migration {
      * has no `updated_at` — a column implying otherwise would invite one.
      */
     public function up(): void {
-        // varchar(2048) under utf8mb4 is 8192 bytes, far past InnoDB's 3072-byte index
-        // key limit, so `path` and `forwarded_for` can only carry PREFIX indexes on
-        // MySQL. SQLite has neither the limit nor the syntax, so it takes the whole
-        // column — the same driver split 2026_07_23_000000_create_comments_table.php uses.
-        $isMysql = Schema::getConnection()->getDriverName() === 'mysql';
-
-        Schema::create('access_logs', function (Blueprint $table) use ($isMysql) {
+        Schema::create('access_logs', function (Blueprint $table) {
             $table->id();
             // The moment the request ARRIVED (captured in the recorder's before-phase),
             // not the moment the row was written, so ordering by it orders by arrival.
@@ -63,36 +56,23 @@ return new class () extends Migration {
             // overflow TEXT by design — and 'strict' => true turns that into a lost row.
             $table->longText('body')->nullable();
 
-            // Each composite leads with the filter column and trails created_at, so the
-            // time-range half of every SC-008 question is answered by the index rather
-            // than by a filesort.
+            // The ONLY secondary index, and it is here for the writer, not the reader:
+            // prune() sweeps `WHERE created_at < cutoff LIMIT 1000` in a loop every
+            // night, and without this each pass would full-scan the whole history.
+            //
+            // The five lookup indexes this table used to carry — on remote_addr,
+            // forwarded_for, user_id, status and path — were deliberately dropped. The
+            // history is read rarely and by hand, so their read benefit never justified
+            // carrying a second copy of a table that grows with every request. Measured
+            // before removing them (T034), they were not buying write speed either:
+            // all six together cost 0.10ms of a 5.03ms insert, so this is a disk-space
+            // decision, not a latency one. An operator's ad-hoc query scans instead.
             $table->index(['created_at', 'id']);
-            $table->index(['remote_addr', 'created_at']);
-            // Declared BEFORE the foreign key below so MySQL adopts it as the FK's
-            // required index instead of silently creating a second one — six indexes
-            // are already the dominant term in the SC-002 write budget.
-            $table->index(['user_id', 'created_at']);
-            $table->index(['status', 'created_at']);
+            // MySQL requires an index on a referencing column, so InnoDB creates a
+            // single-column one on user_id for this constraint. That is expected, and
+            // is why SHOW INDEX lists a user_id key nobody declared.
             $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
-
-            if (!$isMysql) {
-                $table->index(['forwarded_for', 'created_at']);
-                $table->index(['path', 'created_at']);
-            }
         });
-
-        if ($isMysql) {
-            // Named exactly as Blueprint would name them, so the two drivers stay
-            // interchangeable to anything that reads the schema back.
-            DB::statement(
-                'CREATE INDEX access_logs_forwarded_for_created_at_index '
-                . 'ON access_logs (forwarded_for(64), created_at)'
-            );
-            DB::statement(
-                'CREATE INDEX access_logs_path_created_at_index '
-                . 'ON access_logs (path(191), created_at)'
-            );
-        }
     }
 
     /**
