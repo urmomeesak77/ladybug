@@ -61,7 +61,15 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
+            // ATTR_TIMEOUT bounds the connect so an unreachable store degrades to "answered but
+            // not recorded" instead of holding a response open (FR-025a). It sits OUTSIDE the
+            // array_filter below on purpose: array_filter with no callback drops falsy values, so
+            // an explicit DB_CONNECT_TIMEOUT=0 would be silently discarded there. The honest
+            // limit (research D12): this bounds connect, not a store that accepts the connection
+            // and then stalls mid-statement — PDO's MySQL driver exposes no read timeout.
+            'options' => extension_loaded('pdo_mysql') ? [
+                PDO::ATTR_TIMEOUT => (int) env('DB_CONNECT_TIMEOUT', 2),
+            ] + array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
         ],
