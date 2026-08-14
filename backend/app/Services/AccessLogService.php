@@ -21,6 +21,9 @@ use Throwable;
  * application's existing error reporting, never to the visitor (FR-025, research D11).
  */
 class AccessLogService {
+    /** Rows deleted per pruning pass — small enough that each commit is unnoticed by traffic. */
+    private const PRUNE_CHUNK = 1000;
+
     /**
      * Record one request and the response it produced.
      *
@@ -38,6 +41,33 @@ class AccessLogService {
             // a visitor who has already been answered.
             report($e);
         }
+    }
+
+    /**
+     * Delete every entry older than $days and return how many went.
+     *
+     * Chunked rather than one statement (FR-027): a single DELETE over a month of a busy
+     * history holds row locks and grows the undo log for the whole of its run, while
+     * 1000-row passes commit continuously and leave gaps for the inserts the recorder is
+     * still making. It is also what makes an interrupted run harmless (FR-027c) — a killed
+     * process has simply done less, with no half-state to repair and no cursor to resume
+     * from — and what makes two simultaneous runs safe: each pass just finds fewer rows.
+     */
+    public function prune(int $days): int {
+        // The same guard config/access_log.php puts on ACCESS_LOG_RETENTION_DAYS, repeated
+        // because --days= arrives here without passing through the config file: a window of
+        // 0 would put the cutoff at now() and delete the entire history.
+        $cutoff = Carbon::now()->subDays(max(1, $days));
+        $deleted = 0;
+        do {
+            // Computed once, above: recomputing it per pass would let a long run chase the
+            // clock forward into entries that were inside the window when it started.
+            $pass = AccessLog::query()->where('created_at', '<', $cutoff)->limit(self::PRUNE_CHUNK)->delete();
+            $deleted += $pass;
+        }
+        while ($pass > 0);
+
+        return $deleted;
     }
 
     /**

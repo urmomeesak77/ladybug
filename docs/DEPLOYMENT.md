@@ -30,7 +30,17 @@ Internet ──443──▶ nginx-web-1 (existing edge, /web/nginx)
                               └──────────────────────┬────────────────────────┘
                                                       │
                               ladybug-php (php:8.3-fpm) ──▶ ladybug-mysql (8.0)
+                                                              ▲
+                              ladybug-scheduler ──────────────┘
+                              (same php image, schedule:work)
 ```
+
+`ladybug-scheduler` (023) is the **same** `ladybug-php` image on the same
+`LADYBUG_TAG`, started with `php artisan schedule:work` instead of php-fpm. It
+serves no traffic, publishes no port and is not on the `edge` network; it exists
+because php-fpm is PID 1 in `ladybug-php` and nothing else in the stack calls
+`schedule:run`, so without it Laravel's scheduler never fires and the access log
+grows without bound. See "The access log and its scheduler" in Section 5.
 
 `ladybug-web` publishes **no port at all**. It is attached to two Compose
 networks: its own stack's `default` (to reach `ladybug-php`) and `edge`, an
@@ -395,6 +405,73 @@ the gap would exist in production alone.
 out once, at the deploy. The `sessions` table already exists (it predates 022),
 so no migration is required.
 
+### The access log and its scheduler (023)
+
+Every request the **application** handles is recorded as one row in
+`access_logs` — address, path, method, parameters, cookies, account, status,
+elapsed time and response size — written before the response is delivered.
+Passwords, tokens and session cookies are replaced with `[redacted]` before the
+row is written, so the table is safe to keep and safe to read.
+
+There is no page and no endpoint for it: the read path is SQL.
+
+```sh
+cd /web/online-trash.com
+docker compose exec ladybug-mysql mysql -uroot -p trashdb
+```
+
+**Verify the scheduler is up after a deploy.** `deploy.sh` brings it up with
+everything else (`docker compose up -d --remove-orphans`), but it is the one
+service no health poll touches, so confirm it explicitly:
+
+```sh
+docker compose ps ladybug-scheduler          # State must be "running"
+docker compose exec ladybug-scheduler php artisan schedule:list
+```
+
+The listing must show `access-log:prune` at `0 3 * * *`. If the service is
+missing entirely, the running `docker-compose.yml` predates 023 — re-run
+`setup.sh`'s install step or copy the current `deploy/docker-compose.prod.yml`
+over it, then `./deploy.sh`.
+
+**Retention is 30 days**, enforced by that daily 03:00 run (03:00 keeps the
+delete off the Section 6 backup window — the box has one vCPU). To change it,
+set `ACCESS_LOG_RETENTION_DAYS` in `backend.env` and redeploy; nothing in the
+code names 30. To prune by hand — after a traffic spike, or to reclaim disk
+immediately — the same routine is one command, safe to run while the site is
+serving and safe to run twice:
+
+```sh
+docker compose exec ladybug-php php artisan access-log:prune
+docker compose exec ladybug-php php artisan access-log:prune --days=7
+```
+
+It deletes in 1000-row passes that each commit on their own, so interrupting it
+is harmless: the next run simply finishes the work.
+
+**Sizing.** The per-value cap (`ACCESS_LOG_VALUE_LIMIT`, 64 KiB) is applied
+*per recorded value*, not per row, so the worst-case entry is value count ×
+limit rather than the limit. Ordinary traffic is a few hundred bytes a row, but
+a request with many large fields can be far bigger — watch `access_logs` when
+estimating disk, and lower the retention window before lowering the cap:
+
+```sql
+SELECT COUNT(*), ROUND((data_length + index_length) / 1024 / 1024) AS mb
+FROM information_schema.tables WHERE table_name = 'access_logs';
+```
+
+**What is deliberately NOT in there.** Media under `/storage/` and the SPA's
+static assets are answered by `ladybug-web` (nginx) without ever reaching PHP,
+so they produce no rows — an application-level recorder cannot see traffic the
+application never handles. The liveness probes `api/health` and `up` are
+excluded on purpose too, since `deploy.sh`, `restore.sh` and the edge poll them
+continuously. A history that looks "missing" image requests is working exactly
+as designed; nginx's own access log is where that traffic lives.
+
+To switch recording off entirely, set `ACCESS_LOG_ENABLED=false` in
+`backend.env` and redeploy. Off means "stop writing", never "erase": every row
+already recorded stays.
+
 ## 6. Backups
 
 After cutover, the server holds exactly three things that do not already exist
@@ -668,6 +745,13 @@ release you don't fully trust:
 - A JS asset fetched with `Accept-Encoding: gzip` reports `content-encoding:
   gzip` and `vary: Accept-Encoding`; a `/storage/` image reports neither.
 - Forcing a 500 returns no stack trace (`APP_DEBUG=false`).
+- **The access log is recording and the scheduler is driving it** (023):
+  `docker compose ps ladybug-scheduler` is `running`,
+  `docker compose exec ladybug-scheduler php artisan schedule:list` shows
+  `access-log:prune` at `0 3 * * *`, and
+  `SELECT MAX(created_at) FROM access_logs;` is within seconds of now. A
+  `remote_addr` that is the edge container on every row is correct — the real
+  client is in `forwarded_for`.
 - `docker stats --no-stream` after warm-up stays within the budget in
   Section 10.
 - `https://games.online-trash.com/thousand/` still answers — confirms the edge

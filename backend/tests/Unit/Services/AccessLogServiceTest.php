@@ -7,10 +7,14 @@ namespace Tests\Unit\Services;
 use App\Models\AccessLog;
 use App\Models\User;
 use App\Services\AccessLogService;
+use DomainException;
 use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Mockery;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,6 +29,9 @@ use Tests\TestCase;
  */
 final class AccessLogServiceTest extends TestCase {
     use RefreshDatabase;
+
+    /** Whether the query listener a prune test installed has yet to fire. */
+    private bool $armed = false;
 
     public function test_a_row_carries_everything_the_request_and_its_response_held(): void {
         $user = User::factory()->create();
@@ -204,8 +211,151 @@ final class AccessLogServiceTest extends TestCase {
         $this->assertTrue(AccessLog::query()->sole()->user->is($user));
     }
 
+    public function test_pruning_deletes_only_entries_older_than_the_window(): void {
+        $this->seedEntries(1, Carbon::now()->subDays(31));
+        $this->seedEntries(1, Carbon::now()->subDays(29));
+
+        $deleted = $this->service()->prune(30);
+
+        $this->assertSame(1, $deleted);
+        $entry = AccessLog::query()->sole();
+        $this->assertTrue($entry->created_at->greaterThan(Carbon::now()->subDays(30)));
+    }
+
+    public function test_pruning_loops_past_a_single_chunk_and_returns_the_total(): void {
+        // A month of a busy history is far more than one pass, and FR-027 wants the whole
+        // of it gone in one invocation — the loop is what makes "run it daily" enough.
+        $this->seedEntries(2500, Carbon::now()->subDays(31));
+
+        $deleted = $this->service()->prune(30);
+
+        $this->assertSame(2500, $deleted);
+        $this->assertSame(0, AccessLog::query()->count());
+    }
+
+    public function test_an_entry_exactly_on_the_boundary_is_kept(): void {
+        // Strictly older, so the window is a half-open interval and the same entry cannot
+        // be both inside and outside it depending on rounding.
+        Carbon::setTestNow('2026-08-14 12:00:00');
+        $this->seedEntries(1, Carbon::now()->subDays(30));
+
+        $deleted = $this->service()->prune(30);
+
+        $this->assertSame(0, $deleted);
+        $this->assertSame(1, AccessLog::query()->count());
+    }
+
+    public function test_a_window_below_one_day_is_clamped_rather_than_deleting_the_whole_history(): void {
+        // The same guard config/access_log.php applies to ACCESS_LOG_RETENTION_DAYS, repeated
+        // here because --days= reaches prune() without passing through the config file: a
+        // window of 0 would put the cutoff at now() and take the entire history with it.
+        $this->seedEntries(1, Carbon::now()->subHours(2));
+        $this->seedEntries(1, Carbon::now()->subDays(3));
+
+        $deleted = $this->service()->prune(0);
+
+        $this->assertSame(1, $deleted);
+        $this->assertTrue(AccessLog::query()->sole()->created_at->greaterThan(Carbon::now()->subDay()));
+    }
+
+    public function test_the_cutoff_is_fixed_for_the_whole_run_so_a_long_prune_cannot_chase_now_forward(): void {
+        // A run over a large history spans time. If the cutoff were recomputed per pass it
+        // would creep forward with the clock and delete entries that were inside the window
+        // when the operator started — the one way a bounded routine can lose unbounded data.
+        Carbon::setTestNow('2026-08-14 12:00:00');
+        $this->seedEntries(1200, Carbon::now()->subDays(40));
+        $this->seedEntries(3, Carbon::now()->subDays(29));
+        $this->advanceTheClockAfterTheFirstPass(5);
+
+        $deleted = $this->service()->prune(30);
+
+        $this->assertSame(1200, $deleted);
+        // Inside the window when the run began, and a five-day jump mid-run does not change
+        // that: 1203 here would mean the boundary moved.
+        $this->assertSame(3, AccessLog::query()->count());
+    }
+
+    public function test_an_interrupted_run_leaves_a_consistent_history_that_the_next_run_finishes(): void {
+        // FR-027c: each pass commits on its own, so a killed run has simply done less. There
+        // is no half-state to repair, no cursor to resume from and no partial row.
+        Carbon::setTestNow('2026-08-14 12:00:00');
+        $this->seedEntries(1500, Carbon::now()->subDays(40));
+        $this->seedEntries(5, Carbon::now()->subDays(2));
+        $this->killTheRunAfterItsFirstPass();
+
+        $interrupted = false;
+        try {
+            $this->service()->prune(30);
+        }
+        catch (DomainException) {
+            $interrupted = true;
+        }
+
+        $this->assertTrue($interrupted, 'the run was expected to be killed after its first pass');
+        // One chunk gone, the rest of the expired entries untouched and still expired, and
+        // nothing newer than the cutoff harmed.
+        $cutoff = Carbon::now()->subDays(30);
+        $this->assertSame(500, AccessLog::query()->where('created_at', '<', $cutoff)->count());
+        $this->assertSame(5, AccessLog::query()->where('created_at', '>=', $cutoff)->count());
+
+        $deleted = $this->service()->prune(30);
+
+        $this->assertSame(500, $deleted);
+        $this->assertSame(5, AccessLog::query()->count());
+    }
+
     private function service(): AccessLogService {
         return $this->app->make(AccessLogService::class);
+    }
+
+    /**
+     * Insert $count entries dated $at.
+     *
+     * Straight through the query builder: the model deliberately has no $fillable, and
+     * these rows exist only to be pruned — record() is what the tests above cover.
+     */
+    private function seedEntries(int $count, Carbon $at): void {
+        $row = [
+            'created_at' => $at,
+            'remote_addr' => '198.51.100.4',
+            'forwarded_for' => '',
+            'method' => 'GET',
+            'path' => 'api/posts',
+            'status' => 200,
+            'duration_us' => 1234,
+        ];
+        foreach (array_chunk(array_fill(0, $count, $row), 500) as $chunk) {
+            AccessLog::query()->insert($chunk);
+        }
+    }
+
+    /**
+     * Jump the clock forward once the run's first pass has executed, so a per-pass cutoff
+     * would visibly differ from the one the run started with.
+     */
+    private function advanceTheClockAfterTheFirstPass(int $days): void {
+        $this->armed = true;
+        DB::listen(function (QueryExecuted $query) use ($days): void {
+            if ($this->armed && str_starts_with($query->sql, 'delete')) {
+                $this->armed = false;
+                Carbon::setTestNow(Carbon::now()->addDays($days));
+            }
+        });
+    }
+
+    /**
+     * Kill the run the way a stopped container would — after a pass has committed, with no
+     * chance to finish the loop. Disarms itself so the next run proceeds normally.
+     */
+    private function killTheRunAfterItsFirstPass(): void {
+        $this->armed = true;
+        DB::listen(function (QueryExecuted $query): void {
+            if ($this->armed && str_starts_with($query->sql, 'delete')) {
+                $this->armed = false;
+
+                throw new DomainException('the pruning process was killed mid-run');
+            }
+        });
     }
 
     /**

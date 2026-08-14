@@ -59,6 +59,25 @@ services:
       ladybug-mysql:
         condition: service_healthy
 
+  # Drives Laravel's own scheduler (023): ladybug-php runs php-fpm as PID 1 and nothing
+  # else in this stack calls schedule:run, so without this service the daily
+  # access-log:prune entry in routes/console.php is dead code and the history grows
+  # unbounded. FR-027a rules out solving it with a host crontab. It is the SAME image and
+  # the same LADYBUG_TAG as ladybug-php -- one more container off one image, not a new
+  # dependency -- and it sleeps between minutes, so idle cost on the 960 MiB box is small.
+  # Same backend.env mount deliberately: a scheduler configured differently from the app
+  # it prunes for would be a quiet way to delete the wrong rows.
+  ladybug-scheduler:
+    image: ghcr.io/urmomeesak77/ladybug-php:${LADYBUG_TAG:-latest}
+    restart: unless-stopped
+    command: ["php", "artisan", "schedule:work"]
+    volumes:
+      - ./backend.env:/var/www/html/.env:ro
+      - ./data/storage:/var/www/html/storage
+    depends_on:
+      ladybug-mysql:
+        condition: service_healthy
+
   ladybug-web:
     image: ghcr.io/urmomeesak77/ladybug-web:${LADYBUG_TAG:-latest}
     restart: unless-stopped
@@ -75,10 +94,10 @@ services:
     depends_on:
       - ladybug-php
 
-# ladybug-mysql and ladybug-php stay on `default` only (declared implicitly, not
-# listed above) -- neither is attached to `edge`, so the database and the app
-# server both stay unreachable from the shared edge network. Only ladybug-web,
-# which is meant to be reached from outside this stack, joins it.
+# ladybug-mysql, ladybug-php and ladybug-scheduler stay on `default` only (declared
+# implicitly, not listed above) -- none is attached to `edge`, so the database, the app
+# server and the scheduler all stay unreachable from the shared edge network. Only
+# ladybug-web, which is meant to be reached from outside this stack, joins it.
 networks:
   edge:
     external: true
