@@ -17,6 +17,11 @@ final class OgImageControllerTest extends TestCase {
         parent::setUp();
         // No test may reach the real bind-mounted media tree.
         Storage::fake('public');
+        // One test here falls THROUGH to the SPA catch-all on purpose, and the shell it
+        // renders is a build artifact (`vite build` output, baked into the php image) —
+        // absent on a clean checkout, so pointing at it makes the suite pass or fail on
+        // whether someone has run a build. Same committed fixture ShellControllerTest uses.
+        config(['seo.shell_path' => base_path('tests/fixtures/spa-shell.html')]);
     }
 
     /** Real encoded bytes, so the transcode has something GD can actually decode. */
