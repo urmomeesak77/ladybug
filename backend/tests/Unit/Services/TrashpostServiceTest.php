@@ -382,7 +382,7 @@ final class TrashpostServiceTest extends TestCase {
         Http::fake(['img.youtube.com/*' => Http::response('still-bytes', 200)]);
         $member = $this->memberAt(RatingService::TRUST_THRESHOLD);
         $hash = 'Abcdefghij';
-        $key = 'seo:meta:v1:' . sha1("/posts/{$hash}");
+        $key = 'seo:meta:v2:' . sha1("/posts/{$hash}");
         (new PageMetaService())->forPath("/posts/{$hash}");
         $this->assertNotNull(Cache::get($key), 'the metadata cache was not warmed');
 

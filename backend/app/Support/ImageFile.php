@@ -54,7 +54,39 @@ class ImageFile {
         return true;
     }
 
+    /**
+     * Write $srcPath out as JPEG at its own dimensions, flattening any transparency
+     * onto white.
+     *
+     * The flatten is the load-bearing half: JPEG has no alpha channel, and GD writes
+     * transparent pixels as BLACK if they are not composited first, which turns a
+     * meme on a clear background into a black slab. Animated sources (GIF, WebP)
+     * yield their first frame, which is what an unfurl card shows anyway.
+     */
+    public function copyAsJpeg(string $srcPath, string $destPath): void {
+        $src = $this->read($srcPath);
+        $width = imagesx($src);
+        $height = imagesy($src);
+        $flat = imagecreatetruecolor($width, $height);
+        // Blending ON so the copy composites source alpha against the white fill
+        // rather than overwriting it with the source's own transparent pixels.
+        imagealphablending($flat, true);
+        imagefilledrectangle($flat, 0, 0, $width, $height, (int) imagecolorallocate($flat, 255, 255, 255));
+        imagecopy($flat, $src, 0, 0, 0, 0, $width, $height);
+        imagedestroy($src);
+
+        $this->write($flat, $destPath);
+        imagedestroy($flat);
+    }
+
     private function read(string $path): \GdImage {
+        // Rejected here rather than by the GD reader, which emits its own E_WARNING on
+        // the way to returning false — noise on a path this method already handles by
+        // throwing. getimagesize() answers the same question silently.
+        if (getimagesize($path) === false) {
+            throw new \RuntimeException("Unreadable image: {$path}");
+        }
+
         $ext = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
         $img = match ($ext) {
             'png' => imagecreatefrompng($path),

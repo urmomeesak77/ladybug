@@ -67,6 +67,22 @@ final class MediaPath {
         return self::VIDEO_ROOT . "/{$shard}/{$code}.{$ext}";
     }
 
+    /**
+     * The unfurl preview for one meme: always JPEG, keyed by the POST's hash rather
+     * than its media filename.
+     *
+     * The format is the whole point — X's card crawler produces no image at all from
+     * a WebP og:image, which silently downgrades every WebP upload's card to the
+     * small no-image layout. Keying by post hash rather than media filename is what
+     * keeps a YouTube meme's copy private: its thumbnail is shared across every post
+     * citing the same video, and a shared preview could not be deleted with one post.
+     */
+    public static function ogRelativePath(string $hash): string {
+        $shard = self::shardFor("{$hash}.jpg");
+
+        return self::IMAGE_ROOT . "/og/{$shard}/{$hash}.jpg";
+    }
+
     public static function youtubeThumbnailRelativePath(string $videoId): string {
         $shard = self::shardFor("{$videoId}.jpg");
 

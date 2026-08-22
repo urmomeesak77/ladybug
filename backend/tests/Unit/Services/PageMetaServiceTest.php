@@ -43,7 +43,7 @@ final class PageMetaServiceTest extends TestCase {
 
     /** The key the contract fixes, spelled out here rather than read off the class. */
     private function key(string $path): string {
-        return 'seo:meta:v1:' . sha1($path);
+        return 'seo:meta:v2:' . sha1($path);
     }
 
     public function test_a_publicly_visible_meme_resolves_to_its_own_metadata(): void {

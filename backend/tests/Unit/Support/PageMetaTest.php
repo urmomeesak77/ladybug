@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Support;
 
+use App\Models\Trashpost;
+use App\Support\MediaPath;
 use App\Support\PageMeta;
+use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 use Tests\TestCase;
 
@@ -108,5 +111,41 @@ final class PageMetaTest extends TestCase {
             'title', 'description', 'canonical', 'ogType', 'socialTitle', 'socialDescription',
             'imageUrl', 'isLargeImageCard', 'isIndexable', 'structuredData',
         ], array_keys($payload));
+    }
+
+    public function test_a_meme_with_media_advertises_its_own_unfurl_jpeg(): void {
+        // NOT the media file itself: X's card crawler renders no image at all from a
+        // WebP og:image, and every WebP upload's variants are WebP all the way down.
+        Storage::fake('public');
+        $post = Trashpost::factory()->visible()->make(['file' => 'VlP6045I0d.webp']);
+        $post->hash = 'VlP6045I0d';
+        Storage::disk('public')->put(MediaPath::imageRelativePath('300', 'VlP6045I0d', 'webp'), 'x');
+
+        $meta = PageMeta::forPost($post);
+
+        $this->assertSame('https://online-trash.com/og/VlP6045I0d.jpg', $meta->imageUrl);
+        $this->assertTrue($meta->isLargeImageCard);
+    }
+
+    public function test_a_youtube_meme_advertises_its_own_unfurl_jpeg(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->visible()->make(['file' => null, 'type' => 'youtube']);
+        $post->hash = 'VlP6045I0d';
+        $post->youtube_thumbnail = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
+        Storage::disk('public')->put((string) $post->youtube_thumbnail, 'x');
+
+        $this->assertSame('https://online-trash.com/og/VlP6045I0d.jpg', PageMeta::forPost($post)->imageUrl);
+    }
+
+    public function test_a_meme_with_no_media_on_disk_still_falls_back_to_the_branded_image(): void {
+        Storage::fake('public');
+        $post = Trashpost::factory()->visible()->make(['file' => null]);
+        $post->hash = 'VlP6045I0d';
+
+        $meta = PageMeta::forPost($post);
+
+        // Pointing at /og/ here would advertise a large-image card backed by a 404.
+        $this->assertSame('https://online-trash.com/logo-light.png', $meta->imageUrl);
+        $this->assertFalse($meta->isLargeImageCard);
     }
 }

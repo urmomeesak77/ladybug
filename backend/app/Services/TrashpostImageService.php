@@ -41,6 +41,31 @@ class TrashpostImageService {
     }
 
     /**
+     * Every rendition of this post that exists on the public disk, widest-first, with
+     * the full-size `original` at the head. Empty when the post has no image bytes.
+     *
+     * The ORDER is the contract; which entry a caller wants is the caller's policy.
+     * OgImageService, the only consumer, walks this list for the widest rendition that
+     * fits an unfurl card — it cannot just take the head, because the original may be
+     * enormous, nor the second, because on a small upload every downscale is narrower
+     * than the original and may fall under the card's minimum height.
+     *
+     * @return list<string>
+     */
+    public function existingPathsWidestFirst(Trashpost $post): array {
+        $source = $post->type === 'video' ? $this->posterSource($post) : $this->fileSource($post);
+        if ($source === null) {
+            return [];
+        }
+
+        [$code, $ext] = $source;
+
+        // MediaPath::imageSizes() is already ordered original, 1200 … 100, and the
+        // original is by construction at least as wide as any downscale of it.
+        return array_values($this->existingSizePaths($code, $ext));
+    }
+
+    /**
      * @return array{0: string, 1: string}|null
      */
     private function fileSource(Trashpost $post): ?array {
@@ -63,8 +88,26 @@ class TrashpostImageService {
     }
 
     /**
-     * Public URL of every size that exists on disk, keyed by size, in MediaPath's
+     * Relative path of every size that exists on disk, keyed by size, in MediaPath's
      * canonical widest-first order.
+     *
+     * @return array<string, string>
+     */
+    private function existingSizePaths(string $code, string $ext): array {
+        $disk = Storage::disk('public');
+        $paths = [];
+        foreach (MediaPath::imageSizes() as $size) {
+            $rel = MediaPath::imageRelativePath($size, $code, $ext);
+            if ($disk->exists($rel)) {
+                $paths[$size] = $rel;
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
+     * The same set as existingSizePaths(), as public URLs.
      *
      * @return array<string, string>
      */
@@ -74,11 +117,8 @@ class TrashpostImageService {
         /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
         $disk = Storage::disk('public');
         $urls = [];
-        foreach (MediaPath::imageSizes() as $size) {
-            $rel = MediaPath::imageRelativePath($size, $code, $ext);
-            if ($disk->exists($rel)) {
-                $urls[$size] = $disk->url($rel);
-            }
+        foreach ($this->existingSizePaths($code, $ext) as $size => $rel) {
+            $urls[$size] = $disk->url($rel);
         }
 
         return $urls;

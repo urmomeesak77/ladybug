@@ -20,11 +20,14 @@ use Illuminate\Support\Facades\Cache;
  */
 class PageMetaService {
     /**
-     * The cache namespace. The `v1` segment is a version: bumping it invalidates
+     * The cache namespace. The `v2` segment is a version: bumping it invalidates
      * every entry at once on a deploy that changes the emitted tag set, instead of
      * leaving the site an hour of mixed-vintage responses.
+     *
+     * v1 → v2: og:image / twitter:image / the JSON-LD image moved off the media file
+     * and onto the meme's own /og/{hash}.jpg (OgImageController).
      */
-    private const KEY_PREFIX = 'seo:meta:v1:';
+    private const KEY_PREFIX = 'seo:meta:v2:';
 
     /** Anchored so a malformed identifier never becomes a query (Constitution V). */
     private const POST_PATH_PATTERN = '#^/posts/([A-Za-z0-9_-]{10})$#';

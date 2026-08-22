@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\OgImageController;
 use App\Http\Controllers\RobotsController;
 use App\Http\Controllers\ShellController;
 use App\Http\Controllers\SitemapController;
@@ -42,6 +43,18 @@ Route::get('/robots.txt', [RobotsController::class, 'show']);
 Route::get('/sitemap.xml', [SitemapController::class, 'index']);
 Route::get('/sitemaps/static.xml', [SitemapController::class, 'static']);
 Route::get('/sitemaps/posts-{page}.xml', [SitemapController::class, 'posts']);
+
+// The unfurl preview (see OgImageController). Registered ABOVE the shell catch-all
+// for the same reason robots.txt and the sitemaps are — route order is the whole of
+// what keeps the SPA from swallowing it.
+//
+// The `where` is load-bearing: {hash}'s default pattern is [^/]+, which is greedy and
+// would swallow the `.jpg` into the parameter, so every request would look up a hash
+// that does not exist. Constraining it to the 10-char public code (Constitution V)
+// also keeps a malformed identifier from ever becoming a query.
+Route::get('/og/{hash}.jpg', [OgImageController::class, 'show'])
+    ->where('hash', '[A-Za-z0-9_-]{10}')
+    ->name('og.image');
 
 // Every address that is not a real file reaches the SPA shell, which Laravel
 // composes a <head> and a status code for. This replaces the stub that answered

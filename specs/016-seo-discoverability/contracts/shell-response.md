@@ -88,9 +88,19 @@ Injected immediately before `</head>`, after any existing `<title>` has been str
 <script type="application/ld+json">{…}</script>
 ```
 
-`og:image` resolution order (FR-005, FR-006): widest existing numeric variant → `original` →
-stored YouTube thumbnail → branded `logo-light.png`. `twitter:card` degrades to `summary` when
-the branded fallback was used.
+`og:image` (FR-005, FR-006) is the meme's OWN unfurl address, `https://online-trash.com/og/{hash}.jpg`,
+never a media file — amended 2026-08-22. X's card crawler produces no image at all from a WebP
+`og:image`, and a WebP upload has WebP renditions all the way down, so linking the media cost every
+such meme its card while the title and description still arrived (measured against three live posts).
+`OgImageController` answers that address with a JPEG transcoded from the meme's own bytes on first
+request and cached on the public disk thereafter.
+
+Which bytes it derives from: the widest rendition on disk that is at most 1200px wide — the full-size
+`original` when the upload was small enough, otherwise the widest downscale — else the stored YouTube
+thumbnail. The cap has a floor behind it: a 400×200 upload has no downscale wider than 300, and
+300×150 is under X's 300×157 minimum for a large-image card, so skipping the original would lose the
+card for the opposite reason. A meme with no bytes at all still falls back to the branded
+`logo-light.png`, and `twitter:card` degrades to `summary` exactly when that fallback was used.
 
 A meme with no title uses `Untitled meme` in `{title}` and the site description in
 `{description}`.

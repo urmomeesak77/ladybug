@@ -21,15 +21,25 @@ class WebpFile {
      * never animated. Reading the fixed 21-byte header is enough — no full decode (research R3).
      */
     public function isAnimated(string $path): bool {
-        $header = (string) file_get_contents($path, false, null, 0, 21);
-        if (strlen($header) < 21 || substr($header, 0, 4) !== 'RIFF' || substr($header, 8, 4) !== 'WEBP') {
-            return false;
-        }
-        if (substr($header, 12, 4) !== 'VP8X') {
+        $header = self::header($path);
+        if (!self::isWebpHeader($header) || substr($header, 12, 4) !== 'VP8X') {
             return false;
         }
 
         return (ord($header[20]) & 0x02) !== 0;
+    }
+
+    /** The fixed 21-byte prefix every WebP starts with, or '' when there is no file. */
+    private static function header(string $path): string {
+        if (!is_file($path)) {
+            return '';
+        }
+
+        return (string) file_get_contents($path, false, null, 0, 21);
+    }
+
+    private static function isWebpHeader(string $header): bool {
+        return strlen($header) >= 21 && substr($header, 0, 4) === 'RIFF' && substr($header, 8, 4) === 'WEBP';
     }
 
     /**
@@ -57,6 +67,30 @@ class WebpFile {
         }
 
         return true;
+    }
+
+    /**
+     * Write the animation's FIRST frame out as a full-size JPEG, for the unfurl preview.
+     *
+     * ImageFile cannot stand in here: GD does not decode animated WebP at all — it fails
+     * outright with "gd-webp cannot allocate temporary buffer" rather than flattening to
+     * frame one — so the one format the preview exists to rescue is also the one format
+     * the GD path cannot open.
+     */
+    public function firstFrameAsJpeg(string $srcPath, string $destPath): void {
+        // The same silent header read isAnimated() uses. getimagesize() would do here
+        // too, but it emits a PHP notice on truncated bytes, and a corrupt source is a
+        // case this method HANDLES rather than one worth warning about.
+        if (!self::isWebpHeader(self::header($srcPath))) {
+            throw new \RuntimeException("Unreadable image: {$srcPath}");
+        }
+
+        // `[0]` is ImageMagick's frame selector: it decodes only the first frame instead
+        // of the whole animation, which also keeps peak memory to one frame. -flatten onto
+        // white because JPEG has no alpha channel and WebP frames routinely do.
+        if (!$this->run(['convert', "{$srcPath}[0]", '-background', 'white', '-flatten', $destPath])) {
+            throw new \RuntimeException("Failed to write image: {$destPath}");
+        }
     }
 
     private function resize(string $srcPath, string $destPath, int $targetWidth): bool {

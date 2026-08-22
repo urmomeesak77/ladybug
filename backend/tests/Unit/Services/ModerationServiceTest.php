@@ -625,7 +625,7 @@ final class ModerationServiceTest extends TestCase {
      * under, so a transition can be asserted to have dropped it (FR-040).
      */
     private function warmMetadataCache(Trashpost $post): string {
-        $key = 'seo:meta:v1:' . sha1("/posts/{$post->hash}");
+        $key = 'seo:meta:v2:' . sha1("/posts/{$post->hash}");
         (new PageMetaService())->forPath("/posts/{$post->hash}");
         $this->assertNotNull(Cache::get($key), 'the metadata cache was not warmed');
 

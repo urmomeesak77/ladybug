@@ -163,13 +163,20 @@ final class ShellControllerTest extends TestCase {
         $response->assertDontSee('name="robots"', escape: false);
     }
 
-    /** AS1.1/FR-005: the widest variant that actually exists on disk, absolutised. */
-    public function test_a_meme_permalink_points_at_its_widest_existing_image_variant(): void {
+    /**
+     * AS1.1/FR-005: a meme with media on disk points at its OWN unfurl address, never
+     * at the media file.
+     *
+     * The indirection is not cosmetic: X's card crawler renders no image at all from a
+     * WebP og:image, and a WebP upload's variants are WebP all the way down, so linking
+     * the media costs every such meme its card. /og/{hash}.jpg answers with a JPEG
+     * derived from the same bytes (OgImageController). Which variant it derives from is
+     * TrashpostImageService::widestExistingPath's business, and is tested there.
+     */
+    public function test_a_meme_permalink_points_at_its_own_unfurl_image(): void {
         $post = Trashpost::factory()->visible()->create(['title' => 'Wide load']);
         $this->writeImageVariants($post, ['original', '800', '300']);
-        $expected = 'https://online-trash.com' . Storage::disk('public')->url(
-            MediaPath::imageRelativePath('800', pathinfo((string) $post->file, PATHINFO_FILENAME), pathinfo((string) $post->file, PATHINFO_EXTENSION)),
-        );
+        $expected = "https://online-trash.com/og/{$post->hash}.jpg";
 
         $response = $this->get("/posts/{$post->hash}");
 
@@ -178,29 +185,51 @@ final class ShellControllerTest extends TestCase {
         $response->assertSee('<meta name="twitter:card" content="summary_large_image">', escape: false);
     }
 
-    /** FR-005: with no numeric variant on disk, the original still stands in. */
-    public function test_a_meme_with_only_an_original_uses_it_as_the_preview(): void {
+    /** FR-005: with no numeric variant on disk, the original still earns a large card. */
+    public function test_a_meme_with_only_an_original_still_gets_a_large_image_card(): void {
         $post = Trashpost::factory()->visible()->create(['title' => 'Original only']);
         $this->writeImageVariants($post, ['original']);
-        $expected = 'https://online-trash.com' . Storage::disk('public')->url(
-            MediaPath::imageRelativePath('original', pathinfo((string) $post->file, PATHINFO_FILENAME), pathinfo((string) $post->file, PATHINFO_EXTENSION)),
-        );
 
         $this->get("/posts/{$post->hash}")
-            ->assertSee('<meta property="og:image" content="' . $expected . '">', escape: false);
+            ->assertSee(
+                '<meta property="og:image" content="https://online-trash.com/og/' . $post->hash . '.jpg">',
+                escape: false,
+            )
+            ->assertSee('<meta name="twitter:card" content="summary_large_image">', escape: false);
     }
 
-    /** AS1.3: the still already downloaded at upload time — never a fresh HTTP call. */
-    public function test_a_youtube_meme_carries_its_stored_thumbnail(): void {
+    /** AS1.3: derived from the still downloaded at upload time — never a fresh HTTP call. */
+    public function test_a_youtube_meme_gets_a_large_card_from_its_stored_thumbnail(): void {
         $post = Trashpost::factory()->visible()->linkOnly()->create(['title' => 'A video meme']);
         $post->youtube_thumbnail = MediaPath::youtubeThumbnailRelativePath((string) $post->youtube);
         $post->save();
-        $expected = 'https://online-trash.com' . Storage::disk('public')->url((string) $post->youtube_thumbnail);
+        // Written, not merely referenced: YoutubeThumbnailService::ensure() puts the file
+        // there when it sets the column, and a column pointing at nothing must NOT earn a
+        // large-image card — that would advertise a card backed by a 404.
+        Storage::disk('public')->put((string) $post->youtube_thumbnail, 'x');
 
         $response = $this->get("/posts/{$post->hash}");
 
-        $response->assertSee('<meta property="og:image" content="' . $expected . '">', escape: false);
+        $response->assertSee(
+            '<meta property="og:image" content="https://online-trash.com/og/' . $post->hash . '.jpg">',
+            escape: false,
+        );
         $response->assertSee('<meta name="twitter:card" content="summary_large_image">', escape: false);
+    }
+
+    /** The other half of the rule above, which used to be unenforced. */
+    public function test_a_youtube_meme_whose_thumbnail_is_missing_falls_back_to_the_logo(): void {
+        $post = Trashpost::factory()->visible()->linkOnly()->create(['title' => 'A video meme']);
+        $post->youtube_thumbnail = MediaPath::youtubeThumbnailRelativePath((string) $post->youtube);
+        $post->save();
+
+        $response = $this->get("/posts/{$post->hash}");
+
+        $response->assertSee(
+            '<meta property="og:image" content="https://online-trash.com/logo-light.png">',
+            escape: false,
+        );
+        $response->assertSee('<meta name="twitter:card" content="summary">', escape: false);
     }
 
     /** AS1.1: an untitled meme reads as the SPA's own fallback, not as an empty tag. */

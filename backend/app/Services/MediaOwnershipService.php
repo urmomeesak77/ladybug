@@ -27,6 +27,14 @@ class MediaOwnershipService {
         if ($post->youtube_thumbnail !== null && !$this->thumbnailShared($post)) {
             $paths[] = $post->youtube_thumbnail;
         }
+        // The unfurl preview (OgImageService), derived from whichever of the above the
+        // meme has. Unlike a YouTube still it is keyed by the POST's hash, so it is never
+        // shared and needs no shared-use check — but it does need listing, or a purge
+        // would leave the meme's picture fetchable at /og/{hash}.jpg after every other
+        // byte was deleted.
+        if ($post->file !== null || $post->youtube_thumbnail !== null) {
+            $paths[] = MediaPath::ogRelativePath((string) $post->hash);
+        }
 
         return $paths;
     }

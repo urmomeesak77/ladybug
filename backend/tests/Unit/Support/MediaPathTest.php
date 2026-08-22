@@ -90,6 +90,24 @@ final class MediaPathTest extends TestCase {
         );
     }
 
+    public function test_og_relative_path_is_sharded_under_the_og_subtree(): void {
+        $this->assertSame(
+            'image/trash/og/v/VlP6045I0d.jpg',
+            MediaPath::ogRelativePath('VlP6045I0d'),
+        );
+        $this->assertSame(
+            'image/trash/og/6/6k_F1q0fz-.jpg',
+            MediaPath::ogRelativePath('6k_F1q0fz-'),
+        );
+    }
+
+    public function test_og_relative_path_uses_the_other_shard_for_non_alphanumeric_lead(): void {
+        $this->assertSame(
+            'image/trash/og/other/-lP6045I0d.jpg',
+            MediaPath::ogRelativePath('-lP6045I0d'),
+        );
+    }
+
     public function test_is_video_file_accepts_allowlisted_extensions_case_insensitively(): void {
         $this->assertTrue(MediaPath::isVideoFile('clip.mp4'));
         $this->assertTrue(MediaPath::isVideoFile('clip.MP4'));

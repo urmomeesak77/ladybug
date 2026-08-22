@@ -32,7 +32,8 @@ final class MediaOwnershipServiceTest extends TestCase {
 
         $paths = $this->service()->ownedPaths($post);
 
-        $this->assertCount(count(MediaPath::imageSizes()) + 1, $paths);
+        // Every image size, plus the unshared thumbnail, plus the unfurl preview.
+        $this->assertCount(count(MediaPath::imageSizes()) + 2, $paths);
         $this->assertContains(MediaPath::imageRelativePath('100', 'abc', 'jpg'), $paths);
         $this->assertContains($thumb, $paths);
     }
@@ -49,6 +50,32 @@ final class MediaOwnershipServiceTest extends TestCase {
         $paths = $this->service()->ownedPaths($post);
 
         $this->assertNotContains($thumb, $paths);
+    }
+
+    public function test_owned_paths_includes_the_unfurl_preview(): void {
+        // Generated lazily by OgImageService and keyed by the post's own hash, so it is
+        // never shared — but a purge that skipped it would leave the meme's picture
+        // still fetchable at /og/{hash}.jpg after every other byte was deleted.
+        $post = Trashpost::factory()->create(['file' => 'abc.jpg']);
+
+        $this->assertContains(MediaPath::ogRelativePath($post->hash), $this->service()->ownedPaths($post));
+    }
+
+    public function test_owned_paths_includes_the_unfurl_preview_of_a_youtube_post(): void {
+        $thumb = MediaPath::youtubeThumbnailRelativePath('dQw4w9WgXcQ');
+        $shared = Trashpost::factory()->linkOnly()->create([
+            'youtube' => 'dQw4w9WgXcQ', 'youtube_thumbnail' => $thumb,
+        ]);
+        Trashpost::factory()->linkOnly()->create([
+            'youtube' => 'dQw4w9WgXcQ', 'youtube_thumbnail' => $thumb,
+        ]);
+
+        $paths = $this->service()->ownedPaths($shared);
+
+        // The still itself is shared and must survive; the preview derived from it is
+        // this post's alone and must not.
+        $this->assertNotContains($thumb, $paths);
+        $this->assertContains(MediaPath::ogRelativePath($shared->hash), $paths);
     }
 
     public function test_owned_paths_is_empty_for_a_post_with_no_media(): void {
@@ -70,7 +97,8 @@ final class MediaOwnershipServiceTest extends TestCase {
         foreach (MediaPath::imageSizes() as $size) {
             $this->assertContains(MediaPath::imageRelativePath($size, 'abc', 'jpg'), $paths);
         }
-        $this->assertCount(count(MediaPath::imageSizes()) + 1, $paths);
+        // Every poster size, plus the video file, plus the unfurl preview.
+        $this->assertCount(count(MediaPath::imageSizes()) + 2, $paths);
         // The old image-`file`-keyed paths (as if `file` were an image) must not appear.
         $this->assertNotContains(MediaPath::imageRelativePath('100', 'abc', 'mp4'), $paths);
     }

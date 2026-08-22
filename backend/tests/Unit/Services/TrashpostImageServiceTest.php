@@ -161,4 +161,41 @@ final class TrashpostImageServiceTest extends TestCase {
 
         $this->assertSame(['original' => null, 'default' => null, 'sizes' => []], $data);
     }
+
+    public function test_existing_paths_are_widest_first_with_the_original_at_the_head(): void {
+        $this->putSize('100');
+        $this->putSize('original');
+        $this->putSize('500');
+
+        $this->assertSame(
+            [
+                MediaPath::imageRelativePath('original', self::CODE, self::EXT),
+                MediaPath::imageRelativePath('500', self::CODE, self::EXT),
+                MediaPath::imageRelativePath('100', self::CODE, self::EXT),
+            ],
+            $this->service()->existingPathsWidestFirst($this->imagePost()),
+        );
+    }
+
+    public function test_existing_paths_omits_renditions_that_are_not_on_disk(): void {
+        $this->putSize('300');
+
+        $this->assertSame(
+            [MediaPath::imageRelativePath('300', self::CODE, self::EXT)],
+            $this->service()->existingPathsWidestFirst($this->imagePost()),
+        );
+    }
+
+    public function test_existing_paths_is_empty_when_nothing_is_on_disk(): void {
+        $this->assertSame([], $this->service()->existingPathsWidestFirst($this->imagePost()));
+    }
+
+    public function test_existing_paths_reads_a_video_posts_poster(): void {
+        $post = new Trashpost(['file' => self::CODE . '.mp4', 'type' => 'video']);
+        $post->poster = self::CODE . '.jpg';
+        $rel = MediaPath::imageRelativePath('300', self::CODE, 'jpg');
+        Storage::disk('public')->put($rel, 'fake-bytes');
+
+        $this->assertSame([$rel], $this->service()->existingPathsWidestFirst($post));
+    }
 }

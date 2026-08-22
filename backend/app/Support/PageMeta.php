@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Models\Trashpost;
-use App\Services\TrashpostImageService;
+use App\Services\OgImageService;
 use App\Utils\Str;
-use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
 /**
@@ -172,28 +171,23 @@ class PageMeta {
     /**
      * The meme's own preview image, or null when it has none.
      *
-     * Resolution order (research D7): the widest numeric variant that exists on
-     * disk, then the original, then the still downloaded for a YouTube meme at
-     * upload time. YoutubeThumbnailService::ensure() is deliberately NOT called
-     * here — it performs a 5-second-timeout HTTP GET, and this runs on the one
-     * code path every visitor and every crawler hits (SC-011).
+     * This is the meme's OWN address on /og/, never the media file itself. X's card
+     * crawler produces no image at all from a WebP og:image, and a WebP upload has
+     * WebP variants all the way down — so pointing at the media silently costs every
+     * such meme its unfurl card (measured 2026-08-22). OgImageController answers this
+     * address with a JPEG derived from the same bytes, generated on first request.
+     *
+     * Only the EXISTENCE of a source is decided here; nothing is transcoded, so this
+     * costs what it always did on the path every visitor and every crawler hits
+     * (SC-011). YoutubeThumbnailService::ensure() is still deliberately not called —
+     * it performs a 5-second-timeout HTTP GET.
      */
     private static function mediaImageUrl(Trashpost $post): ?string {
-        $image = app(TrashpostImageService::class)->imageData($post);
-        // imageData() emits only sizes whose file really exists, widest-first, with
-        // the original kept separately — so the first entry is the widest variant.
-        $url = $image['sizes'][0]['url'] ?? $image['original'];
-        if ($url !== null) {
-            return $url;
-        }
-        if ($post->youtube_thumbnail === null) {
+        if (!app(OgImageService::class)->hasSource($post)) {
             return null;
         }
 
-        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
-        $disk = Storage::disk('public');
-
-        return $disk->url((string) $post->youtube_thumbnail);
+        return "/og/{$post->hash}.jpg";
     }
 
     /**
