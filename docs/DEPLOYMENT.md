@@ -350,15 +350,31 @@ CI (`.github/workflows/ci.yml`) must be green on `master`. The release workflow
 (`.github/workflows/release.yml`) then triggers on that success, builds both
 images from the exact validated commit, and pushes
 `ghcr.io/urmomeesak77/ladybug-php` and `ghcr.io/urmomeesak77/ladybug-web`
-tagged both `latest` and `<git-sha>`. There is no auto-deploy and no SSH key or
-credential stored in CI — the server always pulls, nothing is ever pushed to
-it.
+tagged both `latest` and the **full 40-character commit SHA**. There is no
+auto-deploy and no SSH key or credential stored in CI — the server always pulls,
+nothing is ever pushed to it.
 
 ```sh
 cd /web/online-trash.com
 ./deploy.sh            # take latest
-./deploy.sh <git-sha>   # pin to (or roll back to) an exact build
+./deploy.sh 458a0c2850970a83dce8f49ae84b9a572bcf2349   # pin to (or roll back to) an exact build
 ```
+
+The argument is the tag, and the tag is the FULL SHA — an abbreviated one is not
+a tag that exists. `release.yml` writes it with `type=raw` off its own `sha`
+output rather than docker/metadata-action's `type=sha`, precisely so the tag
+matches `git rev-parse HEAD` character for character instead of the 7-character
+form that action would derive. A short SHA fails at `docker compose pull`:
+
+```
+Error response from daemon: failed to resolve reference
+"ghcr.io/urmomeesak77/ladybug-php:458a0c2": not found
+```
+
+That failure is safe — `pull` runs before `up -d`, so the stack is still on the
+old tag, maintenance mode was never entered, and re-running with the full SHA is
+the whole fix. `git rev-parse master` prints the value to paste; `gh run view
+<release-run-id> --log` shows it too, in the workflow's own `sha=` line.
 
 `deploy.sh` sets `LADYBUG_TAG` in `.env`, `docker compose pull`s,
 `docker compose up -d --remove-orphans`, then runs
@@ -374,9 +390,9 @@ motivated this design in the first place. If health never comes up it prints
 non-zero — the stack is left running (not rolled back automatically) so you
 have something to inspect.
 
-Rollback is the same command with a previous SHA: every image is tagged by the
-commit CI validated, so `./deploy.sh <previous-sha>` is a full rollback, code
-and schema migrations included (migrations only ever move forward, so a
+Rollback is the same command with a previous SHA — full-length, as above: every
+image is tagged by the commit CI validated, so `./deploy.sh $(git rev-parse
+<previous-ref>)` is a full rollback, code and schema migrations included (migrations only ever move forward, so a
 rollback that depends on a reverted migration needs a database restore too —
 see Section 7).
 

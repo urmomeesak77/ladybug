@@ -2,8 +2,15 @@
 # Pull a released image tag and roll the stack onto it.
 #
 #   ./deploy.sh              -> latest
-#   ./deploy.sh <git-sha>    -> that exact build (this is also how you roll back;
+#   ./deploy.sh <full-sha>   -> that exact build (this is also how you roll back;
 #                               every release is tagged with its commit SHA)
+#
+# The SHA must be the FULL 40 characters, as `git rev-parse` prints it. release.yml
+# tags with type=raw off the full SHA, not metadata-action's type=sha, so a
+# 7-character abbreviation is simply not a tag that exists and `docker compose pull`
+# below fails with "not found". That failure is safe -- it happens before the
+# `up -d`, so the stack is still on the old tag and maintenance mode was never
+# entered -- but it is a confusing way to learn the argument was wrong.
 set -euo pipefail
 
 ROOT=/web/online-trash.com
