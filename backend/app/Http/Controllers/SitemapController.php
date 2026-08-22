@@ -53,7 +53,9 @@ class SitemapController extends Controller {
             ->header('Content-Type', 'application/xml; charset=UTF-8')
             // Public and identical for every requester: nothing about the caller is
             // read anywhere in the listing, so any cache may hold one copy for the
-            // refresh interval FR-020 fixes.
-            ->header('Cache-Control', 'public, max-age=' . (int) config('seo.cache_ttl'));
+            // refresh interval FR-020 fixes. The listing's own interval, not the
+            // page-metadata one, so the copy a crawler holds and the entry we hold
+            // expire together.
+            ->header('Cache-Control', 'public, max-age=' . (int) config('seo.sitemap_cache_ttl'));
     }
 }

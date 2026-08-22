@@ -133,6 +133,17 @@ permalink degrades to generic site metadata on the **next** request, not an hour
 later. A metadata failure never becomes a `5xx`: it degrades to the generic
 `noindex` block at whatever status the route table already decided.
 
+**Sitemap rendering** is cached separately, under `config('seo.sitemap_cache_ttl')`
+(six hours), not the one-hour metadata TTL the two once shared. Crawlers re-fetch a
+child roughly every 90 minutes — measured 2026-08-22 — so at an hour the entry had
+always expired by the next retrieval and every crawl re-rendered the whole 315 KB
+`sitemaps/posts-1.xml` from the database: a cache that never once produced a hit
+(38–44 ms per request, against 5 ms warm). The wider window trades bounded staleness
+for that: a meme hidden or purged inside it stays listed until the entry turns over,
+which for the listing is the accepted contract (FR-020), unlike a permalink's
+metadata, which is still forgotten on the transition itself. Lower it in
+`backend/config/seo.php` if a fresher listing ever matters more than the re-render.
+
 **Crawler entry points**, all served by Laravel and all registered *above* the
 shell catch-all in `backend/routes/web.php`:
 
@@ -467,6 +478,21 @@ application never handles. The liveness probes `api/health` and `up` are
 excluded on purpose too, since `deploy.sh`, `restore.sh` and the edge poll them
 continuously. A history that looks "missing" image requests is working exactly
 as designed; nginx's own access log is where that traffic lives.
+
+Since 2026-08-22 the same is true of **vulnerability-scanner probes**. Both nginx
+layers answer any path ending in `.php` or beginning in `/wp-` with `444` (connection
+closed, no response) before it can reach PHP — no Ladybug address has either shape.
+Those probes were 93% of everything the application handled in the access log's first
+eight days (29,166 of 31,412 requests, every one a 404), so expect the table to shrink
+to roughly that degree and to be mostly real traffic from here on. They still appear in
+nginx's access log, which is now their only record. To confirm the rule after a deploy:
+
+```sh
+curl -sS -o /dev/null -w '%{http_code}
+' https://online-trash.com/robots.txt   # 200
+curl -sS -o /dev/null -w '%{http_code}
+' https://online-trash.com/wp-login.php # 000 (closed)
+```
 
 To switch recording off entirely, set `ACCESS_LOG_ENABLED=false` in
 `backend.env` and redeploy. Off means "stop writing", never "erase": every row

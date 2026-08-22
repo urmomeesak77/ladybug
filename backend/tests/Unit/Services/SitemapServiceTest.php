@@ -28,6 +28,7 @@ final class SitemapServiceTest extends TestCase {
             'app.url' => 'https://online-trash.com',
             'seo.sitemap_chunk' => 50000,
             'seo.cache_ttl' => 3600,
+            'seo.sitemap_cache_ttl' => 3600,
         ]);
     }
 
@@ -175,5 +176,29 @@ final class SitemapServiceTest extends TestCase {
             $this->assertSame(1, $appearances, "The meme {$post->hash} must appear in exactly one child.");
         }
         $this->assertNull($service->postsPage(3));
+    }
+
+    /**
+     * The listing keeps its OWN refresh interval, separate from the one a permalink's
+     * metadata uses. Measured in production (2026-08-22): crawlers re-fetch a child
+     * roughly every 90 minutes, so while both shared `seo.cache_ttl` at 3600 the entry
+     * had always expired by the next retrieval and every crawl re-rendered the whole
+     * 315 KB file from the database — a cache that never once produced a hit.
+     */
+    public function test_a_child_stays_cached_past_the_page_metadata_interval(): void {
+        config(['seo.cache_ttl' => 60, 'seo.sitemap_cache_ttl' => 3600]);
+        Trashpost::factory()->visible()->create();
+        $service = $this->service();
+        $service->postsPage(1);
+
+        $this->travel(120)->seconds();
+
+        DB::enableQueryLog();
+        $page = (string) $service->postsPage(1);
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $this->assertSame([], $queries);
+        $this->assertStringContainsString('<urlset', $page);
     }
 }

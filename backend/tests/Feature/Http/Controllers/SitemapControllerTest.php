@@ -25,6 +25,7 @@ final class SitemapControllerTest extends TestCase {
             'app.url' => 'https://online-trash.com',
             'seo.sitemap_chunk' => 50000,
             'seo.cache_ttl' => 3600,
+            'seo.sitemap_cache_ttl' => 3600,
             'seo.shell_path' => base_path('tests/fixtures/spa-shell.html'),
         ]);
     }
@@ -81,5 +82,19 @@ final class SitemapControllerTest extends TestCase {
             $response->assertOk();
             $response->assertDontSee('<div id="root">', escape: false);
         }
+    }
+
+    /**
+     * The `max-age` a crawler is handed comes from the listing's own interval, so the
+     * document it caches and the entry we cache expire together.
+     */
+    public function test_a_child_carries_the_sitemap_interval_not_the_page_interval(): void {
+        config(['seo.cache_ttl' => 60, 'seo.sitemap_cache_ttl' => 21600]);
+        Trashpost::factory()->visible()->create();
+
+        $response = $this->get('/sitemaps/posts-1.xml');
+
+        $response->assertOk();
+        $response->assertHeader('Cache-Control', 'max-age=21600, public');
     }
 }

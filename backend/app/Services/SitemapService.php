@@ -188,6 +188,6 @@ class SitemapService {
     }
 
     private static function ttl(): int {
-        return (int) config('seo.cache_ttl');
+        return (int) config('seo.sitemap_cache_ttl');
     }
 }

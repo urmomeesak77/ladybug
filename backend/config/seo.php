@@ -27,8 +27,18 @@ return [
     // URLs per child sitemap. 50,000 is the sitemaps.org protocol maximum.
     'sitemap_chunk' => 50000,
 
-    // Seconds a composed page's metadata and a rendered sitemap stay cached.
+    // Seconds a composed page's metadata stays cached.
     'cache_ttl' => 3600,
+
+    // Seconds a rendered sitemap stays cached. Deliberately LONGER than cache_ttl and
+    // longer than the interval crawlers actually re-fetch a child at: production
+    // measurement (2026-08-22) put that at roughly 90 minutes, so at the shared
+    // hour-long value every single retrieval found the entry expired and re-rendered
+    // the whole 315 KB file from the database. The cost of the wider window is bounded
+    // staleness — a meme hidden or purged inside it stays listed until the entry turns
+    // over, which for the listing is the accepted contract (FR-020 / AS2.5), unlike a
+    // permalink's metadata (FR-040), which is why the two intervals are separate keys.
+    'sitemap_cache_ttl' => 21600,
 
     // Shown for a meme with no title; matches the SPA's existing feed fallback
     // (frontend/src/components/FeedItem.tsx), so the unfurl and the rendered
