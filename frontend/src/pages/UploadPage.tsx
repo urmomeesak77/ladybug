@@ -23,6 +23,7 @@ function UploadPage() {
   return (
     <section className="auth">
       <h1>Upload</h1>
+      <p className="auth-form__notice">AI-generated ("AI slop") content will not be tolerated and will be removed.</p>
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         {formError ? <p className="auth-form__error" role="alert">{formError}</p> : null}
 
