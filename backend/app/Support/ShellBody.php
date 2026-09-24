@@ -28,8 +28,9 @@ use Illuminate\Support\Collection;
  * React REPLACES this the moment it mounts, so nothing here is styled or
  * interactive and none of it is a second implementation of the feed — it is the
  * same content the SPA is about to render, which is what keeps it the opposite of
- * cloaking. It is deliberately NOT hidden: markup a crawler sees and a visitor
- * cannot is exactly the thing that earns a manual action.
+ * cloaking. ShellRenderer ships it inside a `hidden` node so the unstyled markup
+ * never flashes on screen before React mounts; every requester still receives
+ * the identical document, and React then shows the same content visibly.
  *
  * Escaping is final here, as it is in ShellRenderer, and for the same reason: this
  * string is injected into the document verbatim.
@@ -111,10 +112,10 @@ class ShellBody {
     }
 
     private static function image(string $url, string $label): string {
-        // `loading="lazy"` is deliberately absent: this markup is replaced within
-        // milliseconds, and a lazy image in a node about to be discarded is a
-        // fetch the browser may start and then throw away.
-        return '<img src="' . self::escape($url) . '" alt="' . self::escape($label) . '">';
+        // Lazy because the body ships inside a `hidden` node: a browser never
+        // fetches a lazy image that is not rendered, so a visitor does not download
+        // images React is about to discard. Crawlers read the src regardless.
+        return '<img src="' . self::escape($url) . '" alt="' . self::escape($label) . '" loading="lazy">';
     }
 
     /** The meme's title, or the same fallback PageMeta and the SPA feed both use. */

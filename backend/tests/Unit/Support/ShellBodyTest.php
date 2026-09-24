@@ -50,6 +50,17 @@ final class ShellBodyTest extends TestCase {
         $this->assertStringContainsString('alt="Kitty jump"', $html);
     }
 
+    /**
+     * The body ships inside a `hidden` node (ShellRenderer), and browsers skip a
+     * lazy image that is never rendered — so a visitor does not download images
+     * React is about to discard. Crawlers read the src either way.
+     */
+    public function test_a_post_body_image_is_lazy_so_visitors_never_fetch_it(): void {
+        $html = ShellBody::forPost($this->makePost('yccc6UCq89', 'Kitty jump'));
+
+        $this->assertStringContainsString('loading="lazy"', $html);
+    }
+
     public function test_an_untitled_post_falls_back_to_the_configured_label(): void {
         $html = ShellBody::forPost($this->makePost('yccc6UCq89', null));
 

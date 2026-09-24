@@ -214,10 +214,15 @@ final class ShellRendererTest extends TestCase {
         $this->assertSame('He said "hi"', json_decode($matches[1], true)['@graph'][0]['name']);
     }
 
-    public function test_the_crawler_body_is_injected_into_the_root_node(): void {
+    /**
+     * Wrapped in a `hidden` node so a visitor's browser never paints the unstyled
+     * archive in the moment before React replaces it — that paint was a visible
+     * flash on every load and refresh.
+     */
+    public function test_the_crawler_body_is_injected_hidden_into_the_root_node(): void {
         $html = ShellRenderer::render($this->template(), $this->meta(), '<h1>Kitty jump</h1>');
 
-        $this->assertStringContainsString('<div id="root"><h1>Kitty jump</h1></div>', $html);
+        $this->assertStringContainsString('<div id="root"><div hidden><h1>Kitty jump</h1></div></div>', $html);
     }
 
     public function test_an_absent_crawler_body_leaves_the_root_node_empty(): void {

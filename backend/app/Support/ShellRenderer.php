@@ -39,6 +39,12 @@ class ShellRenderer {
     /**
      * Put the crawler-facing markup (ShellBody) inside the SPA's empty root node.
      *
+     * Wrapped in a `hidden` node: painted, the unstyled archive flashed on screen on
+     * every load and refresh until React replaced it. Hiding it is not cloaking —
+     * crawler and browser receive the identical document, crawlers take links from
+     * the raw HTML regardless of display, and React renders the same content
+     * visibly the moment it mounts.
+     *
      * Matched by regex rather than a literal `<div id="root"></div>` so a Vite
      * upgrade that reorders the node's attributes cannot silently stop injecting —
      * the body would simply vanish, with every test still green, because no test
@@ -63,7 +69,7 @@ class ShellRenderer {
 
         $injected = preg_replace_callback(
             '#(<div\b[^>]*\bid="root"[^>]*>)\s*</div>#i',
-            static fn (array $m): string => $m[1] . $body . '</div>',
+            static fn (array $m): string => $m[1] . '<div hidden>' . $body . '</div></div>',
             $document,
             1,
             $count,
