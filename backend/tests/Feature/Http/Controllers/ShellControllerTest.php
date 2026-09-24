@@ -590,6 +590,90 @@ final class ShellControllerTest extends TestCase {
             escape: false,
         );
     }
+
+    // ---- The crawlable body (server-rendered, so discovery needs no JavaScript) ----
+
+    public function test_a_permalink_serves_the_memes_title_in_the_document_body(): void {
+        $post = Trashpost::factory()->visible()->create(['title' => 'Kitty jump']);
+        $this->writeImageVariants($post, ['300']);
+
+        $response = $this->get("/posts/{$post->hash}");
+
+        $response->assertOk();
+        $response->assertSee('<h1>Kitty jump</h1>', escape: false);
+    }
+
+    public function test_the_home_feed_links_every_visible_meme_without_javascript(): void {
+        $first = Trashpost::factory()->visible()->create(['title' => 'First meme']);
+        $second = Trashpost::factory()->visible()->create(['title' => 'Second meme']);
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertSee("href=\"/posts/{$first->hash}\"", escape: false);
+        $response->assertSee("href=\"/posts/{$second->hash}\"", escape: false);
+    }
+
+    public function test_the_home_feed_carries_a_next_link_when_more_memes_remain(): void {
+        config(['seo.shell_feed_size' => 2]);
+        Trashpost::factory()->count(3)->visible()->create();
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertSee('?after=', escape: false);
+    }
+
+    public function test_the_next_link_advances_past_the_cursor(): void {
+        config(['seo.shell_feed_size' => 1]);
+        $older = Trashpost::factory()->visible()->create([
+            'title' => 'Older meme',
+            'activated_at' => now()->subDay(),
+        ]);
+        $newer = Trashpost::factory()->visible()->create([
+            'title' => 'Newer meme',
+            'activated_at' => now(),
+        ]);
+
+        $this->get('/')->assertSee("href=\"/posts/{$newer->hash}\"", escape: false);
+        $this->get("/?after={$newer->hash}")->assertSee("href=\"/posts/{$older->hash}\"", escape: false);
+    }
+
+    public function test_a_hidden_meme_never_appears_in_the_crawlable_feed(): void {
+        $hidden = Trashpost::factory()->hidden()->create(['title' => 'Pending meme']);
+
+        $response = $this->get('/');
+
+        $response->assertDontSee("/posts/{$hidden->hash}", escape: false);
+        $response->assertDontSee('Pending meme', escape: false);
+    }
+
+    public function test_a_hidden_memes_permalink_serves_no_crawlable_body(): void {
+        $hidden = Trashpost::factory()->hidden()->create(['title' => 'Pending meme']);
+
+        $response = $this->get("/posts/{$hidden->hash}");
+
+        $response->assertDontSee('Pending meme', escape: false);
+        $response->assertSee('<div id="root"></div>', escape: false);
+    }
+
+    /**
+     * A misconfigured page size must not silently empty the crawlable archive —
+     * that would undo the whole feature with no error anywhere, which is the exact
+     * class of quiet failure this feature exists to remove.
+     */
+    public function test_a_nonsensical_feed_size_falls_back_to_a_usable_page(): void {
+        $post = Trashpost::factory()->visible()->create(['title' => 'Still listed']);
+
+        foreach ([0, -5, null] as $size) {
+            config(['seo.shell_feed_size' => $size]);
+            $this->get('/')->assertSee("href=\"/posts/{$post->hash}\"", escape: false);
+        }
+    }
+
+    public function test_an_ordinary_spa_route_serves_no_crawlable_body(): void {
+        $this->get('/login')->assertSee('<div id="root"></div>', escape: false);
+    }
 }
 
 /**

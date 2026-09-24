@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Trashpost;
 use App\Support\PageMeta;
+use App\Support\ShellBody;
 use App\Support\SpaRoutes;
 use Illuminate\Support\Facades\Cache;
 
@@ -20,14 +21,17 @@ use Illuminate\Support\Facades\Cache;
  */
 class PageMetaService {
     /**
-     * The cache namespace. The `v2` segment is a version: bumping it invalidates
+     * The cache namespace. The trailing segment is a version: bumping it invalidates
      * every entry at once on a deploy that changes the emitted tag set, instead of
      * leaving the site an hour of mixed-vintage responses.
      *
      * v1 → v2: og:image / twitter:image / the JSON-LD image moved off the media file
      * and onto the meme's own /og/{hash}.jpg (OgImageController).
+     * v2 → v3: the entry gained `body`, the server-rendered root node (ShellBody).
+     *          Bumped rather than defaulted, so a deploy does not leave permalinks
+     *          serving an empty body until each entry happens to expire.
      */
-    private const KEY_PREFIX = 'seo:meta:v2:';
+    private const KEY_PREFIX = 'seo:meta:v3:';
 
     /** Anchored so a malformed identifier never becomes a query (Constitution V). */
     private const POST_PATH_PATTERN = '#^/posts/([A-Za-z0-9_-]{10})$#';
@@ -66,6 +70,23 @@ class PageMetaService {
      */
     public function statusFor(string $path): int {
         return (int) $this->entry($path)['status'];
+    }
+
+    /**
+     * The server-rendered root node for this address (US-SEO: crawlable content).
+     *
+     * Cached alongside the metadata rather than rebuilt per request, because it is
+     * derived from the SAME row the metadata is and rebuilding it would put a query
+     * back on the warm permalink path (SC-011). It is empty for every address that
+     * is not a publicly visible meme — a hidden meme's title must not reach a
+     * requester through the body any more than through the <head> (FR-010).
+     *
+     * The home feed is NOT served from here: its body depends on the `?after`
+     * cursor, which normalisePath strips, and it must reflect a moderation action
+     * immediately. ShellController builds that one per request.
+     */
+    public function bodyFor(string $path): string {
+        return (string) ($this->entry($path)['body'] ?? '');
     }
 
     /**
@@ -122,14 +143,20 @@ class PageMetaService {
         if (preg_match(self::POST_PATH_PATTERN, $path, $matches) !== 1) {
             $meta = PageMeta::site(self::canonicalFor($path), SpaRoutes::isIndexable($path));
 
-            return $meta->toArray() + ['status' => SpaRoutes::match($path) === null ? 404 : 200];
+            return $meta->toArray() + [
+                'status' => SpaRoutes::match($path) === null ? 404 : 200,
+                'body' => '',
+            ];
         }
 
         // withTrashed so a soft-deleted row is still found: a hidden meme (200) has
         // to be distinguishable from one that never existed (404).
         $post = Trashpost::withTrashed()->with('user')->where('hash', $matches[1])->first();
         if ($post !== null && $post->activated_at !== null && !$post->trashed()) {
-            return PageMeta::forPost($post)->toArray() + ['status' => 200];
+            return PageMeta::forPost($post)->toArray() + [
+                'status' => 200,
+                'body' => ShellBody::forPost($post),
+            ];
         }
 
         // A permalink whose meme is not public is demoted to noindex HERE, because
@@ -139,7 +166,7 @@ class PageMetaService {
         // ONLY thing that separates them, and it leaks nothing a requester holding
         // the hash does not already know: whether the address is a page at all.
         return PageMeta::site(self::canonicalFor($path), isIndexable: false)->toArray()
-            + ['status' => $post === null ? 404 : 200];
+            + ['status' => $post === null ? 404 : 200, 'body' => ''];
     }
 
     private static function key(string $path): string {

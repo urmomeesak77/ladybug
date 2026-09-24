@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Services\PageMetaService;
+use App\Services\TrashpostService;
 use App\Support\PageMeta;
+use App\Support\ShellBody;
 use App\Support\ShellRenderer;
 use App\Support\SpaRoutes;
 use Illuminate\Http\Request;
@@ -21,6 +23,9 @@ use Throwable;
  * still routes, fetches and renders exactly as it does today (FR-009).
  */
 class ShellController extends Controller {
+    /** Page size used when `seo.shell_feed_size` is missing or nonsensical. */
+    private const DEFAULT_FEED_SIZE = 10;
+
     /**
      * The shell template, memoised per PHP process and keyed by path.
      *
@@ -35,18 +40,19 @@ class ShellController extends Controller {
 
     public function __construct(
         private readonly PageMetaService $meta = new PageMetaService(),
+        private readonly TrashpostService $posts = new TrashpostService(),
     ) {
     }
 
     public function show(Request $request): Response {
         $path = self::normalisePath($request->path());
-        [$meta, $status] = $this->resolve($path);
+        [$meta, $status, $body] = $this->resolve($path, $request->query('after'));
 
         // Rendering sits OUTSIDE resolve() rather than inside its try/catch, so that
         // a renderer bug surfaces as a real error instead of being swallowed into
         // generic metadata (research D11). The separation is structural, not a
         // comment on a wider catch block.
-        return response(ShellRenderer::render($this->template(), $meta), $status)
+        return response(ShellRenderer::render($this->template(), $meta, $body), $status)
             ->header('Content-Type', 'text/html; charset=UTF-8')
             // The shell is cheap to rebuild, and a moderation action has to take
             // effect on the next request — no intermediary may outlive it (FR-040).
@@ -57,11 +63,11 @@ class ShellController extends Controller {
     }
 
     /**
-     * The metadata and status one address answers with.
+     * The metadata, status and server-rendered body one address answers with.
      *
-     * @return array{0: PageMeta, 1: int}
+     * @return array{0: PageMeta, 1: int, 2: string}
      */
-    private function resolve(string $path): array {
+    private function resolve(string $path, mixed $after): array {
         // What the address table alone can say: an address the SPA has no view for is
         // a real 404 that still carries the shell, so the SPA renders its own
         // NotFoundPage (FR-014). Computed before — and outside — the resolution below
@@ -78,7 +84,7 @@ class ShellController extends Controller {
             // so it costs neither a second query nor a second cache read — and the
             // two answers cannot disagree even if a moderation transition lands
             // between these lines.
-            return [$this->meta->forPath($path), $this->meta->statusFor($path)];
+            return [$this->meta->forPath($path), $this->meta->statusFor($path), $this->body($path, $after)];
         }
         catch (Throwable $e) {
             // FR-038: metadata is an enhancement, never a dependency. A failure
@@ -88,8 +94,53 @@ class ShellController extends Controller {
             // cannot leave a real meme's metadata in the response.
             report($e);
 
-            return [PageMeta::site(PageMetaService::canonicalFor($path), isIndexable: false), $status];
+            return [PageMeta::site(PageMetaService::canonicalFor($path), isIndexable: false), $status, ''];
         }
+    }
+
+    /**
+     * The crawler-facing markup for the root node (see ShellBody for why it exists).
+     *
+     * The home feed is built here, per request, rather than cached with the rest of
+     * the address's record: the page it describes depends on the `?after` cursor,
+     * which is deliberately absent from the cache key (every cursor page is one
+     * address, `/`, by FR-033), and a cached listing would keep naming a meme for up
+     * to an hour after moderation hid it. One indexed keyset query on the home page
+     * is the honest price. Every other address — permalinks included — is served
+     * from the cached record, so the warm permalink path stays query-free.
+     *
+     * One row beyond the page is requested to answer a question the page itself
+     * cannot: whether a next page exists at all. The extra row is dropped, never
+     * rendered, and its absence is what ends the crawl chain on the last page.
+     */
+    private function body(string $path, mixed $after): string {
+        if ($path !== '/') {
+            return $this->meta->bodyFor($path);
+        }
+
+        $size = self::feedSize();
+        $posts = $this->posts->feed([
+            'limit' => $size + 1,
+            'start' => is_string($after) ? $after : null,
+        ]);
+        $page = $posts->take($size);
+
+        return ShellBody::forFeed($page, $posts->count() > $size ? $page->last()?->hash : null);
+    }
+
+    /**
+     * Memes per crawlable feed page, clamped the way TrashpostService clamps the
+     * API's own `limit`.
+     *
+     * A zero or negative value would take() nothing and emit no archive at all —
+     * the feature silently undone by a config typo, with no error raised anywhere
+     * and every test still green. Falling back keeps the archive walkable whatever
+     * the config says.
+     */
+    private static function feedSize(): int {
+        $size = config('seo.shell_feed_size');
+
+        return is_numeric($size) && (int) $size > 0 ? (int) $size : self::DEFAULT_FEED_SIZE;
     }
 
     /**

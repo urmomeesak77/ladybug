@@ -7,6 +7,8 @@ namespace Tests\Unit\Support;
 use App\Models\Trashpost;
 use App\Support\PageMeta;
 use App\Support\ShellRenderer;
+use Illuminate\Support\Facades\Exceptions;
+use RuntimeException;
 use Tests\TestCase;
 
 final class ShellRendererTest extends TestCase {
@@ -210,6 +212,49 @@ final class ShellRendererTest extends TestCase {
         $this->assertSame(1, preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $matches));
         $this->assertStringNotContainsString('&quot;', $matches[1]);
         $this->assertSame('He said "hi"', json_decode($matches[1], true)['@graph'][0]['name']);
+    }
+
+    public function test_the_crawler_body_is_injected_into_the_root_node(): void {
+        $html = ShellRenderer::render($this->template(), $this->meta(), '<h1>Kitty jump</h1>');
+
+        $this->assertStringContainsString('<div id="root"><h1>Kitty jump</h1></div>', $html);
+    }
+
+    public function test_an_absent_crawler_body_leaves_the_root_node_empty(): void {
+        $html = ShellRenderer::render($this->template(), $this->meta());
+
+        $this->assertStringContainsString('<div id="root"></div>', $html);
+    }
+
+    public function test_the_crawler_body_does_not_disturb_the_head_block(): void {
+        $html = ShellRenderer::render($this->template(), $this->meta(), '<h1>Kitty jump</h1>');
+
+        $this->assertSame(1, substr_count($html, '<title>'));
+        $this->assertStringNotContainsString('<h1>', $this->headOf($html));
+    }
+
+    private function headOf(string $html): string {
+        return substr($html, 0, (int) strpos($html, '</head>'));
+    }
+
+    public function test_a_shell_without_a_root_node_is_reported_not_silently_served(): void {
+        Exceptions::fake();
+
+        $html = ShellRenderer::render('<html><head></head><body></body></html>', $this->meta(), '<h1>Kitty jump</h1>');
+
+        // The page still goes out — an SEO body is an enhancement, never a
+        // dependency — but the packaging error must not pass unnoticed.
+        $this->assertStringNotContainsString('<h1>Kitty jump</h1>', $html);
+        $this->assertStringContainsString('<title>online-trash</title>', $html);
+        Exceptions::assertReported(RuntimeException::class);
+    }
+
+    public function test_a_shell_with_a_root_node_reports_nothing(): void {
+        Exceptions::fake();
+
+        ShellRenderer::render($this->template(), $this->meta(), '<h1>Kitty jump</h1>');
+
+        Exceptions::assertNothingReported();
     }
 
     /**

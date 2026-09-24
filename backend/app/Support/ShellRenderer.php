@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use RuntimeException;
+
 /**
  * Composes the served document: the built SPA shell with a real <head>.
  *
@@ -18,8 +20,8 @@ namespace App\Support;
  * instead of returning an empty string.
  */
 class ShellRenderer {
-    public static function render(string $template, PageMeta $meta): string {
-        $document = self::stripTitle($template);
+    public static function render(string $template, PageMeta $meta, string $body = ''): string {
+        $document = self::injectBody(self::stripTitle($template), $body);
         $block = self::headBlock($meta);
         $close = strripos($document, '</head>');
 
@@ -32,6 +34,48 @@ class ShellRenderer {
         }
 
         return substr($document, 0, $close) . $block . "\n  " . substr($document, $close);
+    }
+
+    /**
+     * Put the crawler-facing markup (ShellBody) inside the SPA's empty root node.
+     *
+     * Matched by regex rather than a literal `<div id="root"></div>` so a Vite
+     * upgrade that reorders the node's attributes cannot silently stop injecting —
+     * the body would simply vanish, with every test still green, because no test
+     * can assert against a shell it did not package.
+     *
+     * preg_replace_callback, NOT preg_replace: the replacement carries a meme's
+     * title, and `$1` or `\1` inside a title would be read as a backreference by
+     * preg_replace and corrupt the page. A callback's return value is never parsed.
+     *
+     * A miss is REPORTED rather than thrown or swallowed. Swallowing is the exact
+     * failure this feature exists to undo — the crawlable archive would disappear
+     * from production with every test still green, since no test can assert against
+     * a shell it did not package. Throwing would be worse still: it trades an SEO
+     * regression for an outage, and the body is an enhancement, never a dependency
+     * (the rule ShellController already applies to metadata, FR-038). So the page
+     * goes out complete and the packaging error lands in the log.
+     */
+    private static function injectBody(string $document, string $body): string {
+        if ($body === '') {
+            return $document;
+        }
+
+        $injected = preg_replace_callback(
+            '#(<div\b[^>]*\bid="root"[^>]*>)\s*</div>#i',
+            static fn (array $m): string => $m[1] . $body . '</div>',
+            $document,
+            1,
+            $count,
+        );
+
+        if ($injected === null || $count === 0) {
+            report(new RuntimeException('The SPA shell has no empty #root node for the crawlable body.'));
+
+            return $document;
+        }
+
+        return $injected;
     }
 
     /**

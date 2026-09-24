@@ -40,6 +40,12 @@ return [
     // permalink's metadata (FR-040), which is why the two intervals are separate keys.
     'sitemap_cache_ttl' => 21600,
 
+    // Memes per page of the server-rendered, crawlable feed (ShellBody). Matches
+    // the SPA's own batch size (frontend/src/lib/pagination.ts) so the markup a
+    // crawler is handed describes the same page a visitor's first paint shows.
+    // Tests shrink it to walk the cursor chain without creating 11 rows.
+    'shell_feed_size' => 10,
+
     // Shown for a meme with no title; matches the SPA's existing feed fallback
     // (frontend/src/components/FeedItem.tsx), so the unfurl and the rendered
     // page never disagree about what an untitled meme is called.
