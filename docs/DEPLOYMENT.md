@@ -390,6 +390,13 @@ motivated this design in the first place. If health never comes up it prints
 non-zero — the stack is left running (not rolled back automatically) so you
 have something to inspect.
 
+After a **healthy** deploy it prunes old `ladybug-php` / `ladybug-web` images,
+keeping only the tag just deployed and the one it replaced. Each php image is
+~1.4 GB and they used to pile up with every release (the root disk reached 87%
+on 2026-09-25). Rolling back further than one release still works: `docker
+compose pull` fetches the older SHA from GHCR again. A failed deploy never
+prunes, so the previous image is always still there.
+
 Rollback is the same command with a previous SHA — full-length, as above: every
 image is tagged by the commit CI validated, so `./deploy.sh $(git rev-parse
 <previous-ref>)` is a full rollback, code and schema migrations included (migrations only ever move forward, so a

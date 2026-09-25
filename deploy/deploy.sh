@@ -17,6 +17,28 @@ ROOT=/web/online-trash.com
 TAG="${1:-latest}"
 cd "$ROOT"
 
+# Every release pulls a ~1.4 GB ladybug-php image and nothing ever removed the old
+# ones, so they piled up until the 19 GB root disk hit 87% (2026-09-25). Keep only the
+# tag just deployed and the one it replaced (the rollback target); everything older is
+# re-pullable from GHCR by its SHA anyway. Runs only after a healthy deploy, and a
+# failure here must never fail the deploy, hence the `|| true`s.
+prune_old_images() {
+    echo "==> Pruning old images (keeping ${TAG} and ${PREV_TAG})"
+    local img tag
+    for img in $(docker images --format '{{.Repository}}:{{.Tag}}' \
+            | grep -E '^ghcr\.io/urmomeesak77/ladybug-(php|web):'); do
+        tag="${img##*:}"
+        if [ "$tag" = "$TAG" ] || [ "$tag" = "$PREV_TAG" ]; then
+            continue
+        fi
+        docker rmi "$img" >/dev/null 2>&1 && echo "    removed $img" || true
+    done
+    docker image prune -f >/dev/null 2>&1 || true
+}
+
+# Remembered so the prune step below can keep it as the rollback target.
+PREV_TAG="$(sed -n 's/^LADYBUG_TAG=//p' .env)"
+
 echo "==> Deploying tag: $TAG"
 sed -i "s|^LADYBUG_TAG=.*|LADYBUG_TAG=${TAG}|" .env
 
@@ -56,6 +78,7 @@ for i in $(seq 1 20); do
     if docker compose exec -T ladybug-web wget -qO- http://127.0.0.1/api/health >/dev/null 2>&1; then
         echo "    healthy after ${i}s"
         docker compose ps
+        prune_old_images
         exit 0
     fi
     sleep 1
