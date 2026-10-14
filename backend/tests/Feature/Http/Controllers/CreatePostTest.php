@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Controllers;
 
+use App\Jobs\ProcessPostMedia;
 use App\Models\Trashpost;
 use App\Models\User;
 use App\Services\RatingService;
@@ -11,7 +12,9 @@ use App\Support\MediaPath;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class CreatePostTest extends TestCase {
@@ -160,6 +163,50 @@ class CreatePostTest extends TestCase {
         $response->assertStatus(422)->assertJsonValidationErrors('image');
         $this->assertSame(0, Trashpost::withTrashed()->count());
         $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_an_image_upload_answers_processing_and_leaves_the_work_to_the_queue(): void {
+        Queue::fake();
+
+        $response = $this->actingAs($this->memberAt(RatingService::TRUST_THRESHOLD))->postJson('/api/posts', [
+            'title' => 'Queued',
+            'image' => UploadedFile::fake()->image('m.jpg', 1000, 500),
+        ]);
+
+        // 024 FR-001: validated and staged, nothing resized, nothing public yet.
+        $response->assertCreated()
+            ->assertJsonPath('data.media_state', 'processing')
+            ->assertJsonPath('data.activated_at', null);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+        Queue::assertPushed(ProcessPostMedia::class);
+    }
+
+    public function test_an_upload_that_cannot_be_staged_answers_503_and_creates_nothing(): void {
+        Queue::fake();
+        $local = Mockery::mock(Storage::disk('local'))->makePartial();
+        $local->shouldReceive('putFileAs')->andReturn(false);
+        Storage::set('local', $local);
+
+        $response = $this->actingAs($this->memberAt(0))->postJson('/api/posts', [
+            'title' => 'Disk full',
+            'image' => UploadedFile::fake()->image('m.jpg', 100, 100),
+        ]);
+
+        $response->assertStatus(503)
+            ->assertJsonPath('message', 'Uploads are temporarily unavailable. Please try again later.');
+        $this->assertSame(0, Trashpost::withTrashed()->count());
+        Queue::assertNothingPushed();
+    }
+
+    public function test_the_upload_response_carries_the_finished_post_when_the_queue_runs_inline(): void {
+        // The `sync` driver (tests, e2e) runs the job inside the request; the 201 must then
+        // describe the processed post, not the row as it was before the job ran.
+        $response = $this->actingAs($this->memberAt(RatingService::TRUST_THRESHOLD))->postJson('/api/posts', [
+            'title' => 'Inline',
+            'image' => UploadedFile::fake()->image('m.jpg', 1000, 500),
+        ]);
+
+        $response->assertCreated()->assertJsonPath('data.media_state', 'ready')->assertJsonPath('data.type', 'image');
     }
 
     public function test_authenticated_youtube_upload_stores_only_the_id(): void {

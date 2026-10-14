@@ -102,6 +102,20 @@ final class SitemapServiceTest extends TestCase {
     }
 
     /** FR-017: the listing may never advertise a meme the public API hides. */
+    public function test_a_meme_whose_media_is_not_ready_never_appears(): void {
+        // 024 FR-006: the shared visibility scope keeps processing/failed posts out of the
+        // listing even if something activated them.
+        $processing = Trashpost::factory()->visible()->create();
+        $processing->media_state = Trashpost::MEDIA_PROCESSING;
+        $processing->save();
+        $ready = Trashpost::factory()->visible()->create();
+
+        $xml = (string) $this->service()->postsPage(1);
+
+        $this->assertStringContainsString($ready->hash, $xml);
+        $this->assertStringNotContainsString($processing->hash, $xml);
+    }
+
     public function test_pending_and_soft_deleted_memes_never_appear(): void {
         $visible = Trashpost::factory()->visible()->create();
         $pending = Trashpost::factory()->hidden()->create();

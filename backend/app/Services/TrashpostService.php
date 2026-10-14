@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\Role;
+use App\Exceptions\UploadStagingFailed;
+use App\Jobs\FetchYoutubeThumbnail;
+use App\Jobs\ProcessPostMedia;
 use App\Models\Trashpost;
 use App\Models\User;
 use App\Utils\Str;
@@ -13,6 +16,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class TrashpostService {
@@ -23,9 +27,11 @@ class TrashpostService {
     /** Retries for the astronomically rare public-hash collision (unique column). */
     private const MAX_HASH_ATTEMPTS = 3;
 
+    /** Where a validated upload waits for the queue worker, on the private `local` disk. */
+    private const STAGING_DIR = 'staging';
+
     public function __construct(
         private readonly TrashpostImageProcessor $images = new TrashpostImageProcessor(),
-        private readonly YoutubeThumbnailService $thumbnails = new YoutubeThumbnailService(),
         private readonly RatingService $rating = new RatingService(),
         private readonly PageMetaService $meta = new PageMetaService(),
         private readonly TrashpostVideoProcessor $videos = new TrashpostVideoProcessor(),
@@ -106,42 +112,190 @@ class TrashpostService {
     }
 
     /**
-     * Create a post from an already-validated upload: an image file or a parsed YouTube id.
+     * Create a post from an already-validated upload: an image file, a video file, or a
+     * parsed YouTube id.
      *
-     * The hash row is reserved (saved) BEFORE any file is written, so a hash collision can
-     * never overwrite another post's media — it just retries with a fresh hash. The row is
-     * reserved PENDING whatever the outcome, and activation is a separate, transactional
-     * step once the media exists (FR-015): both media branches then reach the same single
-     * decision point, and a post is never briefly live with no file behind it.
+     * The hash row is reserved (saved) BEFORE anything is written, so a hash collision can
+     * never overwrite another post's media — it just retries with a fresh hash.
+     *
+     * An image or video is only STAGED here and handed to the queue worker (024): resizing,
+     * re-packaging and frame extraction would otherwise hold one of the three request workers
+     * for seconds. The post is `processing` — never public — until processStaged() makes it
+     * `ready`, and that is also where a trusted uploader's post is activated. A YouTube post
+     * has no media to process, so it is ready at once and activated here as before; only its
+     * still is fetched in the background.
      */
     public function createPost(User $user, ?string $title, ?UploadedFile $image, ?string $youtubeId, ?UploadedFile $video = null, bool $isShort = false): Trashpost {
         // Read the uploader's standing BEFORE the post exists, so the credit this very
         // upload may earn cannot push its own author over the threshold (FR-020).
         $autoActivate = $this->rating->shouldAutoActivate($user);
         $post = $this->reserve($user, $title, $youtubeId, $isShort);
-        if ($image !== null) {
-            $this->attachImage($post, $image);
+        $upload = $image ?? $video;
+        if ($upload !== null) {
+            $this->stage($post, $upload);
+            ProcessPostMedia::dispatch((string) $post->hash, $autoActivate);
+
+            // fresh(): under the `sync` driver (tests, e2e) the job has already run.
+            return $post->fresh() ?? $post;
         }
-        if ($video !== null) {
-            $this->attachVideo($post, $video);
-        }
-        if ($youtubeId !== null) {
-            // Fetch the still while the video id is fresh — one post, one request —
-            // instead of lazily inside the admin index GET, where a page of 100 new
-            // YouTube rows would stack 100 sequential 5s downloads. Best-effort:
-            // ensure() reports-and-returns-null on failure, never failing the upload.
-            $this->thumbnails->ensure($post);
-        }
+
+        FetchYoutubeThumbnail::dispatch((string) $post->hash);
         if ($autoActivate) {
             $this->activate($post);
-
-            return $post;
         }
 
-        // A pending meme's media stays on the public disk like everything else; it is
-        // hidden from the public API by the activation filter, not by moving its bytes
-        // (design 2026-07-21). A moderator can see it in the admin console.
-        return $post;
+        return $post->fresh() ?? $post;
+    }
+
+    /**
+     * The queue worker's half of an upload (ProcessPostMedia): run the SAME processors the
+     * request used to run inline, then — in one locked transaction — make the post ready and,
+     * for a trusted uploader, activate and credit it.
+     *
+     * Safe to run again after an interruption (FR-016): anything but a `processing` post is
+     * left alone, and leftovers of an earlier attempt are discarded first. A file that cannot
+     * be processed ends `failed` and is NOT rethrown — it would fail identically on a retry.
+     */
+    public function processStaged(string $hash, bool $autoActivate): void {
+        $post = $this->processingPost($hash);
+        $source = $post === null ? null : $this->stagedUpload($post);
+        if ($post === null || $source === null) {
+            if ($post !== null) {
+                $this->markFailed($post);
+            }
+
+            return;
+        }
+
+        $processor = $this->processorFor($source);
+        $processor->discard($hash, $source);
+        try {
+            $fields = $processor->process($source, $hash);
+        }
+        catch (Throwable $e) {
+            report($e);
+            $processor->discard($hash, $source);
+            $this->markFailed($post);
+
+            return;
+        }
+
+        $this->completeProcessing($post, $fields, $autoActivate, $processor, $source);
+    }
+
+    /**
+     * The job gave up (the worker died on every delivery): leave the post `failed` with no
+     * partial files, exactly as a processing error would. A post that already finished, or
+     * no longer exists, is left alone.
+     */
+    public function failStaged(string $hash): void {
+        $post = $this->processingPost($hash);
+        if ($post === null) {
+            return;
+        }
+        $source = $this->stagedUpload($post);
+        if ($source !== null) {
+            $this->processorFor($source)->discard($hash, $source);
+        }
+        $this->markFailed($post);
+    }
+
+    /** The post behind a staged upload, but only while it is still waiting to be processed. */
+    private function processingPost(string $hash): ?Trashpost {
+        $post = Trashpost::withTrashed()->where('hash', $hash)->first();
+
+        return $post !== null && $post->media_state === Trashpost::MEDIA_PROCESSING ? $post : null;
+    }
+
+    /**
+     * Keep the validated upload on the private disk for the worker — PHP deletes its own temp
+     * file when the request ends. A failed write removes the reserved row and raises
+     * UploadStagingFailed before anything is dispatched (024 contract: 503, nothing created).
+     */
+    private function stage(Trashpost $post, UploadedFile $upload): void {
+        try {
+            $stored = Storage::disk('local')->putFileAs(self::STAGING_DIR, $upload, (string) $post->hash);
+        }
+        catch (Throwable) {
+            $stored = false;
+        }
+        if (! is_string($stored)) {
+            $post->forceDelete();
+            throw new UploadStagingFailed("Could not stage the upload for {$post->hash}.");
+        }
+
+        $post->media_state = Trashpost::MEDIA_PROCESSING;
+        $post->media_source = $stored;
+        $post->save();
+    }
+
+    /**
+     * The ready transition, under a row lock so a concurrent purge or a re-delivered job
+     * cannot interleave with it. A post purged while its media was being made gets that media
+     * removed again; a soft-deleted one gets its media but is not brought back to life.
+     *
+     * @param  array<string, string>  $fields
+     */
+    private function completeProcessing(Trashpost $post, array $fields, bool $autoActivate, TrashpostImageProcessor|TrashpostVideoProcessor $processor, UploadedFile $source): void {
+        DB::beginTransaction();
+        try {
+            $locked = Trashpost::withTrashed()->lockForUpdate()->find($post->id);
+            if ($locked !== null && $locked->media_state === Trashpost::MEDIA_PROCESSING) {
+                $this->markReady($locked, $fields, $autoActivate && ! $locked->trashed());
+            }
+            DB::commit();
+        }
+        catch (Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
+        if ($locked === null) {
+            $processor->discard((string) $post->hash, $source);
+        }
+        $this->deleteStaged($post);
+        $this->meta->forget((string) $post->hash);
+    }
+
+    /** @param  array<string, string>  $fields */
+    private function markReady(Trashpost $post, array $fields, bool $shouldActivate): void {
+        $post->fill($fields);
+        $post->media_state = Trashpost::MEDIA_READY;
+        $post->media_source = null;
+        if ($shouldActivate) {
+            $post->activated_at = now();
+        }
+        $post->save();
+        if ($shouldActivate) {
+            $this->rating->credit($post);
+        }
+    }
+
+    private function markFailed(Trashpost $post): void {
+        $this->deleteStaged($post);
+        $post->media_state = Trashpost::MEDIA_FAILED;
+        $post->media_source = null;
+        $post->save();
+    }
+
+    private function deleteStaged(Trashpost $post): void {
+        Storage::disk('local')->delete(self::STAGING_DIR . '/' . $post->hash);
+    }
+
+    /**
+     * The staged file presented as an upload, so the processors run on it exactly as they
+     * ran on the request's own file. Its MIME is read from the bytes, never from a name.
+     */
+    private function stagedUpload(Trashpost $post): ?UploadedFile {
+        $disk = Storage::disk('local');
+        if ($post->media_source === null || ! $disk->exists($post->media_source)) {
+            return null;
+        }
+
+        return new UploadedFile($disk->path($post->media_source), (string) $post->hash, null, null, true);
+    }
+
+    private function processorFor(UploadedFile $source): TrashpostImageProcessor|TrashpostVideoProcessor {
+        return str_starts_with((string) $source->getMimeType(), 'video/') ? $this->videos : $this->images;
     }
 
     /**
@@ -195,41 +349,6 @@ class TrashpostService {
                     throw $e;
                 }
             }
-        }
-    }
-
-    /**
-     * Write the image files for a reserved post and record them on the row. On failure the
-     * reserved row and any files already written are removed — no orphaned media, no
-     * invisible half-created row — and the failure is rethrown for the framework's error
-     * handling. Activation is decided by the caller, not here.
-     */
-    private function attachImage(Trashpost $post, UploadedFile $image): void {
-        try {
-            $post->fill($this->images->process($image, $post->hash));
-            $post->save();
-        }
-        catch (Throwable $e) {
-            $this->images->discard($post->hash, $image);
-            $post->forceDelete();
-            throw $e;
-        }
-    }
-
-    /**
-     * Write the video + poster files for a reserved post and record them on the row. Mirrors
-     * attachImage() exactly: on failure the reserved row and any files already written are
-     * removed, and the failure is rethrown.
-     */
-    private function attachVideo(Trashpost $post, UploadedFile $video): void {
-        try {
-            $post->fill($this->videos->process($video, $post->hash));
-            $post->save();
-        }
-        catch (Throwable $e) {
-            $this->videos->discard($post->hash, $video);
-            $post->forceDelete();
-            throw $e;
         }
     }
 

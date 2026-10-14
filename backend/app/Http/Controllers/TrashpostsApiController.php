@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\UploadStagingFailed;
 use App\Http\Requests\CreatePostRequest;
 use App\Http\Resources\TrashpostResource;
 use App\Services\TrashpostService;
@@ -55,14 +56,23 @@ class TrashpostsApiController extends Controller {
         // extraction keeps just the bare id (Principle VI) and throws the URL away.
         $isShort = $youtubeId !== null && Youtube::isShort((string) $request->input('youtube'));
 
-        $post = $this->service->createPost(
-            $request->user(),
-            $request->input('title'),
-            $request->file('image'),
-            $youtubeId,
-            $request->file('video'),
-            $isShort,
-        );
+        try {
+            $post = $this->service->createPost(
+                $request->user(),
+                $request->input('title'),
+                $request->file('image'),
+                $youtubeId,
+                $request->file('video'),
+                $isShort,
+            );
+        }
+        catch (UploadStagingFailed $e) {
+            // Nothing was created (the reserved row is already gone), so the uploader can
+            // simply try again; the cause is the operator's to see (024 contract).
+            report($e);
+
+            return response()->json(['message' => 'Uploads are temporarily unavailable. Please try again later.'], 503);
+        }
 
         return (new TrashpostResource($post))->response()->setStatusCode(201);
     }

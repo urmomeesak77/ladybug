@@ -32,6 +32,9 @@ class AdminTrashpostResource extends JsonResource {
             'username' => $this->uploaderName(),
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'activated_at' => $this->activated_at?->format('Y-m-d H:i:s'),
+            // 024: processing | ready | failed, so the console can say why a row cannot be
+            // activated yet. media_source (a private path) is never serialized.
+            'media_state' => $this->media_state,
             'deleted_at' => $this->deleted_at?->format('Y-m-d H:i:s'),
         ];
     }

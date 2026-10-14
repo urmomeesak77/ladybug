@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exceptions\MediaNotReady;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AdminTrashpostResource;
 use App\Services\ModerationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -35,8 +37,13 @@ class ModerationController extends Controller {
      * POST /api/admin/posts/{hash}/activate — mark the meme activated and return the updated
      * row so the client refreshes it in place without leaving the current page (FR-017).
      */
-    public function activate(string $hash): JsonResource {
-        return new AdminTrashpostResource($this->service->activate($hash));
+    public function activate(string $hash): JsonResource|JsonResponse {
+        try {
+            return new AdminTrashpostResource($this->service->activate($hash));
+        }
+        catch (MediaNotReady) {
+            return response()->json(['message' => "This meme's media is not ready yet."], 409);
+        }
     }
 
     /**

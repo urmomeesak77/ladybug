@@ -120,6 +120,43 @@ final class ModerationControllerTest extends TestCase {
         $response->assertJsonPath('data.activated_at', null);
     }
 
+    public function test_a_post_whose_media_is_not_ready_cannot_be_activated(): void {
+        // 024 FR-008: approving media that does not exist yet would publish a broken post.
+        $owner = User::factory()->create();
+        $post = Trashpost::factory()->create(['user_id' => $owner->id, 'activated_at' => null]);
+        $post->media_state = Trashpost::MEDIA_PROCESSING;
+        $post->save();
+
+        $this->actingAs($this->admin())->postJson("/api/admin/posts/{$post->hash}/activate")
+            ->assertStatus(409)
+            ->assertJsonPath('message', "This meme's media is not ready yet.");
+
+        $this->assertNull($post->fresh()->activated_at);
+        $this->assertSame(0, $owner->fresh()->rating);
+    }
+
+    public function test_purging_a_processing_post_removes_its_staged_upload(): void {
+        $post = Trashpost::factory()->create();
+        Storage::disk('local')->put("staging/{$post->hash}", 'bytes');
+        $post->media_state = Trashpost::MEDIA_PROCESSING;
+        $post->media_source = "staging/{$post->hash}";
+        $post->save();
+
+        $this->actingAs($this->admin())->deleteJson("/api/admin/posts/{$post->hash}/purge")->assertSuccessful();
+
+        Storage::disk('local')->assertMissing("staging/{$post->hash}");
+    }
+
+    public function test_the_admin_rows_carry_the_media_state(): void {
+        $post = Trashpost::factory()->create();
+        $post->media_state = Trashpost::MEDIA_FAILED;
+        $post->save();
+
+        $this->actingAs($this->admin())->getJson('/api/admin/posts')
+            ->assertOk()
+            ->assertJsonPath('data.0.media_state', 'failed');
+    }
+
     public function test_activate_on_an_unknown_hash_is_404(): void {
         $this->actingAs($this->admin())
             ->postJson('/api/admin/posts/Nonexist99/activate')

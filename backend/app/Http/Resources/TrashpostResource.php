@@ -44,6 +44,9 @@ class TrashpostResource extends JsonResource {
             'activated_at' => $this->activated_at,
             'comment_count' => (int) ($this->comment_count ?? 0),
             'hidden' => $this->hiddenStatus(),
+            // 024: the uploader's page shows a processing/failed state off this. A public row
+            // is always ready, so it says nothing a visitor could not already infer.
+            'media_state' => $this->media_state,
             'url' => "/posts/{$this->hash}",
             'url_api' => route('api.posts.show', ['hash' => $this->hash]),
             'original' => $image['original'],

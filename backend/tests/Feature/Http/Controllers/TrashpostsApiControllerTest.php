@@ -120,6 +120,47 @@ final class TrashpostsApiControllerTest extends TestCase {
         $this->getJson("/api/posts/{$post->hash}")->assertOk();
     }
 
+    /** A live (activated) post whose media is in the given 024 state, owned by $owner. */
+    private function activatedPostIn(string $state, User $owner): Trashpost {
+        $post = Trashpost::factory()->visible()->create(['user_id' => $owner->id]);
+        $post->media_state = $state;
+        $post->save();
+
+        return $post;
+    }
+
+    public function test_show_hides_a_processing_post_from_a_guest_even_when_activated(): void {
+        $post = $this->activatedPostIn(Trashpost::MEDIA_PROCESSING, User::factory()->create());
+
+        $this->getJson("/api/posts/{$post->hash}")->assertNotFound();
+    }
+
+    public function test_show_hides_a_failed_post_from_another_member(): void {
+        $post = $this->activatedPostIn(Trashpost::MEDIA_FAILED, User::factory()->create());
+
+        $this->actingAs(User::factory()->create())->getJson("/api/posts/{$post->hash}")->assertNotFound();
+    }
+
+    public function test_show_shows_the_uploader_their_processing_post_with_its_state(): void {
+        $owner = User::factory()->create();
+        $post = $this->activatedPostIn(Trashpost::MEDIA_PROCESSING, $owner);
+
+        $this->actingAs($owner)->getJson("/api/posts/{$post->hash}")
+            ->assertOk()
+            ->assertJsonPath('data.media_state', 'processing');
+    }
+
+    public function test_the_feed_carries_ready_and_never_lists_a_processing_post(): void {
+        $ready = Trashpost::factory()->visible()->create();
+        $this->activatedPostIn(Trashpost::MEDIA_PROCESSING, User::factory()->create());
+
+        $this->getJson('/api/posts')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.hash', $ready->hash)
+            ->assertJsonPath('data.0.media_state', 'ready');
+    }
+
     public function test_show_returns_404_for_an_unknown_hash(): void {
         $this->getJson('/api/posts/__nomatch__')->assertNotFound();
     }
