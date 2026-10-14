@@ -88,7 +88,7 @@ class TrashpostService {
         if ($post === null) {
             return null;
         }
-        if ($post->activated_at !== null && !$post->trashed()) {
+        if ($post->isPubliclyVisible()) {
             return $post;
         }
         if ($viewer === null) {

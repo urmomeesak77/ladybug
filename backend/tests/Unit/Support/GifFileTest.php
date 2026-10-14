@@ -88,6 +88,17 @@ class GifFileTest extends TestCase {
         $this->assertSame([300, 150], array_slice((array) getimagesize($dest), 0, 2));
     }
 
+    /**
+     * 024 FR-023: a hung gifsicle must not hold the queue worker. The timeout kills the tool
+     * and the copy fails the ordinary way — never an uncaught Process exception.
+     */
+    public function test_a_resize_that_outlives_its_timeout_fails_as_an_ordinary_write_failure(): void {
+        $src = $this->makeAnimatedGif('src.gif', 1000, 500);
+
+        $this->expectExceptionMessage('Failed to write image');
+        (new GifFile(0.001))->scaledDownCopy($src, "{$this->dir}/dest.gif", 300);
+    }
+
     public function test_scaled_down_copy_preserves_every_animation_frame(): void {
         $src = $this->makeAnimatedGif('src.gif', 1000, 500);
         $dest = "{$this->dir}/dest.gif";

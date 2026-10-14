@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use Symfony\Component\Process\Exception\ProcessSignaledException;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -14,6 +15,13 @@ use Symfony\Component\Process\Process;
  * Mirrors ImageFile::scaledDownCopy so TrashpostImageProcessor treats both alike.
  */
 class GifFile {
+    /**
+     * Seconds any one call may run (024 FR-023). On expiry Process kills the child and the
+     * call fails like any other, so a hung tool cannot hold the queue worker.
+     */
+    public function __construct(private readonly float $timeoutSeconds = 90.0) {
+    }
+
     /**
      * Write a proportionally downscaled copy at $targetWidth. Returns false without writing
      * when the source is not wider than the target (we never upscale).
@@ -51,10 +59,11 @@ class GifFile {
     private function run(array $command): bool {
         // argv array, never a shell string: the paths cannot inject shell syntax (Principle VI).
         $process = new Process($command);
+        $process->setTimeout($this->timeoutSeconds);
         try {
             $process->run();
         }
-        catch (ProcessSignaledException) {
+        catch (ProcessSignaledException|ProcessTimedOutException) {
             // gifsicle aborts (SIGABRT) on some malformed GIFs — a failure, not a PHP error.
             return false;
         }

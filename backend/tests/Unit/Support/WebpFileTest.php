@@ -55,6 +55,12 @@ class WebpFileTest extends TestCase {
         $this->assertSame(100, getimagesize($dest)[0]);
     }
 
+    /** 024 FR-023: a hung `convert` is killed and reported as an ordinary write failure. */
+    public function test_a_resize_that_outlives_its_timeout_fails_as_an_ordinary_write_failure(): void {
+        $this->expectExceptionMessage('Failed to write image');
+        (new WebpFile(0.001))->scaledDownCopy($this->animatedFixture, "{$this->dir}/dest.webp", 100);
+    }
+
     public function test_scaled_down_copy_skips_when_source_not_wider(): void {
         $dest = "{$this->dir}/dest.webp";
 

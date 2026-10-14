@@ -167,7 +167,7 @@ class PageMetaService {
         // withTrashed so a soft-deleted row is still found: a hidden meme (200) has
         // to be distinguishable from one that never existed (404).
         $post = Trashpost::withTrashed()->with('user')->where('hash', $matches[1])->first();
-        if ($post !== null && $post->activated_at !== null && !$post->trashed()) {
+        if ($post !== null && $post->isPubliclyVisible()) {
             return PageMeta::forPost($post)->toArray() + [
                 'status' => 200,
                 'body' => ShellBody::forPost($post),

@@ -59,6 +59,40 @@ final class TrashpostServiceTest extends TestCase {
         $this->assertSame([$second->id, $first->id], $ids);
     }
 
+    /**
+     * 024 FR-006: a post whose media is still being prepared, or failed to be, is never public —
+     * even if something activated it. The rule lives on the shared scope, so the feed, the
+     * sitemap, the shell and the preview image all inherit it.
+     */
+    public function test_the_feed_never_lists_a_post_whose_media_is_not_ready(): void {
+        $ready = Trashpost::factory()->visible()->create();
+        foreach ([Trashpost::MEDIA_PROCESSING, Trashpost::MEDIA_FAILED] as $state) {
+            $post = Trashpost::factory()->visible()->create();
+            $post->media_state = $state;
+            $post->save();
+        }
+
+        $this->assertSame([$ready->id], $this->service()->feed([])->pluck('id')->all());
+        $this->assertSame([$ready->id], $this->service()->leanFeed(10, null)->pluck('id')->all());
+    }
+
+    public function test_a_guest_cannot_open_a_post_whose_media_is_not_ready(): void {
+        $post = Trashpost::factory()->visible()->create();
+        $post->media_state = Trashpost::MEDIA_PROCESSING;
+        $post->save();
+
+        $this->assertNull($this->service()->findViewableByHash($post->hash, null));
+    }
+
+    public function test_the_uploader_can_open_their_own_post_while_it_is_processing(): void {
+        $owner = User::factory()->create();
+        $post = Trashpost::factory()->create(['user_id' => $owner->id]);
+        $post->media_state = Trashpost::MEDIA_PROCESSING;
+        $post->save();
+
+        $this->assertSame($post->id, $this->service()->findViewableByHash($post->hash, $owner)?->id);
+    }
+
     public function test_the_lean_feed_pages_like_the_feed(): void {
         $posts = Trashpost::factory()->count(5)->visible()->create();
         $newest = $this->service()->feed(['limit' => 2])->pluck('id')->all();
