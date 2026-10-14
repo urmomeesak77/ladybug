@@ -130,6 +130,36 @@ final class PageMetaServiceTest extends TestCase {
         $this->assertSame('Second meme - online-trash', Cache::get($this->key("/posts/{$two->hash}"))['title']);
     }
 
+    /**
+     * Only a row lookup is worth caching. Every other address resolves by pure computation,
+     * and caching it handed anyone a loop that writes one cache file per invented URL —
+     * the file store never sweeps a key that is not read again, so scanner noise
+     * (/wp-login.php, /.env, …) grew the disk without bound.
+     */
+    public function test_an_address_that_is_not_a_permalink_is_not_cached(): void {
+        $this->service()->forPath('/wp-login.php');
+        $this->service()->forPath('/login');
+
+        $this->assertNull(Cache::get($this->key('/wp-login.php')));
+        $this->assertNull(Cache::get($this->key('/login')));
+    }
+
+    public function test_a_permalink_with_no_row_is_not_cached(): void {
+        $this->service()->forPath('/posts/AAAAAAAAAA');
+
+        $this->assertNull(Cache::get($this->key('/posts/AAAAAAAAAA')));
+    }
+
+    public function test_a_hidden_memes_permalink_is_still_cached(): void {
+        // A real row: one entry per meme, bounded by the archive, and the warm path for a
+        // hidden meme's permalink stays query-free exactly as a public one's does.
+        $post = Trashpost::factory()->create(['activated_at' => null]);
+
+        $this->service()->forPath("/posts/{$post->hash}");
+
+        $this->assertIsArray(Cache::get($this->key("/posts/{$post->hash}")));
+    }
+
     /** The warm path is a single cache read: SC-011's budget depends on it. */
     public function test_a_second_resolve_inside_the_ttl_performs_no_query(): void {
         $post = Trashpost::factory()->visible()->create(['title' => 'Warm meme']);

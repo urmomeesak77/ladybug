@@ -8,6 +8,8 @@ use App\Models\Trashpost;
 use App\Support\ImageFile;
 use App\Support\MediaPath;
 use App\Support\WebpFile;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -32,10 +34,17 @@ class OgImageService {
      */
     private const MAX_PREVIEW_WIDTH = 1200;
 
+    /** How long a failed transcode is remembered, so a corrupt source costs one decode per hour. */
+    private const FAILURE_TTL_SECONDS = 3600;
+
+    /** The longest a transcode can hold its lock — far above any real GD/ImageMagick run. */
+    private const LOCK_SECONDS = 60;
+
     public function __construct(
         private readonly TrashpostImageService $images,
         private readonly ImageFile $imageFile,
         private readonly WebpFile $webpFile,
+        private readonly int $lockWaitSeconds = 10,
     ) {
     }
 
@@ -57,9 +66,42 @@ class OgImageService {
             return null;
         }
 
-        $this->transcode($source, $destination);
+        $this->transcodeOnce((string) $post->hash, $source, $destination);
 
         return $destination;
+    }
+
+    /**
+     * One transcode per meme at a time, and one attempt per hour for a source that fails.
+     *
+     * A burst of unfurl bots on a fresh permalink used to run the same decode in every php-fpm
+     * worker at once — on a three-worker pool, the whole site. A caller arriving mid-transcode
+     * waits for the lock, then finds the file the first one wrote. A failure is remembered,
+     * or an undecodable source would cost a full decode on every crawler hit.
+     *
+     * @throws \RuntimeException when the source cannot be decoded (now or within the hour)
+     * @throws LockTimeoutException when another worker is still transcoding this meme
+     */
+    private function transcodeOnce(string $hash, string $source, string $destination): void {
+        $failureKey = "og:failed:{$hash}";
+        if (Cache::has($failureKey)) {
+            throw new \RuntimeException("Preview generation recently failed for {$hash}");
+        }
+
+        $lock = Cache::lock("og:{$hash}", self::LOCK_SECONDS);
+        $lock->block($this->lockWaitSeconds);
+        try {
+            if (! Storage::disk('public')->exists($destination)) {
+                $this->transcode($source, $destination);
+            }
+        }
+        catch (\Throwable $e) {
+            Cache::put($failureKey, true, self::FAILURE_TTL_SECONDS);
+            throw $e;
+        }
+        finally {
+            $lock->release();
+        }
     }
 
     /**

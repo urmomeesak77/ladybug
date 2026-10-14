@@ -7,6 +7,7 @@ namespace Tests\Feature\Http\Controllers;
 use App\Models\User;
 use App\Models\UserIdentity;
 use App\Services\UserAdminService;
+use App\Support\RememberMe;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -153,6 +154,33 @@ class AuthControllerTest extends TestCase {
             '/^2026-07-01T12:00:00/',
             (string) $response->json('data.email_verified_at'),
         );
+    }
+
+    public function test_a_plain_login_records_that_the_session_is_not_remembered(): void {
+        // ExpireIdleSessions enforces the plain idle limit on exactly the sessions that say
+        // so, so every sign-in has to say which kind it is — a forged remember cookie must
+        // find "not remembered" written in the session it is trying to stretch.
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password'])->assertOk();
+
+        $this->assertFalse(session(RememberMe::SESSION_FLAG));
+        $this->assertIsInt(session(RememberMe::LAST_SEEN));
+    }
+
+    public function test_a_remembered_login_records_that_the_session_is_remembered(): void {
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $this->postJson('/api/login', ['email' => 'ada@example.com', 'password' => 'password', 'remember' => true])
+            ->assertOk();
+
+        $this->assertTrue(session(RememberMe::SESSION_FLAG));
+    }
+
+    public function test_registration_records_that_the_session_is_not_remembered(): void {
+        $this->postJson('/api/register', $this->registration())->assertCreated();
+
+        $this->assertFalse(session(RememberMe::SESSION_FLAG));
     }
 
     public function test_login_with_remember_true_succeeds(): void {

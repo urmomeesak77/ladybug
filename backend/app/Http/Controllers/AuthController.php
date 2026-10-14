@@ -72,6 +72,7 @@ class AuthController extends Controller {
 
         if ($request->boolean('remember')) {
             RememberMe::queue();
+            RememberMe::markRemembered();
             config(['session.lifetime' => config('remember.lifetime')]);
         }
 

@@ -13,11 +13,22 @@ use Symfony\Component\Process\Process;
  */
 class FfmpegVideo {
     /**
+     * Placed before every `-i`. ffmpeg will otherwise open whatever an input names: an HLS
+     * playlist or concat list dressed up as a video makes it read other local files (or
+     * fetch URLs) and hand their contents back as "the upload". Only plain local files,
+     * and only the two containers uploads may be (mp4 = the mov demuxer, webm = matroska).
+     */
+    private const SAFE_INPUT = [
+        '-protocol_whitelist', 'file',
+        '-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm',
+    ];
+
+    /**
      * @return array{width: int, height: int, codec: string}|null
      */
     public function probe(string $path): ?array {
         $process = new Process([
-            'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            'ffprobe', '-v', 'error', ...self::SAFE_INPUT, '-select_streams', 'v:0',
             '-show_entries', 'stream=width,height,codec_name', '-of', 'json', $path,
         ]);
         $process->run();
@@ -48,7 +59,7 @@ class FfmpegVideo {
      */
     public function remuxFaststart(string $srcPath, string $destPath): bool {
         $process = new Process([
-            'ffmpeg', '-y', '-i', $srcPath, '-c', 'copy', '-movflags', '+faststart', $destPath,
+            'ffmpeg', '-y', ...self::SAFE_INPUT, '-i', $srcPath, '-c', 'copy', '-movflags', '+faststart', $destPath,
         ]);
         $process->run();
 
@@ -61,7 +72,7 @@ class FfmpegVideo {
             throw new \RuntimeException("Cannot write image to {$destPath}");
         }
 
-        $process = new Process(['ffmpeg', '-y', '-i', $srcPath, '-frames:v', '1', $destPath]);
+        $process = new Process(['ffmpeg', '-y', ...self::SAFE_INPUT, '-i', $srcPath, '-frames:v', '1', $destPath]);
         $process->run();
 
         return $process->isSuccessful() && is_file($destPath);

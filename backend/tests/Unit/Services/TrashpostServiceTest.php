@@ -6,7 +6,6 @@ namespace Tests\Unit\Services;
 
 use App\Models\Trashpost;
 use App\Models\User;
-use App\Services\PageMetaService;
 use App\Services\RatingService;
 use App\Services\TrashpostImageProcessor;
 use App\Services\TrashpostService;
@@ -14,6 +13,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
@@ -57,6 +57,34 @@ final class TrashpostServiceTest extends TestCase {
         $ids = $this->service()->feed([])->pluck('id')->all();
 
         $this->assertSame([$second->id, $first->id], $ids);
+    }
+
+    public function test_the_lean_feed_pages_like_the_feed(): void {
+        $posts = Trashpost::factory()->count(5)->visible()->create();
+        $newest = $this->service()->feed(['limit' => 2])->pluck('id')->all();
+        $cursor = Trashpost::find(end($newest))->hash;
+
+        $this->assertSame($newest, $this->service()->leanFeed(2, null)->pluck('id')->all());
+        $this->assertSame(
+            $this->service()->feed(['limit' => 2, 'start' => $cursor])->pluck('id')->all(),
+            $this->service()->leanFeed(2, $cursor)->pluck('id')->all(),
+        );
+        $this->assertCount(5, $posts);
+    }
+
+    public function test_the_lean_feed_loads_neither_the_uploader_nor_the_comment_count(): void {
+        // The crawlable shell body reads neither; on the one query every home-page visit
+        // runs, the eager-load and the correlated count were pure overhead.
+        Trashpost::factory()->visible()->create();
+
+        DB::enableQueryLog();
+        $post = $this->service()->leanFeed(10, null)->first();
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $this->assertCount(1, $queries);
+        $this->assertFalse($post->relationLoaded('user'));
+        $this->assertNull($post->getAttribute('comment_count'));
     }
 
     public function test_feed_defaults_to_ten_posts_per_page(): void {
@@ -374,8 +402,9 @@ final class TrashpostServiceTest extends TestCase {
      * FR-040: the auto-activation path publishes a meme without a moderator ever
      * touching it, so it has to drop the permalink's cached metadata for exactly the
      * same reason ModerationService::activate does. The address can already be warm:
-     * anything that requested it before the upload landed cached the generic
-     * not-a-public-meme block under it.
+     * the row is reserved PENDING before the media lands, and a request in that window
+     * caches the generic not-a-public-meme block under it. Seeded directly, because only
+     * a real row is cached and this test cannot interleave a request mid-createPost().
      */
     public function test_an_auto_activated_upload_forgets_its_permalinks_metadata(): void {
         Storage::fake('public');
@@ -383,8 +412,7 @@ final class TrashpostServiceTest extends TestCase {
         $member = $this->memberAt(RatingService::TRUST_THRESHOLD);
         $hash = 'Abcdefghij';
         $key = 'seo:meta:v3:' . sha1("/posts/{$hash}");
-        (new PageMetaService())->forPath("/posts/{$hash}");
-        $this->assertNotNull(Cache::get($key), 'the metadata cache was not warmed');
+        Cache::put($key, ['status' => 200, 'body' => ''], 3600);
 
         $post = $this->serviceMinting(new TrashpostImageProcessor(), $hash)
             ->createPost($member, 'Live now', null, 'dQw4w9WgXcQ');

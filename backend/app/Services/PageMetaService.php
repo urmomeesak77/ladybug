@@ -129,9 +129,24 @@ class PageMetaService {
         // Written back as a plain array rather than a serialized object, so an entry
         // survives a release that changes the class (PageMeta::toArray/fromArray).
         $payload = $this->resolve($path);
-        Cache::put($key, $payload, (int) config('seo.cache_ttl'));
+        if (self::isWorthCaching($path, $payload)) {
+            Cache::put($key, $payload, (int) config('seo.cache_ttl'));
+        }
 
         return $this->resolved[$path] = $payload;
+    }
+
+    /**
+     * Only a permalink backed by a real row — the one record that costs a query. Every other
+     * address resolves by pure computation, and caching it gave anyone a loop that writes a
+     * cache file per invented URL: the file store never sweeps a key nobody reads again, so
+     * scanner noise grew the disk without bound. A permalink answers 200 exactly when its row
+     * exists (resolve()), so the entries kept are bounded by the archive itself.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private static function isWorthCaching(string $path, array $payload): bool {
+        return preg_match(self::POST_PATH_PATTERN, $path) === 1 && $payload['status'] === 200;
     }
 
     /**

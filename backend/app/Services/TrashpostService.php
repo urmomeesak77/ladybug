@@ -52,6 +52,26 @@ class TrashpostService {
     }
 
     /**
+     * The same keyset page as feed(), without the uploader or the comment count.
+     *
+     * For the crawlable shell body (ShellController), which reads neither: it runs on every
+     * home-page visit, so the eager-load query and the correlated count per row were pure
+     * overhead there. $limit is the caller's own, already clamped page size.
+     *
+     * @return Collection<int, Trashpost>
+     */
+    public function leanFeed(int $limit, ?string $start): Collection {
+        $builder = $this->visible()
+            ->orderByDesc('activated_at')
+            ->orderByDesc('id')
+            ->limit($limit);
+
+        $this->applyCursor($builder, $start);
+
+        return $builder->get();
+    }
+
+    /**
      * The single post this viewer may open at its permalink, or null when none matches.
      *
      * A publicly visible post (activated, not trashed) is returned to anyone. Beyond that

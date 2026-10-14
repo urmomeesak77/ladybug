@@ -119,10 +119,7 @@ class ShellController extends Controller {
         }
 
         $size = self::feedSize();
-        $posts = $this->posts->feed([
-            'limit' => $size + 1,
-            'start' => is_string($after) ? $after : null,
-        ]);
+        $posts = $this->posts->leanFeed($size + 1, is_string($after) ? $after : null);
         $page = $posts->take($size);
 
         return ShellBody::forFeed($page, $posts->count() > $size ? $page->last()?->hash : null);

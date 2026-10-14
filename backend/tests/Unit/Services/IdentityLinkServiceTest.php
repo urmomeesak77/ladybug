@@ -15,6 +15,7 @@ use App\Support\GoogleIdentity;
 use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use PDOException;
@@ -332,6 +333,55 @@ final class IdentityLinkServiceTest extends TestCase {
         // made redundant — it just confirmed the very same address.
         $this->assertTrue($user->hasVerifiedEmail());
         $this->assertNotNull(User::sole()->email_verified_at);
+    }
+
+    public function test_an_unverified_accounts_password_is_cleared_by_the_link(): void {
+        // Pre-account-takeover: anyone can register a stranger's address with a password of
+        // their own and never confirm it. That password was never proven to belong to the
+        // inbox owner, so the moment Google proves who does, it must stop opening the door.
+        User::factory()->unverified()->create(['email' => 'visitor@example.com']);
+
+        $this->service()->resolve($this->identity());
+
+        $this->assertNull(User::sole()->password);
+    }
+
+    public function test_an_unverified_accounts_remember_token_is_rotated_by_the_link(): void {
+        $existing = User::factory()->unverified()->create(['email' => 'visitor@example.com']);
+        $existing->forceFill(['remember_token' => 'the-squatters-token'])->save();
+
+        $this->service()->resolve($this->identity());
+
+        $this->assertNotSame('the-squatters-token', User::sole()->remember_token);
+    }
+
+    public function test_an_unverified_accounts_sessions_are_ended_by_the_link(): void {
+        $existing = User::factory()->unverified()->create(['email' => 'visitor@example.com']);
+        DB::table('sessions')->insert([
+            'id' => 'the-squatters-session',
+            'user_id' => $existing->id,
+            'payload' => '',
+            'last_activity' => time(),
+        ]);
+
+        $this->service()->resolve($this->identity());
+
+        $this->assertSame(0, DB::table('sessions')->where('user_id', $existing->id)->count());
+    }
+
+    public function test_a_verified_accounts_sessions_survive_the_link(): void {
+        $existing = $this->passwordAccount();
+        DB::table('sessions')->insert([
+            'id' => 'the-owners-session',
+            'user_id' => $existing->id,
+            'payload' => '',
+            'last_activity' => time(),
+        ]);
+
+        $this->service()->resolve($this->identity());
+
+        // The owner proved the inbox already, so their own devices are not theirs to lose.
+        $this->assertSame(1, DB::table('sessions')->where('user_id', $existing->id)->count());
     }
 
     public function test_an_already_verified_account_keeps_its_original_stamp(): void {

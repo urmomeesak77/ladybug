@@ -39,6 +39,36 @@ final class FfmpegVideoTest extends TestCase {
         $this->assertNotSame('', $probe['codec']);
     }
 
+    /**
+     * An HLS playlist whose "segment" is another file on this server. ffmpeg follows such
+     * references by default — the known local-file-read / SSRF primitive behind crafted
+     * "videos" — so every entry point must refuse anything but a plain mp4/webm container.
+     */
+    private function playlistPointingAt(string $target): string {
+        $playlist = "{$this->dir}/evil.m3u8";
+        file_put_contents($playlist, "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXTINF:10,\n{$target}\n#EXT-X-ENDLIST\n");
+
+        return $playlist;
+    }
+
+    public function test_probe_refuses_a_playlist_that_references_another_file(): void {
+        $playlist = $this->playlistPointingAt("{$this->fixtures}/sample.mp4");
+
+        $this->assertNull((new FfmpegVideo())->probe($playlist));
+    }
+
+    public function test_extract_poster_frame_refuses_a_playlist_that_references_another_file(): void {
+        $playlist = $this->playlistPointingAt("{$this->fixtures}/sample.mp4");
+
+        $this->assertFalse((new FfmpegVideo())->extractPosterFrame($playlist, "{$this->dir}/poster.jpg"));
+    }
+
+    public function test_remux_faststart_refuses_a_playlist_that_references_another_file(): void {
+        $playlist = $this->playlistPointingAt("{$this->fixtures}/sample.mp4");
+
+        $this->assertFalse((new FfmpegVideo())->remuxFaststart($playlist, "{$this->dir}/out.mp4"));
+    }
+
     public function test_probe_returns_stream_info_for_a_webm(): void {
         $probe = (new FfmpegVideo())->probe("{$this->fixtures}/sample.webm");
 

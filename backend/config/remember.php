@@ -9,6 +9,10 @@ return [
     // casting to 0, which would set session.lifetime = 0 and instantly expire every
     // remembered session — strictly worse than the feature not existing.
     'lifetime' => max(1, (int) env('REMEMBER_ME_LIFETIME', 60 * 24 * 7)), // minutes; 7 days
+    // The plain (unremembered) idle limit, read from the same env var as session.lifetime but
+    // kept apart from it: ApplyRememberMeLifetime overwrites session.lifetime in place, so by
+    // the time ExpireIdleSessions runs that key may already say 7 days.
+    'idle_lifetime' => max(1, (int) env('SESSION_LIFETIME', 120)), // minutes
     'cookie' => env('REMEMBER_ME_COOKIE', Str::slug((string) env('APP_NAME', 'laravel')).'-remember'),
 
     // Odds (per request) that SessionGarbageCollector::sweepIfLucky() runs. Same shape and

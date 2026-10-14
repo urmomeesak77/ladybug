@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Support\RememberMe;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -35,6 +38,9 @@ class AppServiceProvider extends ServiceProvider {
         RateLimiter::for('password', $this->passwordLimit(...));
         VerifyEmail::createUrlUsing(self::verificationLinkFor(...));
         ResetPassword::createUrlUsing(self::recoveryLinkFor(...));
+        // Every sign-in records whether it was remembered, which is what ExpireIdleSessions
+        // trusts instead of the client-controlled remember cookie.
+        Event::listen(Login::class, [RememberMe::class, 'stampSignIn']);
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Http\Rules\MaxPixels;
 use App\Http\Rules\ValidVideo;
 use App\Utils\Youtube;
 use Illuminate\Foundation\Http\FormRequest;
@@ -27,7 +28,7 @@ class CreatePostRequest extends FormRequest {
     public function rules(): array {
         return [
             'title' => ['required', 'string', 'max:255'],
-            'image' => ['required_without_all:youtube,video', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:10240'],
+            'image' => ['required_without_all:youtube,video', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:10240', new MaxPixels()],
             'youtube' => ['required_without_all:image,video', 'string', 'max:500'],
             // bail: once the format/size checks fail, skip the ffprobe-based ValidVideo
             // check so its "unreadable or corrupt" message never conflates with theirs.

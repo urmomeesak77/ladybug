@@ -8,6 +8,7 @@ use App\Exceptions\OAuthFailure;
 use App\Models\User;
 use App\Models\UserIdentity;
 use App\Support\GoogleIdentity;
+use App\Support\SessionRevoker;
 use App\Utils\Str;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -132,10 +133,29 @@ class IdentityLinkService {
         // US3 AS4: conditional, because the stamp records when the address was FIRST
         // confirmed — an unconditional call would quietly rewrite it on every sign-in.
         if (! $user->hasVerifiedEmail()) {
+            $this->evictSquatter($user);
             $user->markEmailAsVerified();
         }
 
         return $user;
+    }
+
+    /**
+     * Close every door into an UNVERIFIED account before Google's confirmation adopts it.
+     *
+     * Anyone can register a stranger's address with a password of their own and never
+     * confirm it (pre-account-takeover). Nobody ever proved that password belongs to the
+     * inbox owner, so once Google proves who does, the password, any remembered sign-in
+     * and every live session go — otherwise the squatter would share the account the real
+     * owner just adopted. A VERIFIED account skips this: its password was set by the
+     * person who confirmed the inbox, and SC-004 keeps it working.
+     */
+    private function evictSquatter(User $user): void {
+        $user->forceFill([
+            'password' => null,
+            'remember_token' => bin2hex(random_bytes(30)),
+        ])->save();
+        SessionRevoker::revoke($user, null);
     }
 
     /**

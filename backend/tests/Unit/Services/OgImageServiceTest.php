@@ -7,6 +7,8 @@ namespace Tests\Unit\Services;
 use App\Models\Trashpost;
 use App\Services\OgImageService;
 use App\Support\MediaPath;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -98,6 +100,40 @@ final class OgImageServiceTest extends TestCase {
 
         $this->assertSame($rel, $this->service()->ensure($this->imagePost()));
         $this->assertSame('already-generated', Storage::disk('public')->get($rel));
+    }
+
+    public function test_a_failed_transcode_is_remembered_instead_of_retried_on_every_hit(): void {
+        // An undecodable source used to cost a full decode attempt on EVERY crawler hit.
+        // The second call must refuse from the memo — proven by fixing the bytes in between:
+        // a retry would now succeed, so only the remembered failure can still throw.
+        Storage::disk('public')->put(MediaPath::imageRelativePath('300', self::CODE, 'webp'), 'not an image');
+        try {
+            $this->service()->ensure($this->imagePost());
+            $this->fail('Expected the corrupt source to fail.');
+        }
+        catch (\RuntimeException) {
+        }
+        $this->putVariant('300', 300, 270);
+
+        $this->expectException(\RuntimeException::class);
+        $this->service()->ensure($this->imagePost());
+    }
+
+    public function test_a_transcode_already_running_for_the_meme_is_not_duplicated(): void {
+        // A burst of unfurl bots on a fresh permalink used to run the same GD transcode in
+        // every worker at once. A second caller waits on the first rather than joining it.
+        $this->putVariant('300', 300, 270);
+        $held = Cache::lock('og:' . self::HASH, 30);
+        $this->assertTrue($held->get());
+
+        try {
+            $this->expectException(LockTimeoutException::class);
+            app()->make(OgImageService::class, ['lockWaitSeconds' => 0])->ensure($this->imagePost());
+        }
+        finally {
+            $held->release();
+            Storage::disk('public')->assertMissing(MediaPath::ogRelativePath(self::HASH));
+        }
     }
 
     public function test_ensure_returns_null_when_the_post_has_no_media_on_disk(): void {

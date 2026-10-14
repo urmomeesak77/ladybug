@@ -27,8 +27,24 @@ final class SessionGarbageCollector {
     private const DEFAULT_LOTTERY = [2, 100];
 
     public static function sweep(): int {
-        return DB::table(config('session.table'))
+        $table = (string) config('session.table');
+
+        return DB::table($table)
             ->where('last_activity', '<=', now()->subMinutes(self::floorMinutes())->getTimestamp())
+            ->delete()
+            + self::sweepAnonymous($table);
+    }
+
+    /**
+     * Anonymous rows at the plain lifetime. Remember-me is chosen at sign-in, which stamps
+     * user_id on the row, so a row without one can never be entitled to the longer floor —
+     * and it is exactly the row a cookieless crawler mints on every hit, which the floor
+     * alone would keep for a week.
+     */
+    private static function sweepAnonymous(string $table): int {
+        return DB::table($table)
+            ->whereNull('user_id')
+            ->where('last_activity', '<=', now()->subMinutes(max((int) config('session.lifetime'), 1))->getTimestamp())
             ->delete();
     }
 

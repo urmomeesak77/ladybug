@@ -120,6 +120,38 @@ final class SitemapServiceTest extends TestCase {
         $this->assertNull($this->service()->postsPage(2));
     }
 
+    /** @return list<string> the SQL of every query $work runs */
+    private function queriesOf(callable $work): array {
+        DB::enableQueryLog();
+        $work();
+        $queries = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+
+        return $queries;
+    }
+
+    public function test_a_page_beyond_the_last_one_loads_no_rows(): void {
+        // Uncached by nature (the answer is null), so every hit used to walk the whole
+        // archive before discovering it had run out — a full scan any visitor could repeat.
+        config(['seo.sitemap_chunk' => 2]);
+        Trashpost::factory()->visible()->count(3)->create();
+
+        $queries = $this->queriesOf(fn () => $this->assertNull($this->service()->postsPage(999)));
+
+        $this->assertSame([], array_filter($queries, static fn (string $sql): bool => str_contains($sql, '"hash"')));
+    }
+
+    public function test_reaching_a_later_page_loads_only_that_pages_rows(): void {
+        // The walk to page N used to hydrate every earlier chunk in full (50,000 models each
+        // in production) just to read its last id.
+        config(['seo.sitemap_chunk' => 2]);
+        Trashpost::factory()->visible()->count(5)->create();
+
+        $queries = $this->queriesOf(fn () => $this->assertNotNull($this->service()->postsPage(3)));
+
+        $this->assertCount(1, array_filter($queries, static fn (string $sql): bool => str_contains($sql, '"hash"')));
+    }
+
     public function test_a_page_below_one_yields_nothing(): void {
         Trashpost::factory()->visible()->create();
 

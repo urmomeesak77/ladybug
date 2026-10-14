@@ -28,9 +28,11 @@ use Tests\TestCase;
 final class SessionGarbageCollectorTest extends TestCase {
     use RefreshDatabase;
 
-    private function insertSession(string $id, int $minutesOld): void {
+    /** A signed-in row by default: only those can be remembered, so only those get the floor. */
+    private function insertSession(string $id, int $minutesOld, ?int $userId = 1): void {
         DB::table(config('session.table'))->insert([
             'id' => $id,
+            'user_id' => $userId,
             'payload' => base64_encode('irrelevant'),
             'last_activity' => now()->subMinutes($minutesOld)->getTimestamp(),
         ]);
@@ -59,6 +61,27 @@ final class SessionGarbageCollectorTest extends TestCase {
         SessionGarbageCollector::sweep();
 
         $this->assertTrue($this->sessionExists('still-remembered'));
+    }
+
+    /**
+     * An anonymous row can never be remembered — remember-me is chosen at sign-in, which
+     * stamps user_id — so it is dead past the plain lifetime. Keeping it for the 7-day floor
+     * let every cookieless crawler hit park a row for a week.
+     */
+    public function test_sweep_deletes_an_anonymous_session_past_the_plain_lifetime(): void {
+        $this->insertSession('crawler', (int) config('session.lifetime') + 1, null);
+
+        SessionGarbageCollector::sweep();
+
+        $this->assertFalse($this->sessionExists('crawler'));
+    }
+
+    public function test_sweep_keeps_an_anonymous_session_inside_the_plain_lifetime(): void {
+        $this->insertSession('visitor', (int) config('session.lifetime') - 1, null);
+
+        SessionGarbageCollector::sweep();
+
+        $this->assertTrue($this->sessionExists('visitor'));
     }
 
     public function test_sweep_keeps_a_session_inside_the_remember_lifetime(): void {

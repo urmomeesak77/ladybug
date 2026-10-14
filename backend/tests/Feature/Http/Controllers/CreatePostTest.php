@@ -126,6 +126,42 @@ class CreatePostTest extends TestCase {
         $this->assertDatabaseCount('trashposts', 0);
     }
 
+    /**
+     * A valid 1-bit greyscale PNG of the given size, written chunk by chunk so the fixture
+     * never allocates the bitmap it declares — a GD-built one blows the suite's memory_limit,
+     * which is the very failure the rule under test exists to prevent.
+     */
+    private function blankPng(int $width, int $height): string {
+        $chunk = static fn (string $type, string $data): string => pack('N', strlen($data)) . $type . $data
+            . pack('N', crc32($type . $data));
+        $row = str_repeat("\0", 1 + intdiv($width + 7, 8));
+        $deflate = deflate_init(ZLIB_ENCODING_DEFLATE);
+        $idat = '';
+        for ($y = 0; $y < $height; $y++) {
+            $idat .= deflate_add($deflate, $row, ZLIB_NO_FLUSH);
+        }
+        $idat .= deflate_add($deflate, '', ZLIB_FINISH);
+
+        $path = (string) tempnam(sys_get_temp_dir(), 'bomb') . '.png';
+        file_put_contents($path, "\x89PNG\r\n\x1a\n" . $chunk('IHDR', pack('NNCCCCC', $width, $height, 1, 0, 0, 0, 0))
+            . $chunk('IDAT', $idat) . $chunk('IEND', ''));
+
+        return $path;
+    }
+
+    public function test_rejects_an_image_over_the_pixel_budget_before_any_media_is_written(): void {
+        $path = $this->blankPng(5001, 5000);
+
+        $response = $this->actingAs($this->memberAt(RatingService::TRUST_THRESHOLD))->postJson('/api/posts', [
+            'title' => 'Bomb',
+            'image' => new UploadedFile($path, 'bomb.png', 'image/png', null, true),
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('image');
+        $this->assertSame(0, Trashpost::withTrashed()->count());
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
     public function test_authenticated_youtube_upload_stores_only_the_id(): void {
         $user = User::factory()->create();
 

@@ -7,7 +7,9 @@ use App\Http\Middleware\CaptureAccessLogActor;
 use App\Http\Middleware\CollectStaleSessions;
 use App\Http\Middleware\EnsureAccountEnabled;
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\ExpireIdleSessions;
 use App\Http\Middleware\RecordAccessLog;
+use App\Http\Middleware\SkipSessionForCookielessReads;
 use App\Http\Middleware\SlideRememberMeCookie;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -56,6 +58,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToGroup('api', CollectStaleSessions::class);
         $middleware->prependToGroup('web', CollectStaleSessions::class);
 
+        // A cookieless page read (every crawler hit) runs on the in-memory session driver, so
+        // it stops INSERTing a `sessions` row per request. Prepended so the driver is switched
+        // before StartSession resolves it; see the class for why api/* is exempt.
+        $middleware->prependToGroup('web', SkipSessionForCookielessReads::class);
+
         // The access log's actor capture (023, research D2): the outer recorder runs before
         // the session exists, so the account a request ARRIVED as is stashed here instead.
         // Append order is group order, so this MUST stay above the EnsureAccountEnabled line
@@ -65,6 +72,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // there it just needs to be appended, which already places it after StartSession.
         $middleware->appendToGroup('api', CaptureAccessLogActor::class);
         $middleware->appendToGroup('web', CaptureAccessLogActor::class);
+
+        // Ends an unremembered session idle past the plain lifetime, whatever remember cookie
+        // arrives with it (see the class). BELOW the actor capture for the same reason
+        // EnsureAccountEnabled is: the request still arrived as that account, and the row
+        // records who it arrived as (023 FR-008).
+        $middleware->appendToGroup('api', ExpireIdleSessions::class);
+        $middleware->appendToGroup('web', ExpireIdleSessions::class);
 
         // Live-session revocation (FR-014): appended AFTER statefulApi so the session is
         // started and $request->user() resolves before it runs. A disabled account's next

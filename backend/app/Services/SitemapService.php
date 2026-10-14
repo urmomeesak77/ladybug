@@ -6,6 +6,8 @@ namespace App\Services;
 
 use App\Models\Trashpost;
 use App\Support\SpaRoutes;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -46,8 +48,7 @@ class SitemapService {
             return $cached;
         }
 
-        $pages = (int) ceil(Trashpost::publiclyVisible()->count() / self::chunk());
-        $xml = self::renderIndex($pages);
+        $xml = self::renderIndex(self::pageCount());
         Cache::put($key, $xml, self::ttl());
 
         return $xml;
@@ -89,6 +90,13 @@ class SitemapService {
             return $cached;
         }
 
+        // Checked against the cached page count BEFORE any walk: an out-of-range answer is
+        // null and therefore never cached, so without this every such hit — any number a
+        // visitor cares to type — walked the whole archive to find out it had run out.
+        if ($page > self::pageCount()) {
+            return null;
+        }
+
         $posts = self::pageRows($page);
         if ($posts->isEmpty()) {
             return null;
@@ -101,38 +109,72 @@ class SitemapService {
     }
 
     /**
+     * How many post children the index lists, cached on the listing's own interval so the
+     * index and the range check in postsPage() cannot disagree about where the archive ends.
+     */
+    private static function pageCount(): int {
+        $key = self::KEY_PREFIX . 'pages';
+        $cached = Cache::get($key);
+        if (is_int($cached)) {
+            return $cached;
+        }
+
+        $pages = (int) ceil(Trashpost::publiclyVisible()->count() / self::chunk());
+        Cache::put($key, $pages, self::ttl());
+
+        return $pages;
+    }
+
+    /**
      * The rows of one page, reached by walking the keyset forward one chunk at a
      * time. Newest-first, so a crawler that samples only the first child still sees
      * the freshest memes, and the last page costs the same as the first — which
      * neither offset() nor a chunk() callback would give us (Principle II).
      *
-     * @return Collection<int, Trashpost>
+     * Each earlier chunk is crossed by reading only its LAST id (an index-only probe),
+     * never its rows: hydrating 50,000 models per chunk just to read the final one's id
+     * was the most memory any request on the site could ask for.
+     *
+     * @return Collection<int, object>
      */
     private static function pageRows(int $page): Collection {
         $chunk = self::chunk();
-        $rows = self::chunkBefore(null, $chunk);
+        $lastId = null;
         for ($walked = 1; $walked < $page; $walked++) {
-            if ($rows->count() < $chunk) {
+            $lastId = self::chunkBoundary($lastId, $chunk);
+            if ($lastId === null) {
                 return new Collection();
             }
-            $rows = self::chunkBefore((int) $rows->last()->id, $chunk);
         }
 
-        return $rows;
+        return self::chunkBefore($lastId, $chunk);
+    }
+
+    /** The id the chunk after $lastId ends on, or null when that chunk is not full. */
+    private static function chunkBoundary(?int $lastId, int $chunk): ?int {
+        $id = self::visibleBefore($lastId)->offset($chunk - 1)->limit(1)->value('id');
+
+        return $id === null ? null : (int) $id;
     }
 
     /**
-     * One chunk of publicly visible memes older than $lastId, newest first.
+     * One chunk of publicly visible memes older than $lastId, newest first, as plain rows
+     * rather than models — renderPosts() needs three columns, not Eloquent.
      *
-     * @return Collection<int, Trashpost>
+     * @return Collection<int, object>
      */
     private static function chunkBefore(?int $lastId, int $chunk): Collection {
-        $query = Trashpost::publiclyVisible()->orderByDesc('id')->limit($chunk);
+        return self::visibleBefore($lastId)->limit($chunk)->toBase()->get(['id', 'hash', 'created_at']);
+    }
+
+    /** @return Builder<Trashpost> */
+    private static function visibleBefore(?int $lastId): Builder {
+        $query = Trashpost::publiclyVisible()->orderByDesc('id');
         if ($lastId !== null) {
             $query->where('id', '<', $lastId);
         }
 
-        return $query->get(['id', 'hash', 'created_at']);
+        return $query;
     }
 
     private static function renderIndex(int $pages): string {
@@ -153,7 +195,7 @@ class SitemapService {
     }
 
     /**
-     * @param  Collection<int, Trashpost>  $posts
+     * @param  Collection<int, object>  $posts
      */
     private static function renderPosts(Collection $posts): string {
         $body = '';
@@ -162,7 +204,7 @@ class SitemapService {
             // uploaded, so there is no separate modification time (FR-018).
             $body .= "  <url>\n"
                 . '    <loc>' . self::url("/posts/{$post->hash}") . "</loc>\n"
-                . '    <lastmod>' . $post->created_at->toAtomString() . "</lastmod>\n"
+                . '    <lastmod>' . Carbon::parse($post->created_at)->toAtomString() . "</lastmod>\n"
                 . "  </url>\n";
         }
 
