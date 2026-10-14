@@ -51,6 +51,22 @@ jobs:
       - name: Install gifsicle + imagemagick
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gifsicle imagemagick
 
+      # The suite must convert under the SAME ImageMagick policy production enforces
+      # (coder allow-list + resource limits, deploy/php/imagemagick-policy.xml), or a
+      # policy that breaks animated WebP would pass CI and fail only in prod. The runner's
+      # policy dir is /etc/ImageMagick-6 (Ubuntu), production's /etc/ImageMagick-7 --
+      # globbed, and the load is asserted, exactly as the Dockerfiles do. The cmp guards
+      # the dev image's copy (docker/php/ cannot reach deploy/ as a build context).
+      - name: Install the production ImageMagick policy
+        working-directory: .
+        run: |
+          cmp deploy/php/imagemagick-policy.xml docker/php/imagemagick-policy.xml
+          dir="$(echo /etc/ImageMagick-*)"
+          sudo install -m 0644 deploy/php/imagemagick-policy.xml "$dir/policy.xml"
+          convert -list policy | grep -qF 'pattern: {GIF,JPEG,JPG,PNG,WEBP}'
+          identify -list resource | grep -q 'Memory: 256MiB'
+          echo "MAGICK_TIME_LIMIT=60" >> "$GITHUB_ENV"
+
       # ffmpeg (bundles ffprobe): video decode validation + poster-frame
       # extraction (App\Support\FfmpegVideo) — owner-approved 2026-08-05,
       # research.md #2. Shelled out to by the video upload unit/feature tests.

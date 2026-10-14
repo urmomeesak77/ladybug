@@ -49,6 +49,25 @@ RUN apt-get update \
         gifsicle imagemagick ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# Repo-controlled ImageMagick security policy (coder allow-list + resource limits) over
+# the distribution's own -- see the file's header for why. The directory is versioned
+# (/etc/ImageMagick-7 on today's Debian 13 base), so it is globbed rather than hard-coded
+# and the build FAILS if there is not exactly one, or if the policy did not load: the
+# file's comments are tokenised by ImageMagick, and a stray quote silently drops every
+# policy after it, so the last policy line (the allow-list) and the first (memory) are
+# both checked against what ImageMagick actually reports.
+COPY deploy/php/imagemagick-policy.xml /tmp/imagemagick-policy.xml
+RUN set -eu; \
+    dir="$(echo /etc/ImageMagick-*)"; \
+    [ -f "$dir/policy.xml" ]; \
+    install -m 0644 /tmp/imagemagick-policy.xml "$dir/policy.xml"; \
+    rm /tmp/imagemagick-policy.xml; \
+    convert -list policy | grep -qF 'pattern: {GIF,JPEG,JPG,PNG,WEBP}'; \
+    identify -list resource | grep -q 'Memory: 256MiB'
+# ImageMagick 7.1.1 ignores the policy's `time` resource (measured), but honours this.
+# php-fpm workers do not inherit it (clear_env), so www.conf passes it on via env[].
+ENV MAGICK_TIME_LIMIT=60
+
 RUN docker-php-ext-configure gd --with-jpeg --with-freetype --with-webp \
     && docker-php-ext-install pdo_mysql zip bcmath gd opcache
 

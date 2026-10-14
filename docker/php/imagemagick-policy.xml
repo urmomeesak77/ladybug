@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policymap [
+  <!ELEMENT policymap (policy)*>
+  <!ATTLIST policymap xmlns CDATA #FIXED "">
+  <!ELEMENT policy EMPTY>
+  <!ATTLIST policy xmlns CDATA #FIXED "">
+  <!ATTLIST policy domain NMTOKEN #REQUIRED>
+  <!ATTLIST policy name NMTOKEN #IMPLIED>
+  <!ATTLIST policy pattern CDATA #IMPLIED>
+  <!ATTLIST policy rights NMTOKEN #IMPLIED>
+  <!ATTLIST policy stealth NMTOKEN #IMPLIED>
+  <!ATTLIST policy value CDATA #IMPLIED>
+]>
+<!--
+  EDITING WARNING. ImageMagick does not use a real XML parser for this file. It ends a
+  comment at the first dash followed by a greater-than sign, and it tokenises comment
+  text, so a quote or apostrophe inside a comment opens a string that swallows the
+  policies after it. Either mistake silently DROPS policies with no error at all.
+  Keep comments to plain words, and re-run the convert -list policy check in the
+  Dockerfiles after any edit.
+
+  Repo-controlled ImageMagick security policy for Ladybug. Installed over the
+  distribution policy.xml by deploy/php/Dockerfile (production), docker/php/Dockerfile
+  (dev and e2e) and the backend CI job, so tests run under the policy production
+  enforces. The path is version specific: /etc/ImageMagick-7 on the php:8.3 Debian 13
+  base, /etc/ImageMagick-6 on the Ubuntu CI runner. docker/php/imagemagick-policy.xml is
+  a byte-identical copy (the dev build context cannot reach deploy/), and CI fails if
+  the two differ.
+
+  The only caller is App\Support\WebpFile, which shells out to convert for animated
+  WebP: resize WebP to WebP, and first frame WebP to JPEG. Laravel has MIME-checked the
+  upload, but ImageMagick picks its decoder from the magic bytes and from coder: prefixes,
+  not from the extension, so anything that reaches it is untrusted input and the decoder
+  set is the attack surface (ImageTragick: MVG, MSL and URL turned an image into file
+  reads, SSRF and command execution).
+
+  Evaluation is last match wins, so the deny-all lines MUST precede the allow line.
+-->
+<policymap>
+  <!-- Resource limits for a 1 vCPU, 960 MiB box. convert runs INSIDE the ladybug-php
+       container (see mem_limit in deploy/docker-compose.prod.yml) beside up to three
+       php-fpm workers. Past memory the pixel cache spills to map, then to disk (/tmp in
+       the container): a slow resize instead of an OOM kill. -->
+  <policy domain="resource" name="memory" value="256MiB"/>
+  <policy domain="resource" name="map" value="512MiB"/>
+  <policy domain="resource" name="disk" value="1GiB"/>
+  <!-- Pixel area of one image held in memory before spilling to disk. The MaxPixels
+       upload rule caps a frame at 25 MP. -->
+  <policy domain="resource" name="area" value="32MP"/>
+  <!-- Per side. Generous because long-scroll memes are legal (MaxPixels caps the area,
+       not the sides): a 25 MP image 32K pixels tall is still under 1K wide. -->
+  <policy domain="resource" name="width" value="32KP"/>
+  <policy domain="resource" name="height" value="32KP"/>
+  <!-- Wall-clock seconds. Matches the 60s Symfony Process default in WebpFile and the
+       php.ini max_execution_time, so a pathological file is abandoned rather than left
+       burning the only CPU after its request is gone. MEASURED: ImageMagick 7.1.1-43 on
+       Debian 13 lists this line but does NOT enforce it (identify -list resource still
+       says Time unlimited), so the limit that actually bites is the MAGICK_TIME_LIMIT
+       environment variable, set by the Dockerfiles and by env[] in deploy/php/www.conf.
+       Kept here for ImageMagick builds that do honour it. -->
+  <policy domain="resource" name="time" value="60"/>
+  <!-- One vCPU: extra OpenMP threads only contend with php-fpm and MySQL. -->
+  <policy domain="resource" name="thread" value="1"/>
+  <!-- Frame count of an image sequence. An animated WebP with thousands of tiny frames is
+       a cheap memory bomb against coalesce. -->
+  <policy domain="resource" name="list-length" value="1000"/>
+
+  <!-- ImageMagick never runs an external program (Ghostscript, curl and so on). The app
+       calls ffmpeg itself where it needs it. -->
+  <policy domain="delegate" rights="none" pattern="*"/>
+  <!-- No expression filter modules. -->
+  <policy domain="filter" rights="none" pattern="*"/>
+  <!-- An at-sign filename reads a list of further filenames from a file: a read gadget. -->
+  <policy domain="path" rights="none" pattern="@*"/>
+
+  <!-- Coders: deny everything, then allow exactly the four formats the site accepts.
+       The wildcard is what disables MVG, MSL, SVG, URL, HTTP, HTTPS, EPHEMERAL, TEXT,
+       PS, PDF and every other reader. The dangerous ones are ALSO named explicitly, as
+       defence in depth should a later edit loosen the wildcard. -->
+  <policy domain="coder" rights="none" pattern="*"/>
+  <policy domain="coder" rights="none" pattern="{MVG,MSL,SVG,MSVG,RSVG,URL,HTTP,HTTPS,FTP,EPHEMERAL,TEXT,TXT,LABEL,CAPTION,PANGO,PS,PS2,PS3,EPS,EPI,EPSF,EPSI,EPT,PDF,PDFA,XPS,MIFF,MPC,SHOW,WIN,X,XWD}"/>
+  <policy domain="coder" rights="read|write" pattern="{GIF,JPEG,JPG,PNG,WEBP}"/>
+</policymap>

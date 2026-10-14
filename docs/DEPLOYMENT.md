@@ -344,6 +344,39 @@ at server level, so the more specific `/.well-known/acme-challenge/` location
 wins during location matching, exactly as it should. Do not reintroduce a
 server-level `return` here.
 
+**Security headers.** Every response carries `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY` and
+`Content-Security-Policy: frame-ancestors 'none'` (plus the edge's HSTS).
+`ladybug-web` (`deploy/web/default.conf`) owns them; the edge adds each one
+**only when the origin did not send it** (the `map $upstream_http_…` blocks at
+the top of the edge file), so a proxied response never carries a duplicate and
+responses the edge answers itself — redirects, 429s, a 502 while
+`ladybug-web` is down — still get them. `/storage/` (user uploads) instead
+gets `Content-Security-Policy: default-src 'none'; sandbox; frame-ancestors
+'none'`, so an upload that a browser somehow renders as a document has no
+origin, no scripts and no access to the session. Remember nginx's
+`add_header` inheritance: a location with **any** `add_header` of its own drops
+every server-level one, which is why `/storage/` and `/assets/` repeat the set.
+There is deliberately **no script-src CSP yet** — the SPA loads Google
+Analytics and youtube-nocookie iframes, so it needs a
+`Content-Security-Policy-Report-Only` rollout first (open follow-up).
+
+**Rate limiting.** The edge limits requests per client IP: `/api`, `/sanctum`
+and `/up` at 5 r/s with a burst of 30; page routes at 10 r/s with a burst of 40;
+`/storage/` and `/assets/` not at all (an image-heavy feed fetches dozens in
+parallel, and they never reach PHP). Excess requests get **429** and a `warn`
+line in the edge's error log (`limiting requests, … by zone "ladybug_api"`). The
+zones live in the http context shared with `default.conf`, hence the
+`ladybug_` prefix on every name. If real users report 429s (many people behind
+one carrier-grade NAT, for instance), raise the `burst=` first, not the rate.
+
+Verify after a reload:
+
+```sh
+curl -sI https://online-trash.com/ | grep -iE 'x-frame|x-content|referrer|content-security'
+curl -sI https://online-trash.com/storage/<any media path> | grep -i content-security   # … sandbox …
+```
+
 ## 5. Releasing
 
 CI (`.github/workflows/ci.yml`) must be green on `master`. The release workflow
@@ -353,6 +386,13 @@ images from the exact validated commit, and pushes
 tagged both `latest` and the **full 40-character commit SHA**. There is no
 auto-deploy and no SSH key or credential stored in CI — the server always pulls,
 nothing is ever pushed to it.
+
+Only a CI run that was a **push to `master` in this repository** releases.
+`workflow_run`'s `branches: [master]` filter matches the head *branch name*
+alone, so a pull request from a fork whose branch is called `master` used to
+satisfy it — and would have published its code as `latest`. The job's `if:`
+now also requires `workflow_run.event == 'push'`, `head_branch == 'master'`
+and `head_repository.full_name == github.repository`.
 
 ```sh
 cd /web/online-trash.com
@@ -371,24 +411,75 @@ Error response from daemon: failed to resolve reference
 "ghcr.io/urmomeesak77/ladybug-php:458a0c2": not found
 ```
 
-That failure is safe — `pull` runs before `up -d`, so the stack is still on the
-old tag, maintenance mode was never entered, and re-running with the full SHA is
-the whole fix. `git rev-parse master` prints the value to paste; `gh run view
+That failure is safe — `pull` runs before maintenance mode and before `up -d`,
+so the stack is still on the old tag (`deploy.sh` puts it back in `.env`), and
+re-running with the full SHA is the whole fix. `git rev-parse master` prints the value to paste; `gh run view
 <release-run-id> --log` shows it too, in the workflow's own `sha=` line.
 
-`deploy.sh` sets `LADYBUG_TAG` in `.env`, `docker compose pull`s,
-`docker compose up -d --remove-orphans`, then runs
-`docker compose exec -T ladybug-php php artisan migrate --force` against the
-**new** image before polling the health endpoint for up to 20 seconds. The poll
-runs `docker compose exec -T ladybug-web wget -qO- http://127.0.0.1/api/health`
+`deploy.sh`, in order:
+
+1. sets `LADYBUG_TAG` in `.env` and `docker compose pull`s (the old stack keeps
+   serving throughout);
+2. runs `php artisan down` on the **old, still-running** `ladybug-php`. The flag
+   is `storage/framework/down` (`APP_MAINTENANCE_DRIVER=file`), on the
+   `./data/storage` bind mount, so it survives the recreate and the new
+   container boots already in maintenance — new code never answers a request
+   against the old schema;
+3. `docker compose up -d --remove-orphans`;
+4. dumps the database to
+   `data/backups/predeploy-<timestamp>-<tag>.sql.gz.gpg` — the same
+   `mysqldump --single-transaction | gzip | gpg` pipeline and passphrase as
+   `backup.sh`, with the root password handed over via `MYSQL_PWD` inside the
+   mysql container (never on a command line). The newest three are kept, on the
+   box only;
+5. `php artisan migrate --force` against the **new** image;
+6. `php artisan up` — **only** if the migration succeeded;
+7. polls the health endpoint for up to 20 seconds.
+
+**It fails closed.** Any failure between steps 2 and 6 leaves the site **in
+maintenance mode** and prints what happened and how to recover: the exact
+`./deploy.sh <previous-sha>` rollback command and, if the migration itself
+failed, the command that restores the pre-migration dump (tables the failed
+migration *created* are not in the dump — drop them by hand before re-running
+it). It never lifts maintenance by itself; the previous version did, on every
+exit, which put live traffic onto a half-migrated schema. Lift it by hand
+(`docker compose exec -T ladybug-php php artisan up`) only once code and schema
+agree. Restoring a pre-migration dump (the root password is read from the
+mysql container's own environment, never typed):
+
+```sh
+cd /web/online-trash.com
+gpg --batch --decrypt --passphrase-file /root/.ladybug-backup-pass \
+    data/backups/predeploy-<timestamp>-<tag>.sql.gz.gpg \
+  | gunzip \
+  | docker compose exec -T ladybug-mysql \
+      sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot trashdb'
+```
+
+The previous build's SHA comes from the old `LADYBUG_TAG` when that was a full
+SHA, otherwise from the `org.opencontainers.image.revision` label of the image
+the running container was created from (`release.yml` stamps it with the
+validated SHA). Images built before that label fix carry `github.sha` instead,
+which is usually but not always the same commit — check it against `git log`.
+
+The health poll runs `docker compose exec -T ladybug-web wget -qO- http://127.0.0.1/api/health`
 **inside** the `ladybug-web` container, not from the host: the container
 publishes no port (Section 1), so a host-side `curl` to a loopback port would
 silently test nothing — it would report "healthy" from the host's own loopback
 even if the edge could never reach the stack, which is exactly the bug that
 motivated this design in the first place. If health never comes up it prints
-`docker compose ps` and the last 50 lines of `docker compose logs`, then exits
-non-zero — the stack is left running (not rolled back automatically) so you
-have something to inspect.
+`docker compose ps`, the last 50 lines of `docker compose logs`, and the
+rollback command, then exits non-zero. It does **not** roll back on its own:
+the migration has already been applied, migrations only move forward, and the
+previous build may not run on the new schema — the stack is left running so
+you have something to inspect, and the pre-migration dump is there if a
+rollback needs the old schema too.
+
+**Updating the scripts on the server.** The server runs its own copies of
+`deploy.sh` / `backup.sh` / `restore.sh` and of `docker-compose.prod.yml`
+(installed as `docker-compose.yml`). After a change to any of them:
+`git -C /root/ladybug pull && bash /root/ladybug/deploy/setup.sh` (idempotent;
+it leaves existing secrets and `backend.env` alone), then `./deploy.sh`.
 
 After a **healthy** deploy it prunes old `ladybug-php` / `ladybug-web` images,
 keeping only the tag just deployed and the one it replaced. Each php image is
@@ -438,6 +529,24 @@ the gap would exist in production alone.
 `database` does not migrate existing sessions. Every signed-in user is signed
 out once, at the deploy. The `sessions` table already exists (it predates 022),
 so no migration is required.
+
+Fourth, `laravel.log` is rotated by Laravel itself: `backend.env` sets
+`LOG_STACK=daily` and `LOG_DAILY_DAYS=14`, so the app writes
+`storage/logs/laravel-YYYY-MM-DD.log` and deletes files older than 14 days. The
+old `LOG_STACK=single` appended to one `laravel.log` forever, and nothing on the
+box rotated it. **`setup.sh` never rewrites an existing `backend.env`**, so a
+server set up before this change must be edited by hand:
+
+```sh
+cd /web/online-trash.com
+sed -i 's/^LOG_STACK=single$/LOG_STACK=daily/' backend.env
+grep -q '^LOG_DAILY_DAYS=' backend.env || sed -i '/^LOG_STACK=/a LOG_DAILY_DAYS=14' backend.env
+grep -E '^LOG_(STACK|DAILY_DAYS)=' backend.env    # LOG_STACK=daily / LOG_DAILY_DAYS=14
+./deploy.sh                                       # config is cached at container start
+```
+
+The old `data/storage/logs/laravel.log` is then no longer written; read it,
+then delete it once nothing in it is needed.
 
 ### The access log and its scheduler (023)
 
@@ -802,7 +911,12 @@ release you don't fully trust:
   `remote_addr` that is the edge container on every row is correct — the real
   client is in `forwarded_for`.
 - `docker stats --no-stream` after warm-up stays within the budget in
-  Section 10.
+  Section 10, and its `LIMIT` column shows the `mem_limit` values listed there
+  (`unlimited`/host total means the running `docker-compose.yml` is out of date).
+- `curl -sI https://online-trash.com/` shows `X-Frame-Options`,
+  `X-Content-Type-Options`, `Referrer-Policy` and `Content-Security-Policy`
+  exactly **once** each, and a `/storage/` file shows the `sandbox` CSP
+  (Section 4).
 - `https://games.online-trash.com/thousand/` still answers — confirms the edge
   change did not disturb the neighboring game.
 
@@ -954,6 +1068,47 @@ runs). The estimated steady-state budget:
 If `docker stats` shows a container well above its line here, or `free -h`
 shows swap climbing steadily rather than absorbing a brief spike, that is the
 first sign of trouble — check that container's logs next.
+
+**Per-container memory ceilings.** `docker-compose.prod.yml` sets `mem_limit`
+on every service: `ladybug-mysql` 384m, `ladybug-php` 550m,
+`ladybug-scheduler` 192m, `ladybug-web` 64m (the arithmetic is in the file's
+header). They are ceilings for a spike, not reservations, and deliberately sum
+past what the box has. Their job is to make an out-of-memory event **local**:
+php's three workers × `memory_limit=256M` is already 768M, and the
+`convert` / `ffmpeg` / `gifsicle` children they spawn are not bounded by
+`memory_limit` at all — without a cgroup limit the kernel's OOM killer picks the
+biggest process on the box, which is `mysqld`. With it, the kernel kills a
+worker or its child inside `ladybug-php` and php-fpm respawns it.
+`docker stats --no-stream` shows each container's usage against its limit
+(`MEM USAGE / LIMIT`); `docker inspect -f '{{.State.OOMKilled}}' <container>`
+says whether a container's main process was killed. If `ladybug-mysql` ever
+sits near its 384m, raise that limit before anything else. A planned
+queue-worker container should get ~192m like the scheduler (or, if it ever
+does media processing, be sized like `ladybug-php` with `pm.max_children`
+lowered to pay for it).
+
+**php-fpm request ceiling.** `deploy/php/www.conf` sets
+`request_terminate_timeout = 70s`, just past `ladybug-web`'s 60s
+`fastcgi_read_timeout`. `max_execution_time=60` does not bound wall-clock time
+on Linux (it counts CPU time only — waiting on MySQL, SMTP or a `convert` child
+is free), so without it a worker kept running after nginx had already answered
+504. A request killed this way shows in `docker compose logs ladybug-php` as
+`execution timed out … terminating`.
+
+**ImageMagick policy.** The php images (prod, dev and CI) install
+`deploy/php/imagemagick-policy.xml` over the distribution's policy: only the
+GIF, JPEG, PNG and WEBP coders are enabled (MVG, MSL, SVG, URL/HTTP(S), TEXT,
+PS/PDF and everything else are refused with `not allowed by the security
+policy`), with memory 256MiB / map 512MiB / disk 1GiB / area 32MP / 32K pixels a
+side / 1000 frames / 1 thread. ImageMagick 7.1.1 ignores the policy's `time`
+limit, so the 60-second cap comes from `MAGICK_TIME_LIMIT=60` (Dockerfile `ENV`,
+and `env[]` in `www.conf` for fpm workers, whose environment is otherwise
+cleared). Check a running container with
+`docker compose exec ladybug-php identify -list resource` (expect `Memory:
+256MiB`, `Time: 1 minutes`). The file's comments are tokenised by ImageMagick:
+a quote, an apostrophe or a dash followed by `>` inside a comment silently drops
+the policies after it, which is why the image builds assert that the policy
+loaded.
 
 A `ladybug-web` container that starts but returns `502` on every request
 almost always means `ladybug-php` is unreachable: `deploy/web/default.conf`

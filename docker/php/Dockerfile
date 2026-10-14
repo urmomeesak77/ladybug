@@ -16,6 +16,21 @@ RUN apt-get update \
         gifsicle imagemagick ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# The production ImageMagick security policy, so dev and e2e convert under the same
+# coder allow-list and resource limits production enforces. This build context is
+# docker/php/, which cannot reach deploy/, so the file here is a byte-identical COPY of
+# deploy/php/imagemagick-policy.xml -- CI fails if the two differ. Same install-and-assert
+# step as deploy/php/Dockerfile; see there and the file's header.
+COPY imagemagick-policy.xml /tmp/imagemagick-policy.xml
+RUN set -eu; \
+    dir="$(echo /etc/ImageMagick-*)"; \
+    [ -f "$dir/policy.xml" ]; \
+    install -m 0644 /tmp/imagemagick-policy.xml "$dir/policy.xml"; \
+    rm /tmp/imagemagick-policy.xml; \
+    convert -list policy | grep -qF 'pattern: {GIF,JPEG,JPG,PNG,WEBP}'; \
+    identify -list resource | grep -q 'Memory: 256MiB'
+ENV MAGICK_TIME_LIMIT=60
+
 # pdo_mysql: app database driver. zip: composer dist installs. bcmath:
 # arbitrary-precision math for App\Utils\Base64 hash generation. gd: in-house
 # image resizing/metadata for uploads (Principle I — no Composer image package).

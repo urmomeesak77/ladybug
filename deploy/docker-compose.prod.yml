@@ -4,10 +4,45 @@
 #
 # Service names are load-bearing: deploy/web/default.conf does `fastcgi_pass
 # ladybug-php:9000` and backend.env sets DB_HOST=ladybug-mysql.
+#
+# MEMORY CEILINGS (mem_limit). Without them every container shares the host's 960 MiB
+# with no boundary, and when it runs out the KERNEL's OOM killer picks the victim by
+# size -- which is mysqld, the one process whose death corrupts nothing but takes the
+# whole site down and is slowest to come back. php is the dangerous neighbour: three
+# fpm workers x memory_limit=256M is already 768M, and the convert / ffmpeg / gifsicle
+# children they spawn are separate processes that memory_limit does not bound at all.
+# A cgroup limit turns that into a LOCAL OOM: the kernel kills the largest process
+# inside the offending container (a worker or its convert child), php-fpm respawns the
+# worker, and mysqld is never in the frame.
+#
+# The arithmetic, against the steady-state budget in docs/DEPLOYMENT.md Section 10:
+#     host 960 MiB - OS+dockerd ~250 - edge nginx + Thousand ~95  = ~615 MiB for Ladybug
+#     steady state: mysql ~280 + php ~180 + web ~15 + scheduler ~40 = ~515 MiB
+# The limits below are CEILINGS for a spike, not reservations, so they deliberately sum
+# past 615 (mysql 384 + php 550 + scheduler 192 + web 64 = 1190 MiB): they never fire
+# in steady state, and what they guarantee is that one container's spike is paid for by
+# that container. The 2 GiB host swap (setup.sh) absorbs the overlap -- with no
+# memswap_limit, each container may additionally swap up to its own mem_limit, so a
+# spike degrades into slowness before anything is killed.
+#   - mysql 384m: InnoDB buffer pool 96M + per-connection buffers for max_connections=30
+#     + server overhead; measured ~280 MiB, so ~100 MiB of headroom. It must NEVER be the
+#     container that hits its limit -- if `docker stats` shows it near 384, raise this
+#     before anything else.
+#   - php 550m: one worker mid-resize (up to the 256M memory_limit) plus its convert
+#     child (ImageMagick policy: 256MiB pixel cache before spilling to disk) plus two
+#     ordinary ~40-60 MiB workers and the fpm master.
+#   - scheduler 192m: `schedule:work` forks one artisan process a minute; the daily
+#     access-log:prune is a chunked DELETE, not a load into memory.
+#   - web 64m: nginx serving static files; ~15 MiB measured.
+# HEADROOM FOR THE QUEUE WORKER: a `queue:work` container is planned (another change).
+# Budget it like the scheduler -- ~192m, same image -- and it fits the same reasoning;
+# if it ever runs media processing (convert/ffmpeg), size it like ladybug-php instead and
+# lower ladybug-php's pm.max_children to pay for it rather than raising the total.
 services:
   ladybug-mysql:
     image: mysql:8.0
     restart: unless-stopped
+    mem_limit: 384m   # see MEMORY CEILINGS at the top
     environment:
       MYSQL_DATABASE: trashdb
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?must be set in .env}
@@ -51,6 +86,7 @@ services:
   ladybug-php:
     image: ghcr.io/urmomeesak77/ladybug-php:${LADYBUG_TAG:-latest}
     restart: unless-stopped
+    mem_limit: 550m   # see MEMORY CEILINGS at the top
     volumes:
       # Mounted at run time, never baked: the image is public on GHCR.
       - ./backend.env:/var/www/html/.env:ro
@@ -70,6 +106,7 @@ services:
   ladybug-scheduler:
     image: ghcr.io/urmomeesak77/ladybug-php:${LADYBUG_TAG:-latest}
     restart: unless-stopped
+    mem_limit: 192m   # see MEMORY CEILINGS at the top
     command: ["php", "artisan", "schedule:work"]
     volumes:
       - ./backend.env:/var/www/html/.env:ro
@@ -81,6 +118,7 @@ services:
   ladybug-web:
     image: ghcr.io/urmomeesak77/ladybug-web:${LADYBUG_TAG:-latest}
     restart: unless-stopped
+    mem_limit: 64m    # see MEMORY CEILINGS at the top
     # No published port at all. The edge reaches this container by name over the
     # shared network below. A loopback publish is unreachable from the edge
     # (DNAT-scoped to 127.0.0.1/32, while host-gateway is the docker0 address),
