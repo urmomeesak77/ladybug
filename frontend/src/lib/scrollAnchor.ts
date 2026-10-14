@@ -35,10 +35,10 @@ export class ScrollAnchor {
   // Load-more page break — with history.scrollRestoration set to manual, a fresh page
   // would otherwise inherit whatever clamped scroll position the previous page left.
   static pickRestoreTarget(
-    snapshot: { anchorHash: string | null; anchorOffset: number } | null,
+    anchor: { anchorHash: string | null; anchorOffset: number } | null,
   ): RestoreTarget {
-    if (snapshot && snapshot.anchorHash) {
-      return { kind: 'anchor', hash: snapshot.anchorHash, offset: snapshot.anchorOffset };
+    if (anchor && anchor.anchorHash) {
+      return { kind: 'anchor', hash: anchor.anchorHash, offset: anchor.anchorOffset };
     }
     return { kind: 'top' };
   }

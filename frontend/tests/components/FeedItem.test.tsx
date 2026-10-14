@@ -52,6 +52,22 @@ describe('FeedItem', () => {
     expect(link.getAttribute('href')).toBe('/posts/abc1234567');
   });
 
+  // The feed is where up to 200 posts share one page, so it is the caller that defers the
+  // YouTube player behind a click-to-play facade (the single-post page does not).
+  it('shows a YouTube post as a click-to-play facade, not a live iframe', () => {
+    const media: FeedMedia = {
+      kind: 'youtube',
+      embedUrl: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+      thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+      title: 'Funny cat',
+      isShort: false,
+    };
+    const { container } = render(<FeedItem post={post({ media })} />, { wrapper: MemoryRouter });
+
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Play video: Funny cat' })).toBeTruthy();
+  });
+
   it('falls back to a generic title for untitled posts', () => {
     render(<FeedItem post={post({ title: null })} />, { wrapper: MemoryRouter });
 

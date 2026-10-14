@@ -1,16 +1,13 @@
 import type { FeedPost } from './feedModel';
 import type { FeedStatus } from './pagination';
+import type { Anchor } from './scrollAnchor';
 
-// One feed page's restorable state. `posts`/`cursor`/`status` let us re-render the
-// loaded feed without refetching (which would shift the newest-first list); the
-// anchor pins the scroll position to a specific post rather than a raw pixel offset
-// (lazy images have no reserved height, so a pixel offset would land wrong).
+// One feed page's restorable state: `posts`/`cursor`/`status` let us re-render the
+// loaded feed without refetching (which would shift the newest-first list).
 export type FeedSnapshot = {
   posts: FeedPost[];
   cursor?: string;
   status: FeedStatus;
-  anchorHash: string | null;
-  anchorOffset: number;
 };
 
 const NAMESPACE = 'ladybug.feed';
@@ -43,17 +40,38 @@ export class FeedCache {
     }
   }
 
+  // The anchor goes with its snapshot: a fresh feed must not inherit the old position.
   static clearSnapshot(storage: Storage, key: string): void {
     storage.removeItem(key);
+    storage.removeItem(FeedCache.anchorKey(key));
   }
 
-  // Read-modify-write so the scroll hook can update only the anchor without clobbering
-  // the posts the feed hook wrote (and vice versa). No-op until a snapshot exists.
-  static updateSnapshot(storage: Storage, key: string, partial: Partial<FeedSnapshot>): void {
-    const existing = FeedCache.readSnapshot(storage, key);
-    if (!existing) {
-      return;
+  // The scroll anchor pins the position to a specific post rather than a raw pixel offset
+  // (lazy images have no reserved height, so a pixel offset would land wrong). It lives
+  // under its own key because the scroll hook rewrites it every throttled tick: kept
+  // inside the snapshot, each tick would re-parse and re-encode up to 200 posts just to
+  // change two numbers.
+  static anchorKey(key: string): string {
+    return `${key}#anchor`;
+  }
+
+  static readAnchor(storage: Storage, key: string): Anchor | null {
+    const raw = storage.getItem(FeedCache.anchorKey(key));
+    if (!raw) {
+      return null;
     }
-    FeedCache.writeSnapshot(storage, key, { ...existing, ...partial });
+    try {
+      return JSON.parse(raw) as Anchor;
+    } catch {
+      return null;
+    }
+  }
+
+  static writeAnchor(storage: Storage, key: string, anchor: Anchor): void {
+    try {
+      storage.setItem(FeedCache.anchorKey(key), JSON.stringify(anchor));
+    } catch {
+      // Same best-effort rule as the snapshot: a full store must not break scrolling.
+    }
   }
 }

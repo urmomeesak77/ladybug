@@ -10,7 +10,11 @@
       }
       gtag('js', new Date());
 
-      gtag('config', 'G-GY5TD0097K');
+      // No automatic page view: it would report the raw address, and the emailed links
+      // carry an address digest in their path (/reset-password/:hash, /verify-email/:hash)
+      // plus a signature query or #token fragment. The SPA sends a sanitised page view per
+      // route instead (src/lib/analytics.ts, src/hooks/usePageViews.ts).
+      gtag('config', 'G-GY5TD0097K', { send_page_view: false });
     </script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="any" />

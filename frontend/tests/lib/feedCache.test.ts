@@ -31,8 +31,6 @@ const sample: FeedSnapshot = {
   }],
   cursor: 'a',
   status: 'loaded',
-  anchorHash: null,
-  anchorOffset: 0,
 };
 
 describe('feedKey', () => {
@@ -77,17 +75,42 @@ describe('read/write/clear snapshot', () => {
   });
 });
 
-describe('updateSnapshot', () => {
-  it('merges a partial into an existing snapshot', () => {
-    const storage = memoryStorage();
-    FeedCache.writeSnapshot(storage, 'k', sample);
-    FeedCache.updateSnapshot(storage, 'k', { anchorHash: 'a', anchorOffset: 120 });
-    expect(FeedCache.readSnapshot(storage, 'k')).toEqual({ ...sample, anchorHash: 'a', anchorOffset: 120 });
+describe('read/write anchor', () => {
+  let storage: Storage;
+  beforeEach(() => {
+    storage = memoryStorage();
   });
 
-  it('is a no-op when no snapshot exists yet', () => {
-    const storage = memoryStorage();
-    FeedCache.updateSnapshot(storage, 'k', { anchorHash: 'a', anchorOffset: 1 });
-    expect(FeedCache.readSnapshot(storage, 'k')).toBeNull();
+  it('round-trips an anchor', () => {
+    FeedCache.writeAnchor(storage, 'k', { anchorHash: 'a', anchorOffset: 120 });
+    expect(FeedCache.readAnchor(storage, 'k')).toEqual({ anchorHash: 'a', anchorOffset: 120 });
+  });
+
+  // The scroll hook writes the anchor on every throttled tick; touching the snapshot there
+  // would re-encode up to 200 posts just to move two numbers.
+  it('stores the anchor apart from the snapshot, leaving the snapshot untouched', () => {
+    FeedCache.writeSnapshot(storage, 'k', sample);
+    const snapshotJson = storage.getItem('k');
+    FeedCache.writeAnchor(storage, 'k', { anchorHash: 'a', anchorOffset: 120 });
+    expect(storage.getItem('k')).toBe(snapshotJson);
+    expect(FeedCache.readSnapshot(storage, 'k')).toEqual(sample);
+  });
+
+  it('returns null for a missing or corrupt anchor', () => {
+    expect(FeedCache.readAnchor(storage, 'k')).toBeNull();
+    storage.setItem(FeedCache.anchorKey('k'), '{ not json');
+    expect(FeedCache.readAnchor(storage, 'k')).toBeNull();
+  });
+
+  it('swallows a setItem failure (e.g. quota) instead of throwing', () => {
+    const throwing = { ...memoryStorage(), setItem: vi.fn(() => { throw new Error('quota'); }) } as Storage;
+    expect(() => FeedCache.writeAnchor(throwing, 'k', { anchorHash: 'a', anchorOffset: 0 })).not.toThrow();
+  });
+
+  it('clears the anchor together with its snapshot', () => {
+    FeedCache.writeSnapshot(storage, 'k', sample);
+    FeedCache.writeAnchor(storage, 'k', { anchorHash: 'a', anchorOffset: 120 });
+    FeedCache.clearSnapshot(storage, 'k');
+    expect(FeedCache.readAnchor(storage, 'k')).toBeNull();
   });
 });

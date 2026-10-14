@@ -51,3 +51,20 @@ describe('toEmbedUrl', () => {
     expect(Youtube.toEmbedUrl('waytoolongvideoid123')).toBeNull();
   });
 });
+
+// The feed's click-to-play facade shows this still instead of mounting an iframe per post.
+describe('toThumbnailUrl', () => {
+  it('builds the fixed-form thumbnail URL from a parsed video id', () => {
+    expect(Youtube.toThumbnailUrl(`https://youtu.be/${ID}`)).toBe(`https://i.ytimg.com/vi/${ID}/hqdefault.jpg`);
+  });
+
+  it('builds it for a bare id and a shorts link alike', () => {
+    expect(Youtube.toThumbnailUrl(ID)).toBe(`https://i.ytimg.com/vi/${ID}/hqdefault.jpg`);
+    expect(Youtube.toThumbnailUrl(`https://www.youtube.com/shorts/${ID}`)).toBe(`https://i.ytimg.com/vi/${ID}/hqdefault.jpg`);
+  });
+
+  it('returns null for missing or unparseable input', () => {
+    expect(Youtube.toThumbnailUrl(null)).toBeNull();
+    expect(Youtube.toThumbnailUrl('not a video')).toBeNull();
+  });
+});

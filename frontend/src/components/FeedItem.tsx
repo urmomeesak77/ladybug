@@ -45,7 +45,9 @@ function FeedItem({ post, canModerate = false, onRemove }: FeedItemProps) {
           />
         )}
       </div>
-      <MemeMedia media={post.media} linkTo={post.permalink} />
+      {/* shouldDeferEmbed: a feed page can hold 200 posts — YouTube waits behind a Play
+          facade here rather than booting a player per post. */}
+      <MemeMedia media={post.media} linkTo={post.permalink} shouldDeferEmbed />
       <PostByline author={post.author} createdAt={post.createdAt} commentCount={post.commentCount} />
     </article>
   );

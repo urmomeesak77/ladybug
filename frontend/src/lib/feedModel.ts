@@ -38,7 +38,7 @@ export type FeedMedia =
       videoSrc: string;
       mime: string;
     }
-  | { kind: 'youtube'; embedUrl: string; title: string; isShort: boolean }
+  | { kind: 'youtube'; embedUrl: string; thumbnailUrl: string; title: string; isShort: boolean }
   | { kind: 'none' };
 
 export type FeedPost = {
@@ -167,6 +167,8 @@ export class FeedModel {
       return {
         kind: 'youtube',
         embedUrl,
+        // Same parse as embedUrl, so it is non-null whenever embedUrl is.
+        thumbnailUrl: Youtube.toThumbnailUrl(raw.youtube) ?? '',
         title: raw.title ?? GENERIC_ALT,
         isShort: raw.youtube_is_short ?? false,
       };

@@ -26,21 +26,18 @@ function hydrate(init: HydrateInit): FeedState {
   return Pagination.initialState;
 }
 
-// Persist the loaded feed on every settled change, preserving the scroll anchor that
-// useScrollRestoration writes separately. Its own hook keeps useFeed inside the
-// 50-line budget (Principle II).
+// Persist the loaded feed on every settled change. The scroll anchor is not part of it —
+// useScrollRestoration keeps that under its own key (FeedCache.writeAnchor). Its own hook
+// keeps useFeed inside the 50-line budget (Principle II).
 function usePersistSnapshot(state: FeedState, cacheKey: string, cursor: () => string | undefined): void {
   useEffect(() => {
     if (state.status === 'idle' || state.status === 'loading' || state.status === 'error') {
       return;
     }
-    const previous = FeedCache.readSnapshot(sessionStorage, cacheKey);
     FeedCache.writeSnapshot(sessionStorage, cacheKey, {
       posts: state.posts,
       cursor: cursor(),
       status: state.status,
-      anchorHash: previous?.anchorHash ?? null,
-      anchorOffset: previous?.anchorOffset ?? 0,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.posts, state.status, cacheKey]);
@@ -82,8 +79,7 @@ function useRevalidateOnRestore(
 
 // Seed the cursor (snapshot cursor, else the URL cursor) and auto-load the first batch
 // only when nothing was hydrated from the snapshot. A fresh mount drops the stored
-// snapshot first so the stale anchor/cursor cannot resurface (updateSnapshot no-ops
-// while no snapshot exists). Runs once on mount by design — hence the fixed empty
+// snapshot and its anchor first so the stale anchor/cursor cannot resurface. Runs once on mount by design — hence the fixed empty
 // dependency list — so it lives in its own hook rather than inflating useFeed
 // (Principle II).
 function useInitialLoad(

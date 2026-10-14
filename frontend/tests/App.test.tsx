@@ -127,4 +127,20 @@ describe('App, the recovery routes', () => {
 
     expect(await screen.findByRole('heading', { name: 'Reset password' })).toBeTruthy();
   });
+
+  // index.html turns gtag's own page view off; the app sends a sanitised one per route.
+  it('reports a recovery link to analytics without its digest or token', async () => {
+    const gtag = vi.fn();
+    vi.stubGlobal('gtag', gtag);
+    window.history.pushState({}, '', `/reset-password/${DIGEST}#token=${'a'.repeat(64)}`);
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Reset password' });
+
+    expect(gtag).toHaveBeenCalledWith('event', 'page_view', expect.objectContaining({
+      page_location: `${window.location.origin}/reset-password/:hash`,
+    }));
+    expect(JSON.stringify(gtag.mock.calls)).not.toContain(DIGEST);
+    expect(JSON.stringify(gtag.mock.calls)).not.toContain('a'.repeat(64));
+  });
 });

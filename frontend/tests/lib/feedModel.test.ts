@@ -50,6 +50,7 @@ describe('mapPost', () => {
     expect(post.media.kind).toBe('youtube');
     if (post.media.kind === 'youtube') {
       expect(post.media.embedUrl).toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+      expect(post.media.thumbnailUrl).toBe('https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
       expect(post.media.title.length).toBeGreaterThan(0);
     }
   });

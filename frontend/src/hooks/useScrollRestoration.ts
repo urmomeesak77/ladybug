@@ -6,27 +6,35 @@ import type { ItemRect } from '../lib/scrollAnchor';
 
 const THROTTLE_MS = 150;
 
-// Document-absolute top of every rendered feed item, paired with its hash. Bails out
+// Document-absolute tops of the rendered feed items, paired with their hashes, in list
+// order — up to and including the first item that starts below the viewport top. Nothing
+// past it can be the anchor (ScrollAnchor.pickAnchor stops there too), so measuring the
+// rest of a 200-post page would be wasted layout reads on every scroll tick. Bails out
 // once the list is detached (e.g. mid-unmount) so a teardown capture can never overwrite
 // a good anchor with zeroed rects.
-function collectItemRects(): ItemRect[] {
+function collectItemRects(scrollY: number): ItemRect[] {
   const list = document.querySelector('.feed__list');
   if (!list || !list.isConnected) {
     return [];
   }
-  const els = document.querySelectorAll<HTMLElement>('.feed__list > li[data-hash]');
-  return Array.from(els, (el) => ({
-    hash: el.dataset.hash ?? '',
-    top: el.getBoundingClientRect().top + window.scrollY,
-  }));
+  const rects: ItemRect[] = [];
+  for (const el of document.querySelectorAll<HTMLElement>('.feed__list > li[data-hash]')) {
+    const top = el.getBoundingClientRect().top + scrollY;
+    rects.push({ hash: el.dataset.hash ?? '', top });
+    if (top > scrollY) {
+      break;
+    }
+  }
+  return rects;
 }
 
-// Persist the post currently at the viewport top as the restore anchor. No-op until the
-// feed hook has written the snapshot (updateSnapshot) or when the list is gone.
+// Persist the post currently at the viewport top as the restore anchor, under its own
+// small key — never a rewrite of the stored post list. No-op when the list is gone.
 function captureAnchor(cacheKey: string): void {
-  const anchor = ScrollAnchor.pickAnchor(collectItemRects(), window.scrollY);
+  const scrollY = window.scrollY;
+  const anchor = ScrollAnchor.pickAnchor(collectItemRects(scrollY), scrollY);
   if (anchor) {
-    FeedCache.updateSnapshot(sessionStorage, cacheKey, anchor);
+    FeedCache.writeAnchor(sessionStorage, cacheKey, anchor);
   }
 }
 
@@ -48,8 +56,8 @@ function scrollToAnchor(hash: string, offset: number): HTMLElement | null {
 export function useScrollRestoration(cacheKey: string, fresh: boolean): void {
   // Restore before paint so the user never sees a flash at the top.
   useLayoutEffect(() => {
-    const snapshot = fresh ? null : FeedCache.readSnapshot(sessionStorage, cacheKey);
-    const target = ScrollAnchor.pickRestoreTarget(snapshot);
+    const anchor = fresh ? null : FeedCache.readAnchor(sessionStorage, cacheKey);
+    const target = ScrollAnchor.pickRestoreTarget(anchor);
     if (target.kind === 'top') {
       // A fresh page (e.g. reached via "Load more") starts at the top; with manual
       // scrollRestoration it would otherwise keep the previous page's clamped position.

@@ -56,6 +56,14 @@ const imageMedia: FeedMedia = {
   height: 400,
 };
 
+const youtubeMedia: FeedMedia = {
+  kind: 'youtube',
+  embedUrl: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+  thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+  title: 'Song',
+  isShort: false,
+};
+
 const videoMedia: FeedMedia = {
   kind: 'video',
   src: '/img/800/a/abc.jpg',
@@ -122,6 +130,7 @@ describe('MemeMedia', () => {
         media={{
           kind: 'youtube',
           embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
           title: 'Song',
           isShort: false,
         }}
@@ -147,6 +156,7 @@ describe('MemeMedia', () => {
         media={{
           kind: 'youtube',
           embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
           title: 'Song',
           isShort: false,
         }}
@@ -164,6 +174,7 @@ describe('MemeMedia', () => {
         media={{
           kind: 'youtube',
           embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
           title: 'Short',
           isShort: true,
         }}
@@ -180,6 +191,7 @@ describe('MemeMedia', () => {
         media={{
           kind: 'youtube',
           embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
           title: 'Song',
           isShort: false,
         }}
@@ -405,6 +417,7 @@ describe('MemeMedia', () => {
         media={{
           kind: 'youtube',
           embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
           title: 'Song',
           isShort: false,
         }}
@@ -435,5 +448,70 @@ describe('MemeMedia', () => {
     fireEvent.change(scrub, { target: { value: '45' } });
 
     expect(scrub.value).toBe('45');
+  });
+
+  // A feed page holds up to 200 posts: a live iframe per YouTube post would boot a full
+  // player (scripts, network, memory) for each, so the feed shows a still until asked.
+  describe('deferred YouTube embed (feed)', () => {
+    it('shows the thumbnail and a labelled play button instead of an iframe', () => {
+      const { container } = render(<MemeMedia media={youtubeMedia} shouldDeferEmbed />);
+
+      expect(container.querySelector('iframe')).toBeNull();
+      const thumb = screen.getByRole('img', { name: 'Song' });
+      expect(thumb.getAttribute('src')).toBe('https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+      expect(thumb.getAttribute('loading')).toBe('lazy');
+      const play = screen.getByRole('button', { name: 'Play video: Song' });
+      expect(play).toBeInstanceOf(HTMLButtonElement);
+      // Visible text as well as the icon, so the control never relies on a glyph alone.
+      expect(play.textContent).toContain('Play');
+    });
+
+    it('mounts the sandboxed, autoplaying iframe once activated and moves focus to it', () => {
+      const { container } = render(<MemeMedia media={youtubeMedia} shouldDeferEmbed />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Play video: Song' }));
+
+      const iframe = container.querySelector('iframe') as HTMLIFrameElement;
+      expect(iframe.getAttribute('src')).toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1');
+      expect(iframe.getAttribute('title')).toBe('Song');
+      expect(iframe.getAttribute('allow')).toContain('autoplay');
+      expect(iframe.getAttribute('sandbox')).toBe(
+        'allow-scripts allow-same-origin allow-presentation allow-popups',
+      );
+      expect(screen.queryByRole('button', { name: 'Play video: Song' })).toBeNull();
+      expect(document.activeElement).toBe(iframe);
+    });
+
+    it('keeps the shorts box vertical while showing the facade', () => {
+      const { container } = render(
+        <MemeMedia media={{ ...youtubeMedia, isShort: true } as FeedMedia} shouldDeferEmbed />,
+      );
+
+      const wrap = container.querySelector('.meme-media--video');
+      expect(wrap?.classList.contains('meme-media--video-vertical')).toBe(true);
+    });
+  });
+
+  describe('video loading', () => {
+    // preload="none": nothing of the video is fetched until playback actually starts, so
+    // a 200-post page does not open a media request per video post.
+    it('does not preload the video', () => {
+      const { container } = render(<MemeMedia media={videoMedia} />);
+
+      expect(container.querySelector('video')?.getAttribute('preload')).toBe('none');
+    });
+
+    it('uses the poster variant sized for the viewport rather than the default src', () => {
+      vi.stubGlobal('innerWidth', 360);
+      vi.stubGlobal('devicePixelRatio', 1);
+      const media = {
+        ...videoMedia,
+        srcset: '/img/1200/a/abc.jpg 1200w, /img/800/a/abc.jpg 800w, /img/500/a/abc.jpg 500w',
+      } as FeedMedia;
+
+      const { container } = render(<MemeMedia media={media} />);
+
+      expect(container.querySelector('video')?.getAttribute('poster')).toBe('/img/500/a/abc.jpg');
+    });
   });
 });

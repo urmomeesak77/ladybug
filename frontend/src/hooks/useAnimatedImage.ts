@@ -74,13 +74,18 @@ export function useAnimatedImage(src: string): {
     }
     probe.current = { hasProbed: true, url };
     let isCancelled = false;
+    let isSettled = false;
     void decodeHeldFrame(url).then((frame) => {
+      isSettled = true;
       if (!frame) {
-        // Still image, or any failure: hasProbed stays true, so this post is now a plain
-        // <img> for the life of the page and is never asked again (FR-008/FR-012).
+        // Still image, or any failure: re-asserted even after a cancellation, so this post is
+        // now a plain <img> for the life of the page and is never asked again (FR-008/FR-012).
+        probe.current = { hasProbed: true, url };
         return;
       }
       if (isCancelled) {
+        // The session stays in the registry unpinned — LRU-evictable, and exactly what the
+        // re-probe on the next approach reuses instead of fetching again.
         AnimationRegistry.release(url, frame);
         return;
       }
@@ -89,6 +94,11 @@ export function useAnimatedImage(src: string): {
     });
     return () => {
       isCancelled = true;
+      // Leaving the near band mid-decode is not a verdict on the file: without this reset the
+      // post would stay a static <img> for good, since the next approach would skip the probe.
+      if (!isSettled) {
+        probe.current.hasProbed = false;
+      }
     };
   }, [isEligible, isNear, node, sourceTick]);
 

@@ -644,6 +644,46 @@ main {
   border: 0;
 }
 
+/* Feed click-to-play facade for YouTube posts: the still fills the same 16:9 (or 9:16) box
+   the iframe will, so activating it causes no layout shift. hqdefault is 4:3, hence cover. */
+.meme-media__facade-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Same translucent chip as the video controls (fixed white-on-black over the still, not
+   theme tokens), with a visible "Play" label beside the icon (Principle IV). */
+.meme-media__facade-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-height: 2.75rem; /* comfortable touch target (Principle VIII). */
+  padding: var(--space-sm) var(--space-md);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: #fff;
+  font-size: 1rem;
+  background-color: rgb(0 0 0 / 65%);
+  border: 1px solid rgb(255 255 255 / 40%);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.meme-media__facade-play:hover,
+.meme-media__facade-play:focus-visible {
+  background-color: rgb(0 0 0 / 85%);
+}
+
+.meme-media__facade-play:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 /* Feed status / state messages. */
 .feed__status {
   margin-top: var(--space-lg);

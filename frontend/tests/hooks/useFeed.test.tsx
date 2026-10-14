@@ -58,8 +58,6 @@ describe('useFeed', () => {
       posts: posts(3, 'a'),
       cursor: 'a0000002',
       status: 'end',
-      anchorHash: null,
-      anchorOffset: 0,
     });
     // Background revalidation returns the same head, so nothing is dropped.
     const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(3, 'a') });
@@ -82,8 +80,6 @@ describe('useFeed', () => {
       posts: stale,
       cursor: 'a0000008',
       status: 'loaded',
-      anchorHash: null,
-      anchorOffset: 0,
     });
     vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(9, 'a') });
 
@@ -103,8 +99,6 @@ describe('useFeed', () => {
       posts: posts(3, 'a'),
       cursor: 'a0000002',
       status: 'end',
-      anchorHash: null,
-      anchorOffset: 0,
     });
     const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(10, 'b') });
 
@@ -157,8 +151,6 @@ describe('useFeed', () => {
       posts: posts(200, 'a'),
       cursor: 'a0000199',
       status: 'loaded',
-      anchorHash: null,
-      anchorOffset: 0,
     });
 
     const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, false));
@@ -172,9 +164,8 @@ describe('useFeed', () => {
       posts: posts(3, 'a'),
       cursor: 'a0000002',
       status: 'end',
-      anchorHash: 'a0000001',
-      anchorOffset: 40,
     });
+    FeedCache.writeAnchor(sessionStorage, CACHE_KEY, { anchorHash: 'a0000001', anchorOffset: 40 });
     const fetchFeed = vi.spyOn(Api, 'fetchFeed').mockResolvedValue({ ok: true, posts: posts(10, 'b') });
 
     const { result } = renderHook(() => useFeed(undefined, CACHE_KEY, true));
@@ -187,7 +178,7 @@ describe('useFeed', () => {
     // anchored at the top.
     const saved = FeedCache.readSnapshot(sessionStorage, CACHE_KEY);
     expect(saved?.posts).toHaveLength(10);
-    expect(saved?.anchorHash).toBeNull();
+    expect(FeedCache.readAnchor(sessionStorage, CACHE_KEY)).toBeNull();
   });
 });
 

@@ -7,6 +7,7 @@ import RequireAnon from './components/RequireAnon';
 import RequireAuth from './components/RequireAuth';
 import RequireRole from './components/RequireRole';
 import RequireVerified from './components/RequireVerified';
+import { usePageViews } from './hooks/usePageViews';
 import { useTheme } from './hooks/useTheme';
 import AccountPage from './pages/AccountPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -21,6 +22,14 @@ import UploadPage from './pages/UploadPage';
 import UserAdminPage from './pages/UserAdminPage';
 import VerifyEmailNoticePage from './pages/VerifyEmailNoticePage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+
+// Renders nothing: it exists so usePageViews runs inside the router (it needs the
+// location). Placed after PageLayout so the page's own document.title effect — a
+// descendant of PageLayout, hence run first — has already landed when the view is sent.
+function PageViews() {
+  usePageViews();
+  return null;
+}
 
 function App() {
   useTheme();
@@ -72,6 +81,7 @@ function App() {
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </PageLayout>
+          <PageViews />
         </NoticeProvider>
       </AuthProvider>
     </BrowserRouter>

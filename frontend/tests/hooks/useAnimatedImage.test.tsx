@@ -271,6 +271,33 @@ describe('useAnimatedImage probing', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  // A fast scroll can carry a post out of the near band while its probe is still decoding.
+  // That cancellation must not count as "probed": the post has to take over on its next
+  // approach instead of staying a static <img> for the life of the page.
+  it('re-probes a post whose probe was cancelled before the decode finished', async () => {
+    let releaseFetch: (response: Response) => void = () => {};
+    fetchMock.mockImplementationOnce(
+      () => new Promise<Response>((resolve) => {
+        releaseFetch = resolve;
+      }),
+    );
+    const { getByTestId } = render(<Harness src={MEME_SRC} />);
+    await fireNear();
+
+    act(() => nearnessObserver().fire(false));
+    await act(async () => {
+      releaseFetch(new Response(new ArrayBuffer(8), { headers: { 'Content-Type': 'image/gif' } }));
+    });
+    await settle();
+    expect(getByTestId('image')).toBeTruthy();
+
+    await fireNear();
+
+    expect(getByTestId('canvas')).toBeTruthy();
+    // The session the cancelled probe opened is reused from the registry, not re-fetched.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('swaps in a canvas sized from the decoded frame', async () => {
     const { getByTestId } = render(<Harness src={MEME_SRC} />);
     await takeOver();

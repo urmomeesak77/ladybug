@@ -21,6 +21,18 @@ export class Youtube {
     return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
   }
 
+  // The still the feed shows in place of a live player until the visitor asks for one (a
+  // feed page can hold up to 200 posts; an iframe per YouTube post would boot a whole
+  // player each). Rebuilt from the parsed id like the embed URL, never the raw input;
+  // hqdefault is the size YouTube generates for every video, so it never 404s.
+  static toThumbnailUrl(raw: string | null | undefined): string | null {
+    if (!raw) {
+      return null;
+    }
+    const id = Youtube.extractId(raw.trim());
+    return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
+  }
+
   private static extractId(raw: string): string | null {
     if (VIDEO_ID.test(raw)) {
       return raw;

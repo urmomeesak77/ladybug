@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, Dispatch, RefObject, SetStateAction } from 'react';
 
 import MemeImage from './MemeImage';
 import { useVideoAutoplay } from '../hooks/useVideoAutoplay';
 import { useVideoTapToggle } from '../hooks/useVideoTapToggle';
 import type { FeedMedia } from '../lib/feedModel';
+import { PosterSource } from '../lib/posterSource';
 
 type VideoFeedMedia = Extract<FeedMedia, { kind: 'video' }>;
 type YoutubeFeedMedia = Extract<FeedMedia, { kind: 'youtube' }>;
@@ -141,10 +142,13 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
       className={`meme-media meme-media--video-wrap${tapVisible ? ' meme-media--controls-visible' : ''}`}
       onClick={toggleTapVisible}
     >
+      {/* preload="none": a feed page can hold dozens of video posts, and nothing of a clip is
+          worth fetching until useVideoAutoplay (or the Play button) actually starts it. */}
       <video
         ref={videoRef}
         className="meme-media__video"
-        poster={media.src}
+        poster={PosterSource.pick(media.srcset, media.src, PosterSource.targetWidth(window))}
+        preload="none"
         muted={muted}
         playsInline
         loop
@@ -174,24 +178,68 @@ function VideoMedia({ media }: { media: VideoFeedMedia }) {
   );
 }
 
-// YouTube ⇒ sanitized <iframe> built only from the parsed embed URL (Principle VI). A
-// Shorts-sourced post swaps the wide box for a 9:16 one so the vertical clip fills it
-// instead of being letterboxed between two black pillars (FR-005).
-function YoutubeMedia({ media }: { media: YoutubeFeedMedia }) {
+const YOUTUBE_ALLOW = 'accelerometer; encrypted-media; gyroscope; picture-in-picture';
+
+// YouTube ⇒ sanitized <iframe> built only from the parsed embed URL (Principle VI).
+// `shouldAutoplay` is set only after the visitor pressed the feed facade's Play button, so
+// the player starts on that one press instead of asking for a second; focus follows it in,
+// since the button that held focus is gone.
+function YoutubeEmbed({ media, shouldAutoplay }: { media: YoutubeFeedMedia; shouldAutoplay: boolean }) {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  useEffect(() => {
+    if (shouldAutoplay) {
+      iframeRef.current?.focus();
+    }
+  }, [shouldAutoplay]);
+  return (
+    <iframe
+      ref={iframeRef}
+      className="meme-media__iframe"
+      src={shouldAutoplay ? `${media.embedUrl}?autoplay=1` : media.embedUrl}
+      title={media.title}
+      loading="lazy"
+      allow={shouldAutoplay ? `autoplay; ${YOUTUBE_ALLOW}` : YOUTUBE_ALLOW}
+      allowFullScreen
+      // Belt-and-braces: the src is always a rebuilt nocookie embed URL, but the
+      // sandbox caps what any embedded document could ever do (Principle VI).
+      sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+    />
+  );
+}
+
+// The feed's stand-in for a player: the video's still plus a real, labelled Play button
+// with visible text (Principle IV). Nothing from YouTube but one image loads until pressed.
+function YoutubeFacade({ media, onActivate }: { media: YoutubeFeedMedia; onActivate: () => void }) {
+  return (
+    <>
+      <img className="meme-media__facade-thumb" src={media.thumbnailUrl} alt={media.title} loading="lazy" decoding="async" />
+      <button
+        type="button"
+        className="meme-media__facade-play"
+        aria-label={`Play video: ${media.title}`}
+        onClick={onActivate}
+      >
+        <VideoGlyph name="play" />
+        <span>Play</span>
+      </button>
+    </>
+  );
+}
+
+// A Shorts-sourced post swaps the wide box for a 9:16 one so the vertical clip fills it
+// instead of being letterboxed between two black pillars (FR-005). `shouldDeferEmbed`
+// (the feed) shows a click-to-play facade first: a feed page holds up to 200 posts, and a
+// live iframe per YouTube post would boot a whole player for each one. The single-post page
+// embeds straight away — one player is the point of that page.
+function YoutubeMedia({ media, shouldDeferEmbed }: { media: YoutubeFeedMedia; shouldDeferEmbed: boolean }) {
+  const [isActivated, setIsActivated] = useState(false);
   const vertical = media.isShort ? ' meme-media--video-vertical' : '';
+  const isFacade = shouldDeferEmbed && !isActivated;
   return (
     <div className={`meme-media meme-media--video${vertical}`}>
-      <iframe
-        className="meme-media__iframe"
-        src={media.embedUrl}
-        title={media.title}
-        loading="lazy"
-        allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-        // Belt-and-braces: the src is always a rebuilt nocookie embed URL, but the
-        // sandbox caps what any embedded document could ever do (Principle VI).
-        sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
-      />
+      {isFacade
+        ? <YoutubeFacade media={media} onActivate={() => setIsActivated(true)} />
+        : <YoutubeEmbed media={media} shouldAutoplay={isActivated} />}
     </div>
   );
 }
@@ -200,10 +248,19 @@ function YoutubeMedia({ media }: { media: YoutubeFeedMedia }) {
 // branch — including its broken-image degradation and its optional permalink wrapper — lives
 // in MemeImage, which also owns the animated <img> ⇄ <canvas> takeover (021). `linkTo` (feed
 // only) wraps the image in a permalink; YouTube and video stay unwrapped — clicks land in the
-// iframe, and the video post has its own controls.
-function MemeMedia({ media, linkTo }: { media: FeedMedia; linkTo?: string }) {
+// iframe (or its Play facade), and the video post has its own controls. `shouldDeferEmbed`
+// (feed only) holds YouTube posts on that facade until the visitor asks to play.
+function MemeMedia({
+  media,
+  linkTo,
+  shouldDeferEmbed = false,
+}: {
+  media: FeedMedia;
+  linkTo?: string;
+  shouldDeferEmbed?: boolean;
+}) {
   if (media.kind === 'youtube') {
-    return <YoutubeMedia media={media} />;
+    return <YoutubeMedia media={media} shouldDeferEmbed={shouldDeferEmbed} />;
   }
 
   if (media.kind === 'video') {
