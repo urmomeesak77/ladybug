@@ -17,9 +17,9 @@
 #
 # The arithmetic, against the steady-state budget in docs/DEPLOYMENT.md Section 10:
 #     host 960 MiB - OS+dockerd ~250 - edge nginx + Thousand ~95  = ~615 MiB for Ladybug
-#     steady state: mysql ~280 + php ~180 + web ~15 + scheduler ~40 = ~515 MiB
+#     steady state: mysql ~280 + php ~150 + web ~15 + scheduler ~40 + queue ~45 = ~530 MiB
 # The limits below are CEILINGS for a spike, not reservations, so they deliberately sum
-# past 615 (mysql 384 + php 550 + scheduler 192 + web 64 = 1190 MiB): they never fire
+# past 615 (mysql 384 + php 450 + queue 384 + scheduler 192 + web 64 = 1474 MiB): they never fire
 # in steady state, and what they guarantee is that one container's spike is paid for by
 # that container. The 2 GiB host swap (setup.sh) absorbs the overlap -- with no
 # memswap_limit, each container may additionally swap up to its own mem_limit, so a
@@ -28,16 +28,19 @@
 #     + server overhead; measured ~280 MiB, so ~100 MiB of headroom. It must NEVER be the
 #     container that hits its limit -- if `docker stats` shows it near 384, raise this
 #     before anything else.
-#   - php 550m: one worker mid-resize (up to the 256M memory_limit) plus its convert
-#     child (ImageMagick policy: 256MiB pixel cache before spilling to disk) plus two
-#     ordinary ~40-60 MiB workers and the fpm master.
+#   - php 450m: since 024 the request workers no longer decode media -- an upload is
+#     only written to staging -- so the pool's memory_limit drops to 192M (www.conf).
+#     The heaviest thing left here is the OG-image transcode: one GD decode of a variant
+#     at most 1200 px wide, cached after the first request per post, so two workers
+#     doing it at once is the realistic worst case.
+#   - queue 384m: the ONE process that now decodes media. One job at a time: up to the
+#     256M CLI memory_limit (a 25 MP decode + scaled copy is ~180M) plus its convert /
+#     ffmpeg / gifsicle child, which memory_limit does not bound but the per-call Process
+#     timeouts and the ImageMagick policy do. Moving the decode here, single-file, is what
+#     paid for it: the worst case used to be three fpm workers decoding at once.
 #   - scheduler 192m: `schedule:work` forks one artisan process a minute; the daily
 #     access-log:prune is a chunked DELETE, not a load into memory.
 #   - web 64m: nginx serving static files; ~15 MiB measured.
-# HEADROOM FOR THE QUEUE WORKER: a `queue:work` container is planned (another change).
-# Budget it like the scheduler -- ~192m, same image -- and it fits the same reasoning;
-# if it ever runs media processing (convert/ffmpeg), size it like ladybug-php instead and
-# lower ladybug-php's pm.max_children to pay for it rather than raising the total.
 services:
   ladybug-mysql:
     image: mysql:8.0
@@ -86,7 +89,7 @@ services:
   ladybug-php:
     image: ghcr.io/urmomeesak77/ladybug-php:${LADYBUG_TAG:-latest}
     restart: unless-stopped
-    mem_limit: 550m   # see MEMORY CEILINGS at the top
+    mem_limit: 450m   # see MEMORY CEILINGS at the top
     volumes:
       # Mounted at run time, never baked: the image is public on GHCR.
       - ./backend.env:/var/www/html/.env:ro
@@ -115,6 +118,27 @@ services:
       ladybug-mysql:
         condition: service_healthy
 
+  # Runs the queued work (024): upload processing, mail, YouTube stills. Without it an
+  # upload stays `processing` (never public) and no verification or recovery mail is sent,
+  # so deploy.sh's summary checks that this container is up. Same image, same LADYBUG_TAG,
+  # same backend.env and storage as ladybug-php -- the request writes the staged upload,
+  # this container reads it. --max-jobs/--max-time recycle the process and --memory makes
+  # it exit cleanly on heap growth; restart: brings it back either way. stop_grace_period
+  # outlasts the 180 s job timeout, so a deploy's recreate lets an in-flight job finish
+  # instead of killing it mid-write (a killed job is re-delivered after retry_after anyway).
+  ladybug-queue:
+    image: ghcr.io/urmomeesak77/ladybug-php:${LADYBUG_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: 384m   # see MEMORY CEILINGS at the top
+    stop_grace_period: 200s
+    command: ["php", "artisan", "queue:work", "database", "--sleep=3", "--tries=1", "--timeout=180", "--max-jobs=200", "--max-time=3600", "--memory=256"]
+    volumes:
+      - ./backend.env:/var/www/html/.env:ro
+      - ./data/storage:/var/www/html/storage
+    depends_on:
+      ladybug-mysql:
+        condition: service_healthy
+
   ladybug-web:
     image: ghcr.io/urmomeesak77/ladybug-web:${LADYBUG_TAG:-latest}
     restart: unless-stopped
@@ -132,9 +156,9 @@ services:
     depends_on:
       - ladybug-php
 
-# ladybug-mysql, ladybug-php and ladybug-scheduler stay on `default` only (declared
-# implicitly, not listed above) -- none is attached to `edge`, so the database, the app
-# server and the scheduler all stay unreachable from the shared edge network. Only
+# ladybug-mysql, ladybug-php, ladybug-scheduler and ladybug-queue stay on `default` only
+# (declared implicitly, not listed above) -- none is attached to `edge`, so the database,
+# the app server and both workers all stay unreachable from the shared edge network. Only
 # ladybug-web, which is meant to be reached from outside this stack, joins it.
 networks:
   edge:

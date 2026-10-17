@@ -752,6 +752,43 @@ main {
   font-size: 0.9375rem;
 }
 
+/* A permalink whose upload is still being processed, or failed (024). Same framed block as
+   the hidden notice; the text is the signal, the spinner and the accent colour are only
+   redundant cues (Principle IV). The spinner reuses the busy-button keyframes, and its
+   reduced-motion rule below. */
+.post-processing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-focus);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.post-processing p {
+  margin: 0;
+}
+
+.post-processing--failed {
+  flex-direction: column;
+  align-items: flex-start;
+  border-left-color: var(--color-error);
+}
+
+.post-processing__spinner {
+  flex: none;
+  width: 1.25em;
+  height: 1.25em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: busy-button-spin 0.75s linear infinite;
+}
+
 /* ------------------------------------------------------------------ *
  * Auth pages (007): login / register / account. Mobile-first and     *
  * fluid (Principle VIII), themed via the shared tokens (so dark mode  *
@@ -983,7 +1020,8 @@ main {
 
 /* Reduced motion: keep the spinner as a shape signal but slow it to a gentle turn. */
 @media (prefers-reduced-motion: reduce) {
-  .busy-button__spinner {
+  .busy-button__spinner,
+  .post-processing__spinner {
     animation-duration: 2.5s;
   }
 }
@@ -1274,6 +1312,18 @@ main {
 .moderation-title__link {
   color: inherit;
   text-decoration: underline;
+}
+
+/* "Processing" / "Processing failed" beside a row's title (024): words, not a colour dot. */
+.moderation-badge {
+  display: inline-block;
+  margin-left: var(--space-sm);
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
 }
 
 /* Thumbnail clipped to a small fixed box (≤100×75), placeholder is a subtle framed box. */

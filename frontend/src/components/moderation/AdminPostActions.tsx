@@ -4,12 +4,16 @@ import { ActionIcon } from './ActionGlyph';
 import { useNotice } from '../../hooks/useNotice';
 import { ModerationApi } from '../../lib/moderationApi';
 import type { ModerationActionResult } from '../../lib/moderationApi';
+import type { MediaState } from '../../lib/feedModel';
 import { ModerationModel } from '../../lib/moderationModel';
 
 export type AdminPostActionsProps = {
   hash: string;
   title: string | null;
   hidden: 'pending' | 'deleted' | null;
+  // 024: Activate is offered only for finished media (the server answers 409 otherwise).
+  // The feed lists only finished posts, so it may leave this at its default.
+  mediaState?: MediaState;
   // The action changed the meme's public-visibility state; the caller decides what that
   // means for its surface (the feed removes it, the post page refreshes in place).
   onApplied: (hidden: 'pending' | 'deleted' | null) => void;
@@ -28,6 +32,7 @@ class PostActionMenu {
     run: (action: Promise<ModerationActionResult>) => void,
     askDelete: () => void,
     hash: string,
+    mediaState: MediaState,
   ): ActionMenuItem[] {
     if (hidden === 'deleted') {
       return [
@@ -35,12 +40,19 @@ class PostActionMenu {
         { label: 'Delete', icon: <ActionIcon glyph="delete" />, danger: true, onChoose: askDelete },
       ];
     }
-    const activation: ActionMenuItem = hidden === null
-      ? { label: 'Deactivate', icon: <ActionIcon glyph="deactivate" />, onChoose: () => run(ModerationApi.deactivate(hash)) }
-      : { label: 'Activate', icon: <ActionIcon glyph="activate" />, onChoose: () => run(ModerationApi.activate(hash)) };
+    const remove: ActionMenuItem = { label: 'Delete', icon: <ActionIcon glyph="delete" />, onChoose: askDelete };
+    if (hidden === null) {
+      return [
+        { label: 'Deactivate', icon: <ActionIcon glyph="deactivate" />, onChoose: () => run(ModerationApi.deactivate(hash)) },
+        remove,
+      ];
+    }
+    if (mediaState !== 'ready') {
+      return [remove];
+    }
     return [
-      activation,
-      { label: 'Delete', icon: <ActionIcon glyph="delete" />, onChoose: askDelete },
+      { label: 'Activate', icon: <ActionIcon glyph="activate" />, onChoose: () => run(ModerationApi.activate(hash)) },
+      remove,
     ];
   }
 }
@@ -50,7 +62,7 @@ class PostActionMenu {
 // state upward, a purge reports removal, and any failure reports nothing (the surface is left
 // untouched) — matching the console's fail-safe behaviour. This component is not self-gating
 // on role; its parent renders it only for an admin+, and the server enforces access anyway.
-function AdminPostActions({ hash, title, hidden, onApplied, onRemoved }: AdminPostActionsProps) {
+function AdminPostActions({ hash, title, hidden, mediaState = 'ready', onApplied, onRemoved }: AdminPostActionsProps) {
   const { ask } = useNotice();
 
   function run(action: Promise<ModerationActionResult>): void {
@@ -90,7 +102,7 @@ function AdminPostActions({ hash, title, hidden, onApplied, onRemoved }: AdminPo
     });
   }
 
-  const items = PostActionMenu.build(hidden, run, askDelete, hash);
+  const items = PostActionMenu.build(hidden, run, askDelete, hash, mediaState);
   return (
     <div className="post-actions">
       <ActionMenu items={items} label={`More actions for ${title ?? 'this post'}`} />

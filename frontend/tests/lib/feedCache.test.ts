@@ -28,6 +28,7 @@ const sample: FeedSnapshot = {
     author: 'alice',
     createdAt: '2026-07-22T12:00:00Z',
     commentCount: 0,
+    mediaState: 'ready',
   }],
   cursor: 'a',
   status: 'loaded',

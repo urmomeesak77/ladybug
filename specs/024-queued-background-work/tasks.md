@@ -10,17 +10,17 @@ is written first and must fail before its implementation task.
 
 ## Phase 1: Setup
 
-- [ ] T001 Enable the bundled `pcntl` extension in `deploy/php/Dockerfile` and `docker/php/Dockerfile` (`docker-php-ext-install … pcntl`) so `queue:work --timeout` can stop a hung job (research D3)
-- [ ] T002 [P] Set `QUEUE_CONNECTION=database` and `DB_QUEUE_RETRY_AFTER=210` in `deploy/backend.env.example` with a comment on why retry_after exceeds the 180 s job timeout (research D1)
+- [X] T001 Enable the bundled `pcntl` extension in `deploy/php/Dockerfile` and `docker/php/Dockerfile` (`docker-php-ext-install … pcntl`) so `queue:work --timeout` can stop a hung job (research D3)
+- [X] T002 [P] Set `QUEUE_CONNECTION=database` and `DB_QUEUE_RETRY_AFTER=210` in `deploy/backend.env.example` with a comment on why retry_after exceeds the 180 s job timeout (research D1)
 
 ## Phase 2: Foundational
 
-- [ ] T003 Write `backend/tests/Feature/Database/MediaStateMigrationTest.php`: columns exist, existing rows read `ready`, `media_source` nullable
-- [ ] T004 Create `backend/database/migrations/2026_10_14_000000_add_media_state_to_trashposts_table.php` (`media_state` string(16) default `ready`, `media_source` nullable string) per data-model.md
-- [ ] T005 Write failing tests in `backend/tests/Unit/Models/TrashpostTest.php` (or the existing visibility tests) that `publiclyVisible()` excludes `processing` and `failed` rows even when activated
-- [ ] T006 Add `media_state = 'ready'` to `Trashpost::scopePubliclyVisible` in `backend/app/Models/Trashpost.php` and add `Trashpost::MEDIA_PROCESSING/READY/FAILED` constants
-- [ ] T007 Write failing tests in `backend/tests/Unit/Support/FfmpegVideoTest.php`, `GifFileTest.php`, `WebpFileTest.php` that each Process is created with an explicit timeout (probe 30 s, others 90 s) — proven behaviourally where practical (a command that outlives a short timeout is killed and reported as a failure) — analyze I1
-- [ ] T008 Give every Process in `backend/app/Support/FfmpegVideo.php`, `GifFile.php`, `WebpFile.php` an explicit `setTimeout()`; a `ProcessTimedOutException` surfaces as the method's existing failure result/exception (research D3)
+- [X] T003 Write `backend/tests/Feature/Database/MediaStateMigrationTest.php`: columns exist, existing rows read `ready`, `media_source` nullable
+- [X] T004 Create `backend/database/migrations/2026_10_14_000000_add_media_state_to_trashposts_table.php` (`media_state` string(16) default `ready`, `media_source` nullable string) per data-model.md
+- [X] T005 Write failing tests in `backend/tests/Unit/Models/TrashpostTest.php` (or the existing visibility tests) that `publiclyVisible()` excludes `processing` and `failed` rows even when activated
+- [X] T006 Add `media_state = 'ready'` to `Trashpost::scopePubliclyVisible` in `backend/app/Models/Trashpost.php` and add `Trashpost::MEDIA_PROCESSING/READY/FAILED` constants
+- [X] T007 Write failing tests in `backend/tests/Unit/Support/FfmpegVideoTest.php`, `GifFileTest.php`, `WebpFileTest.php` that each Process is created with an explicit timeout (probe 30 s, others 90 s) — proven behaviourally where practical (a command that outlives a short timeout is killed and reported as a failure) — analyze I1
+- [X] T008 Give every Process in `backend/app/Support/FfmpegVideo.php`, `GifFile.php`, `WebpFile.php` an explicit `setTimeout()`; a `ProcessTimedOutException` surfaces as the method's existing failure result/exception (research D3)
 
 **Checkpoint**: schema + visibility rule + bounded tools in place.
 
@@ -31,34 +31,34 @@ delivered together; each keeps its own independent test.
 
 ### Tests (write first, must fail)
 
-- [ ] T009 [P] [US1] `backend/tests/Feature/Http/Controllers/CreatePostTest.php`: an image/video upload answers 201 with `media_state: processing`, pushes `ProcessPostMedia` (Queue::fake), writes NO variant files, stages the file on the `local` disk; YouTube answers `ready` and pushes `FetchYoutubeThumbnail`; staging failure → 503 and no row
-- [ ] T010 [P] [US3] `backend/tests/Unit/Jobs/ProcessPostMediaTest.php`: success → variants identical to the inline processor's, `ready`, source deleted; trusted (`autoActivate`) → activated + credited once; untrusted → stays pending; second run is a no-op; corrupt file → `failed`, no files, not activated, not rethrown; purged row → no files, nothing created; trashed row → processed but not activated; `failed()` cleans up like a processing failure
-- [ ] T011 [P] [US3] `backend/tests/Unit/Jobs/FetchYoutubeThumbnailTest.php`: calls the existing thumbnail service; missing post → no-op; tries/backoff declared
-- [ ] T012 [P] [US2] `backend/tests/Feature/Http/Controllers/TrashpostsApiControllerTest.php`: `media_state` in show/feed; owner and admin get 200 for processing/failed, guest and other member 404; feed never lists processing/failed
-- [ ] T013 [P] [US3] `backend/tests/Unit/Services/ModerationServiceTest.php` + `tests/Feature/Http/Controllers/Admin/ModerationControllerTest.php`: activate on non-ready → 409, no rating change; purge of a processing post deletes its staged source; admin index rows carry `media_state`
-- [ ] T014 [P] [US3] Sitemap/OG/shell tests assert a processing post is absent from `SitemapService`, `/og/{hash}.jpg` (404) and the shell body (existing test files)
+- [X] T009 [P] [US1] `backend/tests/Feature/Http/Controllers/CreatePostTest.php`: an image/video upload answers 201 with `media_state: processing`, pushes `ProcessPostMedia` (Queue::fake), writes NO variant files, stages the file on the `local` disk; YouTube answers `ready` and pushes `FetchYoutubeThumbnail`; staging failure → 503 and no row
+- [X] T010 [P] [US3] `backend/tests/Unit/Jobs/ProcessPostMediaTest.php`: success → variants identical to the inline processor's, `ready`, source deleted; trusted (`autoActivate`) → activated + credited once; untrusted → stays pending; second run is a no-op; corrupt file → `failed`, no files, not activated, not rethrown; purged row → no files, nothing created; trashed row → processed but not activated; `failed()` cleans up like a processing failure
+- [X] T011 [P] [US3] `backend/tests/Unit/Jobs/FetchYoutubeThumbnailTest.php`: calls the existing thumbnail service; missing post → no-op; tries/backoff declared
+- [X] T012 [P] [US2] `backend/tests/Feature/Http/Controllers/TrashpostsApiControllerTest.php`: `media_state` in show/feed; owner and admin get 200 for processing/failed, guest and other member 404; feed never lists processing/failed
+- [X] T013 [P] [US3] `backend/tests/Unit/Services/ModerationServiceTest.php` + `tests/Feature/Http/Controllers/Admin/ModerationControllerTest.php`: activate on non-ready → 409, no rating change; purge of a processing post deletes its staged source; admin index rows carry `media_state`
+- [X] T014 [P] [US3] Sitemap/OG/shell tests assert a processing post is absent from `SitemapService`, `/og/{hash}.jpg` (404) and the shell body (existing test files)
 
 ### Implementation
 
-- [ ] T015 [US1] Create `backend/app/Jobs/ProcessPostMedia.php` per research D5 (hash + autoActivate; tries 2, timeout 180; idempotent; locked transaction for ready+activate+credit; cleanup on failure; `failed()`)
-- [ ] T016 [P] [US1] Create `backend/app/Jobs/FetchYoutubeThumbnail.php` (tries 3, backoff [30,120], timeout 30) wrapping `YoutubeThumbnailService::ensure`
-- [ ] T017 [US1] Rework `TrashpostService::createPost` in `backend/app/Services/TrashpostService.php`: reserve row as before; image/video → set `media_state=processing`, stage the file to `local:staging/{hash}.{ext}` (503 on failure via a dedicated exception rendered by the controller), dispatch `ProcessPostMedia(hash, autoActivate)`; YouTube → `ready`, activate as today, dispatch `FetchYoutubeThumbnail`. Keep `TrashpostImageProcessor`/`TrashpostVideoProcessor` untouched; expose a `processStaged()`-style entry they already support (process an UploadedFile built from the staged path)
-- [ ] T018 [US1] Map the staging exception to 503 with the contract message in `backend/app/Http/Controllers/TrashpostsApiController.php`
-- [ ] T019 [US2] Add `media_state` to `backend/app/Http/Resources/TrashpostResource.php` and `AdminTrashpostResource.php`; never serialize `media_source`
-- [ ] T020 [US3] `ModerationService::activate` refuses non-ready with a 409 (`backend/app/Services/ModerationService.php` + controller mapping); `purge` deletes `media_source` from the `local` disk
-- [ ] T021 [US1] Add a `queue` service to `docker-compose.yml` (dev) running `php artisan queue:work database --sleep=3 --tries=1 --timeout=180 --max-jobs=200 --max-time=3600 --memory=256`, same image/volumes as `backend`
-- [ ] T022 [US1] Add `ladybug-queue` to `deploy/docker-compose.prod.yml` (same command, `restart: unless-stopped`, `mem_limit: 384m`, `stop_grace_period: 200s`, backend.env, storage bind mount) and rebalance the memory comment/limits (`ladybug-php` 550m → 450m) per research D2; set `php_admin_value[memory_limit] = 128M` in `deploy/php/www.conf` (request workers no longer decode media; the CLI worker keeps php.ini's 256M) — analyze C1
+- [X] T015 [US1] Create `backend/app/Jobs/ProcessPostMedia.php` per research D5 (hash + autoActivate; tries 2, timeout 180; idempotent; locked transaction for ready+activate+credit; cleanup on failure; `failed()`)
+- [X] T016 [P] [US1] Create `backend/app/Jobs/FetchYoutubeThumbnail.php` (tries 3, backoff [30,120], timeout 30) wrapping `YoutubeThumbnailService::ensure`
+- [X] T017 [US1] Rework `TrashpostService::createPost` in `backend/app/Services/TrashpostService.php`: reserve row as before; image/video → set `media_state=processing`, stage the file to `local:staging/{hash}.{ext}` (503 on failure via a dedicated exception rendered by the controller), dispatch `ProcessPostMedia(hash, autoActivate)`; YouTube → `ready`, activate as today, dispatch `FetchYoutubeThumbnail`. Keep `TrashpostImageProcessor`/`TrashpostVideoProcessor` untouched; expose a `processStaged()`-style entry they already support (process an UploadedFile built from the staged path)
+- [X] T018 [US1] Map the staging exception to 503 with the contract message in `backend/app/Http/Controllers/TrashpostsApiController.php`
+- [X] T019 [US2] Add `media_state` to `backend/app/Http/Resources/TrashpostResource.php` and `AdminTrashpostResource.php`; never serialize `media_source`
+- [X] T020 [US3] `ModerationService::activate` refuses non-ready with a 409 (`backend/app/Services/ModerationService.php` + controller mapping); `purge` deletes `media_source` from the `local` disk
+- [X] T021 [US1] Add a `queue` service to `docker-compose.yml` (dev) running `php artisan queue:work database --sleep=3 --tries=1 --timeout=180 --max-jobs=200 --max-time=3600 --memory=256`, same image/volumes as `backend`
+- [X] T022 [US1] Add `ladybug-queue` to `deploy/docker-compose.prod.yml` (same command, `restart: unless-stopped`, `mem_limit: 384m`, `stop_grace_period: 200s`, backend.env, storage bind mount) and rebalance the memory comment/limits (`ladybug-php` 550m → 450m) per research D2; set `php_admin_value[memory_limit] = 128M` in `deploy/php/www.conf` (request workers no longer decode media; the CLI worker keeps php.ini's 256M) — analyze C1
 
 ### Frontend (US2/US3)
 
-- [ ] T023 [P] [US2] Tests `frontend/tests/components/PostProcessing.test.tsx`: processing → `role="status"` text, spinner aria-hidden; failed → `role="alert"` with "Upload it again" link to `/upload`
-- [ ] T024 [P] [US2] Tests in `frontend/tests/hooks/usePost.test.tsx`: re-fetches every 2 s while `processing`, stops on ready/failed/unmount, pauses while `document.hidden`
-- [ ] T025 [P] [US2] Tests in `frontend/tests/pages/PostPage.test.tsx`: renders processing → swaps to the finished post in place when the refetch returns ready; renders failed state
-- [ ] T026 [P] [US3] Tests for the moderation console: "Processing"/"Processing failed" text badge, Activate absent unless ready (existing moderation component tests)
-- [ ] T027 [US2] Add `mediaState` to the post model types in `frontend/src/lib/feedModel.ts` (and the post/admin models that parse the API) defaulting to `ready`
-- [ ] T028 [US2] Create `frontend/src/components/PostProcessing.tsx` per contracts/ui-processing-state.md (+ styles in `frontend/src/styles/theme.css`, reduced-motion safe)
-- [ ] T029 [US2] Re-fetch while processing in `frontend/src/hooks/usePost.ts`; render by state in `frontend/src/pages/PostPage.tsx`
-- [ ] T030 [US3] Badge + Activate gating in `frontend/src/components/moderation/*`
+- [X] T023 [P] [US2] Tests `frontend/tests/components/PostProcessing.test.tsx`: processing → `role="status"` text, spinner aria-hidden; failed → `role="alert"` with "Upload it again" link to `/upload`
+- [X] T024 [P] [US2] Tests in `frontend/tests/hooks/usePost.test.tsx`: re-fetches every 2 s while `processing`, stops on ready/failed/unmount, pauses while `document.hidden`
+- [X] T025 [P] [US2] Tests in `frontend/tests/pages/PostPage.test.tsx`: renders processing → swaps to the finished post in place when the refetch returns ready; renders failed state
+- [X] T026 [P] [US3] Tests for the moderation console: "Processing"/"Processing failed" text badge, Activate absent unless ready (existing moderation component tests)
+- [X] T027 [US2] Add `mediaState` to the post model types in `frontend/src/lib/feedModel.ts` (and the post/admin models that parse the API) defaulting to `ready`
+- [X] T028 [US2] Create `frontend/src/components/PostProcessing.tsx` per contracts/ui-processing-state.md (+ styles in `frontend/src/styles/theme.css`, reduced-motion safe)
+- [X] T029 [US2] Re-fetch while processing in `frontend/src/hooks/usePost.ts`; render by state in `frontend/src/pages/PostPage.tsx`
+- [X] T030 [US3] Badge + Activate gating in `frontend/src/components/moderation/*`
 
 **Checkpoint**: uploads no longer process in-request; processing/failed states work end to end.
 

@@ -30,11 +30,13 @@ function TimeCell({ value }: { value: string | null }) {
 // fall back to the hash so the link always has text.
 function TitleCell({ row }: { row: Row }) {
   const short = ModerationModel.shortTitle(row.title);
+  const badge = ModerationModel.mediaBadge(row.mediaState);
   return (
     <td className="moderation-title" title={row.title ?? undefined}>
       <Link className="moderation-title__link" to={`/posts/${row.hash}`}>
         {short ?? row.hash}
       </Link>
+      {badge !== null && <span className="moderation-badge">{badge}</span>}
     </td>
   );
 }
