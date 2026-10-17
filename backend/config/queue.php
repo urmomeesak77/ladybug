@@ -43,7 +43,10 @@ return [
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
             'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
-            'after_commit' => false,
+            // 024: a job dispatched inside an open transaction is held until the commit, so
+            // the worker can never pick it up before the row it names exists (a mail to a
+            // user not yet committed would be dropped by deleteWhenMissingModels).
+            'after_commit' => true,
         ],
 
         'beanstalkd' => [

@@ -1,5 +1,6 @@
 import type { PageMeta } from './adminPaging';
 import { AdminPaging } from './adminPaging';
+import type { MediaState } from './feedModel';
 
 // The raw moderation row as the admin API serializes it (AdminTrashpostResource). Snake_case
 // mirrors the JSON; the render-ready ModerationRow below is the camelCase shape the UI reads.
@@ -12,6 +13,7 @@ export type RawModerationRow = {
   created_at: string | null;
   activated_at: string | null;
   deleted_at: string | null;
+  media_state?: MediaState;
 };
 
 // Laravel's paginator meta. The shape is shared across the admin consoles, so this is now
@@ -29,6 +31,7 @@ export type ModerationRow = {
   createdAt: string | null;
   activatedAt: string | null;
   deletedAt: string | null;
+  mediaState: MediaState;
 };
 
 // The table shows at most this many title characters; the full title moves into a tooltip.
@@ -81,6 +84,15 @@ export class ModerationModel {
     return null;
   }
 
+  // The row's processing badge (024), or null for a finished post. Text, not colour, carries
+  // it (Principle IV), so the console reads the same without styles.
+  static mediaBadge(state: MediaState): string | null {
+    if (state === 'processing') {
+      return 'Processing';
+    }
+    return state === 'failed' ? 'Processing failed' : null;
+  }
+
   static mapRow(raw: RawModerationRow): ModerationRow {
     return {
       hash: raw.hash,
@@ -91,6 +103,7 @@ export class ModerationModel {
       createdAt: raw.created_at,
       activatedAt: raw.activated_at,
       deletedAt: raw.deleted_at,
+      mediaState: raw.media_state ?? 'ready',
     };
   }
 

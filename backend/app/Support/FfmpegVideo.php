@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -24,6 +25,14 @@ class FfmpegVideo {
     ];
 
     /**
+     * Seconds any one ffprobe/ffmpeg call may run (024 FR-023). On expiry Process kills the
+     * child, so a hung tool cannot hold the queue worker — whose own job timeout would stop
+     * PHP but could orphan the ffmpeg it started.
+     */
+    public function __construct(private readonly float $timeoutSeconds = 90.0) {
+    }
+
+    /**
      * @return array{width: int, height: int, codec: string}|null
      */
     public function probe(string $path): ?array {
@@ -31,8 +40,7 @@ class FfmpegVideo {
             'ffprobe', '-v', 'error', ...self::SAFE_INPUT, '-select_streams', 'v:0',
             '-show_entries', 'stream=width,height,codec_name', '-of', 'json', $path,
         ]);
-        $process->run();
-        if (!$process->isSuccessful()) {
+        if (!$this->run($process)) {
             return null;
         }
 
@@ -61,9 +69,8 @@ class FfmpegVideo {
         $process = new Process([
             'ffmpeg', '-y', ...self::SAFE_INPUT, '-i', $srcPath, '-c', 'copy', '-movflags', '+faststart', $destPath,
         ]);
-        $process->run();
 
-        return $process->isSuccessful() && is_file($destPath);
+        return $this->run($process) && is_file($destPath);
     }
 
     public function extractPosterFrame(string $srcPath, string $destPath): bool {
@@ -73,8 +80,20 @@ class FfmpegVideo {
         }
 
         $process = new Process(['ffmpeg', '-y', ...self::SAFE_INPUT, '-i', $srcPath, '-frames:v', '1', $destPath]);
-        $process->run();
 
-        return $process->isSuccessful() && is_file($destPath);
+        return $this->run($process) && is_file($destPath);
+    }
+
+    /** Run under the timeout; a timed-out call is a failed call, like any other. */
+    private function run(Process $process): bool {
+        $process->setTimeout($this->timeoutSeconds);
+        try {
+            $process->run();
+        }
+        catch (ProcessTimedOutException) {
+            return false;
+        }
+
+        return $process->isSuccessful();
     }
 }

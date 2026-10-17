@@ -13,6 +13,7 @@ const post: FeedPost = {
   author: 'alice',
   createdAt: '2026-07-22T12:00:00Z',
   commentCount: 0,
+  mediaState: 'ready',
 };
 
 const otherPost: FeedPost = {
@@ -24,6 +25,7 @@ const otherPost: FeedPost = {
   author: 'bob',
   createdAt: '2026-07-21T08:30:00Z',
   commentCount: 0,
+  mediaState: 'ready',
 };
 
 const loadStart: PostPageAction = { type: 'loadStart' };

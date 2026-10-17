@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Controllers;
 
+use App\Jobs\SendRecoveryLink;
 use App\Models\User;
 use App\Models\UserIdentity;
+use App\Notifications\QueuedResetPassword;
 use App\Services\PasswordService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Cookie as ResponseCookie;
@@ -165,7 +168,7 @@ class PasswordResetControllerTest extends TestCase {
 
         $this->postJson('/api/password/forgot', ['email' => 'ada@example.com'])->assertOk();
 
-        Notification::assertSentToTimes($user, ResetPassword::class, 1);
+        Notification::assertSentToTimes($user, QueuedResetPassword::class, 1);
     }
 
     /**
@@ -775,5 +778,35 @@ class PasswordResetControllerTest extends TestCase {
         });
 
         return $user->email;
+    }
+
+    /**
+     * 024 FR-004: the request does the SAME work for every address — exactly one queued job,
+     * no lookup-dependent token write — so neither the body nor the time it takes says
+     * whether the account exists. The decision runs later, in the worker.
+     */
+    public function test_a_real_and_an_unknown_address_each_queue_exactly_one_recovery_job(): void {
+        Queue::fake();
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        foreach (['ada@example.com', 'nobody@example.com'] as $email) {
+            $this->postJson('/api/password/forgot', ['email' => $email])->assertOk();
+        }
+
+        Queue::assertCount(2);
+        $this->assertSame(
+            ['ada@example.com', 'nobody@example.com'],
+            Queue::pushed(SendRecoveryLink::class)->map->email->all(),
+        );
+        // The token is minted by the worker, not the request.
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+    }
+
+    public function test_a_rejected_address_queues_nothing(): void {
+        Queue::fake();
+
+        $this->postJson('/api/password/forgot', ['email' => 'not-an-address'])->assertStatus(422);
+
+        Queue::assertNothingPushed();
     }
 }

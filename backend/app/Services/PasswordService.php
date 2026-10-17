@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Jobs\SendRecoveryLink;
 use App\Models\User;
 use App\Support\SessionRevoker;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,16 @@ use Throwable;
  */
 class PasswordService {
     public function __construct(private readonly UserService $users) {
+    }
+
+    /**
+     * The request's half of "forgot password" (024 FR-004): queue the decision for EVERY
+     * address. One identical insert whatever the address names, so the response says
+     * nothing about the account — not in its body, and no longer in its timing either. The
+     * worker then runs sendRecoveryLink() below. Void for the same reason that one is.
+     */
+    public function requestRecoveryLink(string $email): void {
+        SendRecoveryLink::dispatch($email);
     }
 
     /**

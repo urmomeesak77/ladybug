@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Exceptions\MediaNotReady;
 use App\Models\Trashpost;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +55,10 @@ class ModerationService {
         DB::beginTransaction();
         try {
             $post = $this->find($hash);
+            // 024 FR-008: approving media that does not exist yet would publish a broken post.
+            if ($post->media_state !== Trashpost::MEDIA_READY) {
+                throw new MediaNotReady("Post {$hash} is {$post->media_state}.");
+            }
             // Credit only on a real inactive→active transition, so repeated or concurrent
             // activates total +1, never more (design 2026-07-21).
             if ($post->activated_at === null) {
@@ -161,6 +166,8 @@ class ModerationService {
         try {
             $post = $this->find($hash);
             $paths = $this->media->ownedPaths($post);
+            // A post purged while still processing also leaves its staged upload behind (024).
+            $staged = $post->media_source;
             // Settle BEFORE forceDelete: once the row is gone there is nothing left to
             // read the credit/penalty flags from, and the −2 would be lost with it.
             $this->rating->settlePurge($post);
@@ -173,6 +180,9 @@ class ModerationService {
         }
         $this->forgetMetadata($hash);
         $this->deleteEverywhere($paths);
+        if ($staged !== null) {
+            Storage::disk('local')->delete($staged);
+        }
     }
 
     /**

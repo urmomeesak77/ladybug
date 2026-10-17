@@ -98,6 +98,15 @@ final class OgImageControllerTest extends TestCase {
         $this->get("/og/{$post->hash}.jpg")->assertNotFound();
     }
 
+    /** 024 FR-006: approval alone is not visibility — the media must exist too. */
+    public function test_it_404s_for_an_activated_post_still_processing(): void {
+        $post = $this->webpPost();
+        $post->media_state = Trashpost::MEDIA_PROCESSING;
+        $post->save();
+
+        $this->get("/og/{$post->hash}.jpg")->assertNotFound();
+    }
+
     public function test_it_404s_for_a_soft_deleted_post(): void {
         $post = Trashpost::factory()->deleted()->create();
 

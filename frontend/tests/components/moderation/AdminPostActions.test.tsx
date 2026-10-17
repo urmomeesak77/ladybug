@@ -28,6 +28,7 @@ function row(overrides: Partial<ModerationRow> = {}): ModerationRow {
     createdAt: null,
     activatedAt: null,
     deletedAt: null,
+    mediaState: 'ready',
     ...overrides,
   };
 }
@@ -190,5 +191,26 @@ describe('AdminPostActions behaviour', () => {
           + 'Permanent delete removes the post and its files forever.',
       ),
     ).toBeTruthy();
+  });
+});
+
+describe('AdminPostActions media state (024)', () => {
+  it('offers no Activate for a pending post whose media is not ready', () => {
+    render(
+      <NoticeProvider>
+        <AdminPostActions
+          hash="Ab3-_9xQ12"
+          title="A funny post"
+          hidden="pending"
+          mediaState="processing"
+          onApplied={vi.fn()}
+          onRemoved={vi.fn()}
+        />
+      </NoticeProvider>,
+    );
+    openMenu();
+
+    expect(screen.queryByRole('menuitem', { name: /^activate$/i })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /^delete$/i })).toBeTruthy();
   });
 });

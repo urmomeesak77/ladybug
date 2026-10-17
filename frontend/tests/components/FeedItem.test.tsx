@@ -24,6 +24,7 @@ function post(overrides: Partial<FeedPost> = {}): FeedPost {
     author: 'alice',
     createdAt: '2026-07-22T12:00:00',
     commentCount: 0,
+    mediaState: 'ready',
     ...overrides,
   };
 }
@@ -105,7 +106,7 @@ describe('FeedItem', () => {
       ok: true,
       row: {
         hash: 'abc1234567', thumbnail: null, title: null, type: null,
-        username: null, createdAt: null, activatedAt: null, deletedAt: null,
+        username: null, createdAt: null, activatedAt: null, deletedAt: null, mediaState: 'ready',
       },
     });
     render(
@@ -130,7 +131,7 @@ describe('FeedItem', () => {
       ok: true,
       row: {
         hash: 'abc1234567', thumbnail: null, title: null, type: null,
-        username: null, createdAt: null, activatedAt: '2026-07-09 08:00:00', deletedAt: null,
+        username: null, createdAt: null, activatedAt: '2026-07-09 08:00:00', deletedAt: null, mediaState: 'ready',
       },
     });
     render(

@@ -648,6 +648,21 @@ final class ShellControllerTest extends TestCase {
         $response->assertDontSee('Pending meme', escape: false);
     }
 
+    /** 024 FR-006: an approved post whose media is still processing is not public yet. */
+    public function test_a_processing_meme_leaks_nothing_to_the_shell_or_the_crawlable_feed(): void {
+        $post = Trashpost::factory()->visible()->create(['title' => 'Processingsecrettitle']);
+        $post->media_state = Trashpost::MEDIA_PROCESSING;
+        $post->save();
+
+        $permalink = $this->get("/posts/{$post->hash}");
+        $permalink->assertSee('<meta name="robots" content="noindex, follow">', escape: false);
+        $permalink->assertDontSee('Processingsecrettitle', escape: false);
+
+        $feed = $this->get('/');
+        $feed->assertDontSee("/posts/{$post->hash}", escape: false);
+        $feed->assertDontSee('Processingsecrettitle', escape: false);
+    }
+
     public function test_a_hidden_memes_permalink_serves_no_crawlable_body(): void {
         $hidden = Trashpost::factory()->hidden()->create(['title' => 'Pending meme']);
 

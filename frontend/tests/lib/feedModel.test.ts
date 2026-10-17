@@ -269,3 +269,14 @@ describe('mapPost author and date', () => {
     expect(FeedModel.mapPost(makeRaw({ comment_count: undefined as unknown as number })).commentCount).toBe(0);
   });
 });
+
+describe('mapPost media state (024)', () => {
+  it('passes the media state through', () => {
+    expect(FeedModel.mapPost(makeRaw({ media_state: 'processing' })).mediaState).toBe('processing');
+    expect(FeedModel.mapPost(makeRaw({ media_state: 'failed' })).mediaState).toBe('failed');
+  });
+
+  it('reads a response without a media state as ready', () => {
+    expect(FeedModel.mapPost(makeRaw()).mediaState).toBe('ready');
+  });
+});

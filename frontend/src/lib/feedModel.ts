@@ -17,7 +17,13 @@ export type RawPost = {
   username: string | null;
   created_at: string | null;
   comment_count: number;
+  // 024: absent from a pre-024 response, which only ever served finished posts.
+  media_state?: MediaState;
 };
+
+// Where an upload's media is in the background pipeline (024). Only `ready` posts are
+// public; the other two are seen by their uploader and admins on the permalink.
+export type MediaState = 'processing' | 'ready' | 'failed';
 
 export type ImageSize = { url: string; width: number };
 
@@ -50,6 +56,7 @@ export type FeedPost = {
   author: string | null;
   createdAt: string | null;
   commentCount: number;
+  mediaState: MediaState;
 };
 
 // Non-empty alt/title fallback so screen-reader users are never given a blank image
@@ -105,6 +112,7 @@ export class FeedModel {
       author: raw.username,
       createdAt: raw.created_at,
       commentCount: raw.comment_count ?? 0,
+      mediaState: raw.media_state ?? 'ready',
     };
   }
 

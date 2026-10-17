@@ -61,6 +61,7 @@ const post: FeedPost = {
   author: 'alice',
   createdAt: '2026-07-22T12:00:00',
   commentCount: 0,
+  mediaState: 'ready',
 };
 
 function renderPost(hash = 'abc1234567', role: RoleName = 'guest') {
@@ -176,7 +177,7 @@ describe('PostPage', () => {
       ok: true,
       row: {
         hash: 'abc1234567', thumbnail: null, title: null, type: null,
-        username: null, createdAt: null, activatedAt: null, deletedAt: null,
+        username: null, createdAt: null, activatedAt: null, deletedAt: null, mediaState: 'ready',
       },
     });
 
@@ -354,5 +355,63 @@ describe('PostPage animated media', () => {
     expect(document.querySelector('canvas')).toBeNull();
     expect(MockIntersectionObserver.instances).toHaveLength(0);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('PostPage while the upload is processing (024)', () => {
+  const processing: FeedPost = { ...post, hidden: 'pending', mediaState: 'processing' };
+
+  it('shows the processing status instead of the media', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post: processing });
+
+    renderPost();
+
+    expect(await screen.findByRole('heading', { name: 'Funny cat' })).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('Your upload is being processed.');
+    expect(screen.queryByRole('img', { name: 'Funny cat' })).toBeNull();
+    // One status, not two: "pending review" is beside the point until the media exists.
+    expect(screen.queryByText(/pending review/i)).toBeNull();
+  });
+
+  it('swaps to the finished post in place when the refresh comes back ready', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(Api, 'fetchPost')
+        .mockResolvedValueOnce({ ok: true, post: processing })
+        .mockResolvedValue({ ok: true, post });
+      vi.spyOn(CommentApi, 'fetchPage').mockResolvedValue({ ok: false });
+
+      renderPost();
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(screen.getByRole('status').textContent).toContain('Your upload is being processed.');
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+      expect(screen.getByRole('img', { name: 'Funny cat' })).toBeTruthy();
+      expect(screen.queryByText('Your upload is being processed.', { exact: false })).toBeNull();
+    }
+    finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows the failure alert with a way to upload again', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post: { ...processing, mediaState: 'failed' } });
+
+    renderPost();
+
+    expect((await screen.findByRole('alert')).textContent).toContain("We couldn't process this upload.");
+    expect(screen.getByRole('link', { name: 'Upload it again' }).getAttribute('href')).toBe('/upload');
+    expect(screen.queryByRole('img', { name: 'Funny cat' })).toBeNull();
+  });
+
+  it('offers an admin no Activate while the media is not ready', async () => {
+    vi.spyOn(Api, 'fetchPost').mockResolvedValue({ ok: true, post: processing });
+
+    renderPost('abc1234567', 'admin');
+    await screen.findByRole('heading', { name: 'Funny cat' });
+
+    fireEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    expect(screen.queryByRole('menuitem', { name: /^activate$/i })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /^delete$/i })).toBeTruthy();
   });
 });

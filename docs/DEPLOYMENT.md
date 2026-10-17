@@ -630,6 +630,66 @@ To switch recording off entirely, set `ACCESS_LOG_ENABLED=false` in
 `backend.env` and redeploy. Off means "stop writing", never "erase": every row
 already recorded stays.
 
+### The queue worker (024)
+
+Since 024 the slow work no longer happens inside a request. `ladybug-queue`
+runs `php artisan queue:work` off the `jobs` table (`QUEUE_CONNECTION=database`
+in `backend.env`) and does three kinds of job:
+
+| Job | What it does | On failure |
+| --- | --- | --- |
+| `ProcessPostMedia` | turns a staged upload into its variants / poster, then marks the post `ready` (and activates it for a trusted uploader) | the post is marked `failed` and its files removed; the uploader sees "Upload it again" |
+| `SendQueuedNotifications` (the framework's wrapper) | `QueuedVerifyEmail` / `QueuedResetPassword` — verification and password-recovery mail | 5 tries over ~20 min, then `failed_jobs` |
+| `SendRecoveryLink` | the whole "forgot password" decision: lookup, token, mail | 3 tries, then `failed_jobs` |
+| `FetchYoutubeThumbnail` | a YouTube post's still | 3 tries; a miss leaves the post without a still, never in `failed_jobs` |
+
+Until the worker has run, an image or video post is `processing`: its owner and
+admins see a "being processed" page, everyone else gets 404, and it is in no
+feed, sitemap or unfurl. **If the worker is down, uploads simply never finish**
+— the site itself stays healthy, which is why `deploy.sh` prints the worker's
+state and the `failed_jobs` count after every deploy, and why it is worth a
+look after any incident:
+
+```sh
+cd /web/online-trash.com
+docker compose ps ladybug-queue                       # State must be "running"
+docker compose logs --tail=100 ladybug-queue
+docker compose exec ladybug-php php artisan queue:failed           # what gave up, and why
+docker compose exec ladybug-php php artisan queue:retry <uuid|all> # after fixing the cause
+docker compose exec ladybug-php php artisan queue:forget <uuid>    # drop one for good
+```
+
+**When to retry.** Mail is worth retrying once the mail server is fixed — a
+verification mail builds a fresh signed link when it is sent — but a recovery
+mail older than 60 minutes carries an expired token, so `queue:forget` it and
+let the person ask again. A `ProcessPostMedia` entry in `failed_jobs` means the
+worker itself died on both deliveries (an OOM kill, most likely); the post is
+already `failed` and cleaned up, so retrying it does nothing — forget it, and
+look at `docker inspect -f '{{.State.OOMKilled}}'` on the worker first. The
+payloads of the two recovery jobs (`SendRecoveryLink` and the recovery mail)
+are encrypted with `APP_KEY`, so `failed_jobs` (and the backups) never hold a
+readable reset token or address; the verification mail carries no secret — its
+signed link is built when it is sent.
+
+**Stuck uploads.** A post can only stay `processing` if the worker is down or
+its job was lost. This lists any older than ten minutes:
+
+```sql
+SELECT hash, created_at FROM trashposts
+WHERE media_state = 'processing' AND created_at < NOW() - INTERVAL 10 MINUTE;
+```
+
+With the worker running again they finish on their own (a job that was
+in flight when a worker died is handed out again after `DB_QUEUE_RETRY_AFTER`,
+210 s). A post whose staged file is gone is marked `failed` by that retry.
+
+**Deploys and restarts.** `deploy.sh`'s `up -d` recreates the worker with the
+new image like every other service; `stop_grace_period: 200s` lets a job in
+flight finish first (the job timeout is 180 s). Queued jobs live in MySQL, so
+nothing is lost across a restart. The worker also recycles itself every 200
+jobs or hour, and whenever its heap passes 256 MB; `restart: unless-stopped`
+brings it back.
+
 ## 6. Backups
 
 After cutover, the server holds exactly three things that do not already exist
@@ -1048,8 +1108,8 @@ docker compose -f /web/online-trash.com/docker-compose.yml logs --tail=100 <serv
 docker compose -f /web/online-trash.com/docker-compose.yml ps
 ```
 
-`<service>` is one of `ladybug-mysql`, `ladybug-php` or `ladybug-web` — the
-three service names are load-bearing throughout the stack (`fastcgi_pass
+`<service>` is one of `ladybug-mysql`, `ladybug-php`, `ladybug-web`,
+`ladybug-queue` or `ladybug-scheduler` — the first three service names are load-bearing throughout the stack (`fastcgi_pass
 ladybug-php:9000` in `deploy/web/default.conf`, `DB_HOST=ladybug-mysql` in
 `backend.env`), so they never change.
 
@@ -1061,31 +1121,34 @@ runs). The estimated steady-state budget:
 | OS + dockerd | ~250 MiB |
 | edge nginx + Thousand | ~95 MiB |
 | `ladybug-mysql` (tuned) | ~280 MiB |
-| `ladybug-php` (master + 2–3 workers) | ~180 MiB |
+| `ladybug-php` (master + 2–3 workers) | ~150 MiB |
+| `ladybug-queue` (idle; one job at a time) | ~45 MiB |
+| `ladybug-scheduler` | ~40 MiB |
 | `ladybug-web` | ~15 MiB |
-| **Total** | **~820 MiB of 960 MiB** |
+| **Total** | **~875 MiB of 960 MiB** |
 
 If `docker stats` shows a container well above its line here, or `free -h`
 shows swap climbing steadily rather than absorbing a brief spike, that is the
 first sign of trouble — check that container's logs next.
 
 **Per-container memory ceilings.** `docker-compose.prod.yml` sets `mem_limit`
-on every service: `ladybug-mysql` 384m, `ladybug-php` 550m,
-`ladybug-scheduler` 192m, `ladybug-web` 64m (the arithmetic is in the file's
-header). They are ceilings for a spike, not reservations, and deliberately sum
-past what the box has. Their job is to make an out-of-memory event **local**:
-php's three workers × `memory_limit=256M` is already 768M, and the
-`convert` / `ffmpeg` / `gifsicle` children they spawn are not bounded by
-`memory_limit` at all — without a cgroup limit the kernel's OOM killer picks the
-biggest process on the box, which is `mysqld`. With it, the kernel kills a
-worker or its child inside `ladybug-php` and php-fpm respawns it.
+on every service: `ladybug-mysql` 384m, `ladybug-php` 450m,
+`ladybug-queue` 384m, `ladybug-scheduler` 192m, `ladybug-web` 64m (the
+arithmetic is in the file's header). They are ceilings for a spike, not
+reservations, and deliberately sum past what the box has. Their job is to make
+an out-of-memory event **local**. Since 024 the media decoding — the one truly
+large allocation — happens in `ladybug-queue`, one job at a time, under the
+CLI's `memory_limit=256M`; the `convert` / `ffmpeg` / `gifsicle` children it
+spawns are not bounded by `memory_limit` at all, which is what its 384m cgroup
+limit is for. The fpm pool now runs at `memory_limit=192M` (`www.conf`), enough
+for the OG-image transcode, the heaviest thing left in a request. Without the
+cgroup limits the kernel's OOM killer picks the biggest process on the box,
+which is `mysqld`; with them it kills the worker or its child, and `restart:` /
+php-fpm bring it back.
 `docker stats --no-stream` shows each container's usage against its limit
 (`MEM USAGE / LIMIT`); `docker inspect -f '{{.State.OOMKilled}}' <container>`
 says whether a container's main process was killed. If `ladybug-mysql` ever
-sits near its 384m, raise that limit before anything else. A planned
-queue-worker container should get ~192m like the scheduler (or, if it ever
-does media processing, be sized like `ladybug-php` with `pm.max_children`
-lowered to pay for it).
+sits near its 384m, raise that limit before anything else.
 
 **php-fpm request ceiling.** `deploy/php/www.conf` sets
 `request_terminate_timeout = 70s`, just past `ladybug-web`'s 60s
@@ -1119,9 +1182,11 @@ happens on a host reboot, since Docker's daemon-triggered container restarts
 do not honour `depends_on`. Check `ladybug-php`'s own logs and, if it never
 comes healthy, `ladybug-mysql`'s.
 
-An upload that hangs or a container that gets OOM-killed under a large image
-is the accepted-risk case documented in the design spec: GD decodes a 10 MiB
-upload to raw pixels in memory, which can transiently want several hundred
-MiB. Swap should absorb it (a slow upload); if MySQL gets OOM-killed instead,
+An upload that stays "processing", or a `ladybug-queue` that gets OOM-killed
+under a large image, is the accepted-risk case documented in the design spec:
+GD decodes a 10 MiB upload to raw pixels in memory, which can transiently want
+a few hundred MiB. Since 024 that happens in the worker, not in a request, so
+the visitor is never kept waiting — a kill shows as a post that ends `failed`
+(see "The queue worker (024)" in Section 5). If MySQL gets OOM-killed instead,
 that is the failure mode Section 3's swapfile exists to prevent — check
 `free -h` and `dmesg | grep -i oom`.

@@ -8,9 +8,12 @@ use App\Enums\Role;
 use App\Models\Trashpost;
 use App\Models\User;
 use App\Models\UserIdentity;
+use App\Notifications\QueuedResetPassword;
+use App\Notifications\QueuedVerifyEmail;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 final class UserTest extends TestCase {
@@ -219,5 +222,26 @@ final class UserTest extends TestCase {
 
         $this->assertCount(1, $posts);
         $this->assertTrue($posts->first()->is($post));
+    }
+
+    /** 024 US4: both account mails leave through the queue, never inline in the request. */
+    public function test_the_verification_mail_is_the_queued_one(): void {
+        Notification::fake();
+        $user = User::factory()->unverified()->create();
+
+        $user->sendEmailVerificationNotification();
+
+        Notification::assertSentTo($user, QueuedVerifyEmail::class);
+    }
+
+    public function test_the_recovery_mail_is_the_queued_one_carrying_the_token(): void {
+        Notification::fake();
+        $user = User::factory()->create();
+
+        $user->sendPasswordResetNotification('a1b2c3');
+
+        Notification::assertSentTo($user, QueuedResetPassword::class);
+        $sent = Notification::sent($user, QueuedResetPassword::class)->first();
+        $this->assertSame('a1b2c3', $sent->token);
     }
 }

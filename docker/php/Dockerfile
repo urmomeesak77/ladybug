@@ -41,7 +41,7 @@ ENV MAGICK_TIME_LIMIT=60
 # job down twice, and retrying does not help a registry-side failure.
 ENV PCOV_VERSION=1.0.12
 RUN docker-php-ext-configure gd --with-jpeg --with-freetype --with-webp \
-    && docker-php-ext-install pdo_mysql zip bcmath gd \
+    && docker-php-ext-install pdo_mysql zip bcmath gd pcntl \
     && mkdir -p /usr/src/pcov \
     && curl -fsSL "https://codeload.github.com/krakjoe/pcov/tar.gz/refs/tags/v${PCOV_VERSION}" \
         | tar -xz -C /usr/src/pcov --strip-components=1 \

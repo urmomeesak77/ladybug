@@ -56,10 +56,13 @@ class ModerationMenu {
           icon: <ActionIcon glyph="activate" />,
           onChoose: () => apply(ModerationApi.activate(row.hash)),
         };
-    return [
-      activation,
-      { label: 'Delete', icon: <ActionIcon glyph="delete" />, onChoose: askDelete },
-    ];
+    const remove: ActionMenuItem = { label: 'Delete', icon: <ActionIcon glyph="delete" />, onChoose: askDelete };
+    // 024: activating media that does not exist yet would publish a broken post — the server
+    // refuses it with 409, so the menu does not offer it at all.
+    if (!activated && row.mediaState !== 'ready') {
+      return [remove];
+    }
+    return [activation, remove];
   }
 
   static deleted(row: Row, apply: ApplyAction, askPurge: () => void): ActionMenuItem[] {

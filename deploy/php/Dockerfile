@@ -69,7 +69,7 @@ RUN set -eu; \
 ENV MAGICK_TIME_LIMIT=60
 
 RUN docker-php-ext-configure gd --with-jpeg --with-freetype --with-webp \
-    && docker-php-ext-install pdo_mysql zip bcmath gd opcache
+    && docker-php-ext-install pdo_mysql zip bcmath gd opcache pcntl pcntl
 
 COPY deploy/php/php.ini /usr/local/etc/php/conf.d/zz-ladybug.ini
 COPY deploy/php/www.conf /usr/local/etc/php-fpm.d/zz-ladybug.conf

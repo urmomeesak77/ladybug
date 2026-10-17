@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Controllers;
 
 use App\Models\User;
+use App\Notifications\QueuedVerifyEmail;
 use App\Services\UserAdminService;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
@@ -179,7 +182,7 @@ class EmailVerificationControllerTest extends TestCase {
 
         $response->assertOk();
         $response->assertExactJson(['message' => 'Verification link sent.']);
-        Notification::assertSentTo($user, VerifyEmail::class);
+        Notification::assertSentTo($user, QueuedVerifyEmail::class);
     }
 
     public function test_resend_for_an_already_verified_user_is_refused_and_sends_nothing(): void {
@@ -263,5 +266,17 @@ class EmailVerificationControllerTest extends TestCase {
         $response = $this->actingAs($user)->getJson($url);
 
         $response->assertStatus(429);
+    }
+
+    /** 024 US4: a resend is queued like the first send. */
+    public function test_resend_queues_the_verification_mail_rather_than_sending_it(): void {
+        Queue::fake();
+        $user = User::factory()->unverified()->create();
+
+        $this->actingAs($user)->postJson('/api/email/verification-notification')->assertOk();
+
+        $queued = Queue::pushed(SendQueuedNotifications::class)->map->notification->all();
+        $this->assertCount(1, $queued);
+        $this->assertInstanceOf(QueuedVerifyEmail::class, $queued[0]);
     }
 }

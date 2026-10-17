@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
+import type { Dispatch, RefObject } from 'react';
 
 import { Api } from '../lib/api';
-import type { PostPageState } from '../lib/postModel';
+import type { PostPageAction, PostPageState } from '../lib/postModel';
 import { PostModel } from '../lib/postModel';
+import { ProcessingPoll } from '../lib/processingPoll';
 
 // Thin React glue for the single-meme page: fetch on mount and on every hash change,
 // expose an in-place retry. State transitions live in lib/postModel and IO in lib/api
@@ -54,5 +56,38 @@ export function usePost(hash: string | undefined): {
     dispatch({ type: 'applyModeration', hidden });
   }, []);
 
+  const isProcessing = state.status === 'loaded' && state.post.mediaState === 'processing';
+  useProcessingRefresh(isProcessing ? hash : undefined, wantedHashRef, dispatch);
+
   return { state, retry, applyModeration };
+}
+
+// While the shown post's upload is still processing (024), re-fetch it every few seconds and
+// swap the result in place: a loadSuccess straight onto the loaded post, never a loadStart,
+// so the page does not flash its loading state. A transient failure keeps the processing view
+// and simply tries again on the next tick; a 404 (purged meanwhile) shows not-found. Passing
+// no hash — the post finished, failed, or the page left — stops the poll.
+function useProcessingRefresh(
+  hash: string | undefined,
+  wantedHashRef: RefObject<string | undefined>,
+  dispatch: Dispatch<PostPageAction>,
+): void {
+  useEffect(() => {
+    if (hash === undefined) {
+      return undefined;
+    }
+    const poll = new ProcessingPoll(async () => {
+      const result = await Api.fetchPost(hash);
+      if (wantedHashRef.current !== hash) {
+        return;
+      }
+      if (result.ok) {
+        dispatch({ type: 'loadSuccess', post: result.post });
+      } else if (result.error.kind === 'notFound') {
+        dispatch({ type: 'loadNotFound' });
+      }
+    });
+    poll.start();
+    return () => poll.stop();
+  }, [hash, wantedHashRef, dispatch]);
 }

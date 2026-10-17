@@ -21,6 +21,7 @@ const row: ModerationRow = {
   createdAt: '2026-07-08 20:14:02',
   activatedAt: '2026-07-09 08:01:10',
   deletedAt: null,
+  mediaState: 'ready',
 };
 
 const meta = { current_page: 1, last_page: 1, per_page: 100, total: 1 };

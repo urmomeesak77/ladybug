@@ -69,6 +69,19 @@ final class FfmpegVideoTest extends TestCase {
         $this->assertFalse((new FfmpegVideo())->remuxFaststart($playlist, "{$this->dir}/out.mp4"));
     }
 
+    /** 024 FR-023: a hung ffprobe/ffmpeg is killed and reported as the method's failure value. */
+    public function test_a_probe_that_outlives_its_timeout_returns_null(): void {
+        $this->assertNull((new FfmpegVideo(0.001))->probe("{$this->fixtures}/sample.mp4"));
+    }
+
+    public function test_a_poster_extraction_that_outlives_its_timeout_returns_false(): void {
+        $this->assertFalse((new FfmpegVideo(0.001))->extractPosterFrame("{$this->fixtures}/sample.mp4", "{$this->dir}/p.jpg"));
+    }
+
+    public function test_a_remux_that_outlives_its_timeout_returns_false(): void {
+        $this->assertFalse((new FfmpegVideo(0.001))->remuxFaststart("{$this->fixtures}/sample.mp4", "{$this->dir}/o.mp4"));
+    }
+
     public function test_probe_returns_stream_info_for_a_webm(): void {
         $probe = (new FfmpegVideo())->probe("{$this->fixtures}/sample.webm");
 

@@ -27,6 +27,7 @@ const activated: Row = {
   createdAt: '2026-07-08 20:14:02',
   activatedAt: '2026-07-09 08:01:10',
   deletedAt: null,
+  mediaState: 'ready',
 };
 
 const inactive: Row = { ...activated, activatedAt: null };
@@ -264,5 +265,31 @@ describe('ModerationActions deletion confirmations (unchanged, FR-017)', () => {
           + 'Permanent delete removes the post and its files forever.',
       ),
     ).toBeTruthy();
+  });
+});
+
+describe('ModerationActions media state (024)', () => {
+  it('offers no Activate while the media is processing, but still offers Delete', () => {
+    renderInRow({ ...inactive, mediaState: 'processing' });
+    openMenu();
+
+    expect(screen.queryByRole('menuitem', { name: /^activate$/i })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /^delete$/i })).toBeTruthy();
+  });
+
+  it('offers no Activate once processing has failed', () => {
+    renderInRow({ ...inactive, mediaState: 'failed' });
+    openMenu();
+
+    expect(screen.queryByRole('menuitem', { name: /^activate$/i })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /^delete$/i })).toBeTruthy();
+  });
+
+  it('still offers Restore and Delete for a soft-deleted row that never finished', () => {
+    renderInRow({ ...deletedRow, mediaState: 'failed' });
+    openMenu();
+
+    expect(screen.getByRole('menuitem', { name: /^restore$/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /^delete$/i })).toBeTruthy();
   });
 });

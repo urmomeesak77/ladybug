@@ -18,6 +18,7 @@ const row: Row = {
   createdAt: '2026-07-08 20:14:02',
   activatedAt: '2026-07-09 08:01:10',
   deletedAt: null,
+  mediaState: 'ready',
 };
 
 // ModerationActions (rendered inside ModerationRow) now raises delete confirms through
@@ -112,5 +113,25 @@ describe('ModerationRow', () => {
 
     const link = screen.getByRole('link', { name: 'Ab3-_9xQ12' });
     expect(link.getAttribute('href')).toBe('/posts/Ab3-_9xQ12');
+  });
+});
+
+describe('ModerationRow media state (024)', () => {
+  it('badges a processing row in words beside its title', () => {
+    renderRow({ ...row, activatedAt: null, mediaState: 'processing' });
+
+    expect(screen.getByText('Processing')).toBeTruthy();
+  });
+
+  it('badges a row whose processing failed', () => {
+    renderRow({ ...row, activatedAt: null, mediaState: 'failed' });
+
+    expect(screen.getByText('Processing failed')).toBeTruthy();
+  });
+
+  it('shows no badge on a finished row', () => {
+    renderRow(row);
+
+    expect(screen.queryByText(/^processing/i)).toBeNull();
   });
 });

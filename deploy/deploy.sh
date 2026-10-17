@@ -56,6 +56,26 @@ prune_old_images() {
     docker image prune -f >/dev/null 2>&1 || true
 }
 
+# The queue worker (024) is the one service whose death the health poll cannot see: the
+# site keeps answering /api/health while uploads sit "processing" and no mail leaves.
+# So say, after every healthy deploy, whether it is running and how many jobs have given
+# up. Informational only -- it never fails the deploy (the site IS up); a non-zero
+# failed count is the operator's cue for docs/DEPLOYMENT.md "The queue worker (024)".
+queue_summary() {
+    echo "==> Queue worker"
+    if [ -n "$(docker compose ps -q --status running ladybug-queue 2>/dev/null)" ]; then
+        echo "    ladybug-queue is running"
+    else
+        echo "    WARNING: ladybug-queue is NOT running -- uploads will not finish processing"
+    fi
+    local failed
+    # Straight from MySQL, authenticated the same way as the pre-migration dump above.
+    failed="$(docker compose exec -T ladybug-mysql sh -c \
+        'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -N -uroot trashdb -e "SELECT COUNT(*) FROM failed_jobs"' \
+        2>/dev/null || true)"
+    echo "    failed jobs: ${failed:-unknown}"
+}
+
 # The exact command that puts the previous build back. Only a full SHA is a real
 # rollback target: `latest` has just been re-pointed at the NEW build by the pull.
 rollback_hint() {
@@ -199,6 +219,7 @@ for i in $(seq 1 20); do
     if docker compose exec -T ladybug-web wget -qO- http://127.0.0.1/api/health >/dev/null 2>&1; then
         echo "    healthy after ${i}s"
         docker compose ps
+        queue_summary
         prune_old_images
         exit 0
     fi

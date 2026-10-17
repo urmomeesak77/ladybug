@@ -22,6 +22,22 @@ final class SchemaTest extends TestCase {
         ]));
     }
 
+    public function test_trashposts_has_the_media_processing_columns(): void {
+        $this->assertTrue(Schema::hasColumns('trashposts', ['media_state', 'media_source']));
+    }
+
+    public function test_a_row_inserted_without_a_media_state_is_ready(): void {
+        // Every post that predates 024 already has its media, so the default IS the correct
+        // historical value — no backfill (data-model.md). media_source is only ever set while
+        // a staged upload waits for the worker.
+        DB::table('trashposts')->insert(['hash' => 'p000000001', 'title' => 'Legacy']);
+
+        $row = DB::table('trashposts')->where('hash', 'p000000001')->first();
+
+        $this->assertSame('ready', $row->media_state);
+        $this->assertNull($row->media_source);
+    }
+
     public function test_users_table_has_expected_columns(): void {
         $this->assertTrue(Schema::hasTable('users'));
         $this->assertTrue(Schema::hasColumns('users', [

@@ -12,11 +12,11 @@ backend over a JSON API, backed by **MySQL** via Eloquent.
 ## Current State (as of 2026-08-07)
 
 The project is **past planning**: both `backend/` (Laravel 12) and `frontend/`
-(React 18 + Vite + TypeScript) are scaffolded and twenty-two features are implemented.
+(React 18 + Vite + TypeScript) are scaffolded and twenty-four features are implemented.
 Features follow the Spec Kit flow (specify → plan → tasks → implement) under `specs/`:
 
 **Documentation gap:** 016-seo-discoverability, 017-google-oauth-login,
-018-remember-me-login, 019-video-upload and 020-youtube-shorts-support are implemented
+018-remember-me-login, 019-video-upload, 020-youtube-shorts-support and 023-access-log are implemented
 and on `master` but have no entry below — read their `specs/` directories directly.
 
 - **001-infra-scaffold** — `backend/` + `frontend/` skeletons, lint/test tooling,
@@ -177,6 +177,34 @@ and on `master` but have no entry below — read their `specs/` directories dire
   password (`422`) leaves the link alive. A separate `password` rate limiter (not
   `auth`'s bucket) keys anonymous requests by IP and the account-page change by account
   id, so tripping one never locks out the other.
+- **024-queued-background-work** — the slow work leaves the request path. An image/video
+  upload is only **staged** (`local:staging/{hash}`) and the post created `media_state =
+  processing` (new `media_state` / `media_source` columns, both out of `$fillable`); the
+  `ProcessPostMedia` job runs the UNCHANGED image/video processors via
+  `TrashpostService::processStaged`, then — in one locked transaction — marks it `ready` and,
+  for a trusted uploader (decided at upload time), activates + credits it. A file that cannot
+  be processed ends `failed` and is **not** rethrown (it would fail identically on a retry);
+  the job's own `$tries = 2` covers only a dying worker, and `failed()` cleans up the same way.
+  `publiclyVisible()` / `isPubliclyVisible()` now also require `ready`, so a processing or
+  failed post is in no feed, sitemap, OG image or shell — but its owner and admins get it on
+  the permalink, where `PostPage` shows a `role="status"` block re-fetched every 2 s by the
+  `ProcessingPoll` instance class (paused while the tab is hidden), or a `role="alert"` with
+  "Upload it again". Activate on a non-ready post answers **409** and is not offered in either
+  admin menu; the console badges "Processing" / "Processing failed" in text. A staging write
+  failure answers **503** with no row left behind. YouTube posts are ready at once; their still
+  is `FetchYoutubeThumbnail` (released on a miss, never thrown — best effort stays out of
+  `failed_jobs`). Mail is queued too: `QueuedVerifyEmail` / `QueuedResetPassword` (5 tries,
+  backoff 10/60/300/900, `deleteWhenMissingModels`), and **forgot-password queues the whole
+  decision** (`SendRecoveryLink` → the unchanged `PasswordService::sendRecoveryLink`) for EVERY
+  address, so the request does identical work either way — closing the timing oracle 022 left.
+  `QueuedResetPassword` and `SendRecoveryLink` are `ShouldBeEncrypted`: their payloads hold a
+  plaintext reset token / an address that would otherwise sit readable in `failed_jobs` and the
+  dumps. Workers: dev compose `queue`, prod `ladybug-queue` (384m, `stop_grace_period` 200 s
+  past the 180 s job timeout, `DB_QUEUE_RETRY_AFTER=210`); `ladybug-php` dropped 550m→450m and
+  its pool to `memory_limit=192M` (not lower: the in-request OG transcode can still decode a
+  ~100 MB bitmap). `pcntl` is enabled so `--timeout` can kill a hung job, and every
+  ffmpeg/gifsicle/convert call has its own Process timeout. The e2e stack stays on `sync` (no
+  worker). After a PHP edit the dev worker needs `docker compose restart queue`, like `backend`.
 
 Supporting files:
 
@@ -344,5 +372,5 @@ branches and commits. A plan's Constitution Check must pass before implementatio
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/023-access-log/plan.md` (feature: HTTP Access Log).
+`specs/024-queued-background-work/plan.md` (feature: Queued Background Work).
 <!-- SPECKIT END -->

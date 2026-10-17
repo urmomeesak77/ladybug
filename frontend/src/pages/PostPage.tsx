@@ -5,6 +5,7 @@ import AdminPostActions from '../components/moderation/AdminPostActions';
 import CommentSection from '../components/comments/CommentSection';
 import MemeMedia from '../components/MemeMedia';
 import PostByline from '../components/PostByline';
+import PostProcessing from '../components/PostProcessing';
 import ErrorState from '../components/states/ErrorState';
 import HiddenNotice from '../components/states/HiddenNotice';
 import LoadingState from '../components/states/LoadingState';
@@ -26,6 +27,7 @@ function PostPage() {
   const { state, retry, applyModeration } = usePost(hash);
   // Admin+ viewers get the in-place moderation kebab; the server still gates the actions.
   const canModerate = Role.rank(role) >= Role.rank('admin');
+  const isReady = state.status !== 'loaded' || state.post.mediaState === 'ready';
 
   // 005 set history.scrollRestoration = 'manual' globally (the feed restores its own
   // anchor), so the browser no longer resets scroll on SPA navigation — without this
@@ -50,7 +52,9 @@ function PostPage() {
       {state.status === 'error' && <ErrorState onRetry={retry} />}
       {state.status === 'loaded' && (
         <article className="post-item feed-item">
-          {state.post.hidden && <HiddenNotice status={state.post.hidden} />}
+          {/* Until the media exists, "pending review" is beside the point — the processing
+              block is the one status (024). */}
+          {isReady && state.post.hidden && <HiddenNotice status={state.post.hidden} />}
           <div className="feed-item__header">
             <h1 className="feed-item__title">{state.post.title ?? 'Untitled meme'}</h1>
             {canModerate && (
@@ -58,14 +62,21 @@ function PostPage() {
                 hash={state.post.hash}
                 title={state.post.title}
                 hidden={state.post.hidden}
+                mediaState={state.post.mediaState}
                 onApplied={applyModeration}
                 onRemoved={() => navigate('/')}
               />
             )}
           </div>
-          <MemeMedia media={state.post.media} />
-          <PostByline author={state.post.author} createdAt={state.post.createdAt} commentCount={state.post.commentCount} />
-          <CommentSection hash={state.post.hash} />
+          {state.post.mediaState === 'ready' ? (
+            <>
+              <MemeMedia media={state.post.media} />
+              <PostByline author={state.post.author} createdAt={state.post.createdAt} commentCount={state.post.commentCount} />
+              <CommentSection hash={state.post.hash} />
+            </>
+          ) : (
+            <PostProcessing state={state.post.mediaState} />
+          )}
         </article>
       )}
     </div>

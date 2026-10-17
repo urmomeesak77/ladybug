@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\Role;
+use App\Notifications\QueuedResetPassword;
+use App\Notifications\QueuedVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -99,6 +101,25 @@ class User extends Authenticatable implements MustVerifyEmail {
      */
     public function disabledBy(): BelongsTo {
         return $this->belongsTo(self::class, 'disabled_by');
+    }
+
+    /**
+     * The verification mail goes through the queue worker (024 US4), never inline: an SMTP
+     * stall must not hold one of the three request workers.
+     */
+    public function sendEmailVerificationNotification(): void {
+        $this->notify(new QueuedVerifyEmail());
+    }
+
+    /**
+     * Called by the password broker from inside SendRecoveryLink — already off the request
+     * path — and queued again so a mail-server outage retries the send alone, without
+     * minting a second token (024 US4).
+     *
+     * @param  string  $token
+     */
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void {
+        $this->notify(new QueuedResetPassword($token));
     }
 
     /**

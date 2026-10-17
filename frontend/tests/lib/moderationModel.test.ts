@@ -27,6 +27,7 @@ describe('ModerationModel.mapRow', () => {
       createdAt: '2026-07-08 20:14:02',
       activatedAt: '2026-07-09 08:01:10',
       deletedAt: null,
+      mediaState: 'ready',
     });
   });
 
@@ -160,5 +161,17 @@ describe('ModerationModel.hiddenFromRow', () => {
 
   it('reports null (public) for an activated, live row', () => {
     expect(ModerationModel.hiddenFromRow({ ...base, activatedAt: '2026-07-09 08:00:00', deletedAt: null })).toBeNull();
+  });
+});
+
+describe('ModerationModel media state (024)', () => {
+  it('maps the raw media state onto the row', () => {
+    expect(ModerationModel.mapRow({ ...rawRow, media_state: 'processing' }).mediaState).toBe('processing');
+  });
+
+  it('labels processing and failed rows in words, and finished rows not at all', () => {
+    expect(ModerationModel.mediaBadge('processing')).toBe('Processing');
+    expect(ModerationModel.mediaBadge('failed')).toBe('Processing failed');
+    expect(ModerationModel.mediaBadge('ready')).toBeNull();
   });
 });

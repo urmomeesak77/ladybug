@@ -79,6 +79,28 @@ services:
       mysql:
         condition: service_healthy
 
+  # Runs the queued work (024): media processing, mail, YouTube stills. backend/.env sets
+  # QUEUE_CONNECTION=database, so without this service an upload stays `processing`
+  # forever. Same image, code and storage as `backend` -- the worker reads the staged
+  # upload from storage/app/private and writes variants to storage/app/public. It holds
+  # the code it booted with, so after a PHP edit: `docker compose restart queue` (the
+  # same reason `backend` needs a restart -- opcache validate_timestamps=0).
+  queue:
+    image: ladybug-php
+    working_dir: /app
+    command: >
+      php artisan queue:work database --sleep=3 --tries=1 --timeout=180
+      --max-jobs=200 --max-time=3600 --memory=256
+    volumes:
+      - ./backend:/app
+      - ${LADYBUG_DATA_ROOT:-C:/docker_permanent}/ladybug-storage:/app/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      # backend seeds .env and APP_KEY on first run; the worker needs both.
+      backend:
+        condition: service_started
+
   # Fronts the backend so /storage/ media gets real HTTP Range support (php artisan
   # serve's built-in static file handling ignores Range headers), matching how
   # deploy/web/default.conf serves /storage/ in production. Everything else is a

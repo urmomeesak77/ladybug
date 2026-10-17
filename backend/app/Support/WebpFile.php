@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use Symfony\Component\Process\Exception\ProcessSignaledException;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -15,6 +16,13 @@ use Symfony\Component\Process\Process;
  * case. Mirrors GifFile/ImageFile::scaledDownCopy so TrashpostImageProcessor treats all alike.
  */
 class WebpFile {
+    /**
+     * Seconds any one call may run (024 FR-023). On expiry Process kills the child and the
+     * call fails like any other, so a hung tool cannot hold the queue worker.
+     */
+    public function __construct(private readonly float $timeoutSeconds = 90.0) {
+    }
+
     /**
      * True when the WebP carries animation. WebP's extended (VP8X) header sets a dedicated
      * animation flag (bit 1 of the flags byte); a plain VP8/VP8L file has no VP8X chunk and is
@@ -107,10 +115,11 @@ class WebpFile {
     private function run(array $command): bool {
         // argv array, never a shell string: the paths cannot inject shell syntax (Principle VI).
         $process = new Process($command);
+        $process->setTimeout($this->timeoutSeconds);
         try {
             $process->run();
         }
-        catch (ProcessSignaledException) {
+        catch (ProcessSignaledException|ProcessTimedOutException) {
             // convert can abort on a malformed input — a failure, not a PHP error.
             return false;
         }

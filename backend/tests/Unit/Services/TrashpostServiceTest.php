@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services;
 
+use App\Exceptions\UploadStagingFailed;
+use App\Jobs\FetchYoutubeThumbnail;
+use App\Jobs\ProcessPostMedia;
 use App\Models\Trashpost;
 use App\Models\User;
 use App\Services\RatingService;
 use App\Services\TrashpostImageProcessor;
 use App\Services\TrashpostService;
+use App\Support\MediaPath;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
 use RuntimeException;
@@ -57,6 +62,40 @@ final class TrashpostServiceTest extends TestCase {
         $ids = $this->service()->feed([])->pluck('id')->all();
 
         $this->assertSame([$second->id, $first->id], $ids);
+    }
+
+    /**
+     * 024 FR-006: a post whose media is still being prepared, or failed to be, is never public —
+     * even if something activated it. The rule lives on the shared scope, so the feed, the
+     * sitemap, the shell and the preview image all inherit it.
+     */
+    public function test_the_feed_never_lists_a_post_whose_media_is_not_ready(): void {
+        $ready = Trashpost::factory()->visible()->create();
+        foreach ([Trashpost::MEDIA_PROCESSING, Trashpost::MEDIA_FAILED] as $state) {
+            $post = Trashpost::factory()->visible()->create();
+            $post->media_state = $state;
+            $post->save();
+        }
+
+        $this->assertSame([$ready->id], $this->service()->feed([])->pluck('id')->all());
+        $this->assertSame([$ready->id], $this->service()->leanFeed(10, null)->pluck('id')->all());
+    }
+
+    public function test_a_guest_cannot_open_a_post_whose_media_is_not_ready(): void {
+        $post = Trashpost::factory()->visible()->create();
+        $post->media_state = Trashpost::MEDIA_PROCESSING;
+        $post->save();
+
+        $this->assertNull($this->service()->findViewableByHash($post->hash, null));
+    }
+
+    public function test_the_uploader_can_open_their_own_post_while_it_is_processing(): void {
+        $owner = User::factory()->create();
+        $post = Trashpost::factory()->create(['user_id' => $owner->id]);
+        $post->media_state = Trashpost::MEDIA_PROCESSING;
+        $post->save();
+
+        $this->assertSame($post->id, $this->service()->findViewableByHash($post->hash, $owner)?->id);
     }
 
     public function test_the_lean_feed_pages_like_the_feed(): void {
@@ -283,24 +322,167 @@ final class TrashpostServiceTest extends TestCase {
         $service->createPost($user, null, null, 'dQw4w9WgXcQ');
     }
 
-    public function test_create_post_removes_the_row_and_files_when_image_processing_fails(): void {
-        $user = User::factory()->create();
-        $image = UploadedFile::fake()->image('m.jpg', 100, 100);
-        $processor = Mockery::mock(TrashpostImageProcessor::class);
-        $processor->shouldReceive('process')->once()->andThrow(new RuntimeException('disk full'));
-        // Cleanup must remove whatever process() managed to write before failing.
-        $processor->shouldReceive('discard')->once();
+    // ------------------------------------------------ 024: staged uploads and the worker
+
+    /** An image upload staged by createPost() with the worker held back (Queue::fake). */
+    private function stagedImagePost(User $user, int $width = 1000): Trashpost {
+        Queue::fake();
+        $post = (new TrashpostService())->createPost($user, 'Staged', UploadedFile::fake()->image('m.jpg', $width, 500), null);
+
+        return $post;
+    }
+
+    public function test_an_image_upload_is_staged_processing_and_handed_to_the_worker(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $post = $this->stagedImagePost($this->memberAt(RatingService::TRUST_THRESHOLD));
+
+        // FR-001/FR-002: the request writes NO media and activates nothing; it stages the file.
+        $this->assertSame(Trashpost::MEDIA_PROCESSING, $post->media_state);
+        $this->assertNull($post->activated_at);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+        Storage::disk('local')->assertExists((string) $post->media_source);
+        Queue::assertPushed(ProcessPostMedia::class, static fn (ProcessPostMedia $job): bool => $job->hash === $post->hash && $job->autoActivate);
+    }
+
+    public function test_an_untrusted_members_upload_is_handed_over_without_auto_activation(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $post = $this->stagedImagePost(User::factory()->create());
+
+        Queue::assertPushed(ProcessPostMedia::class, static fn (ProcessPostMedia $job): bool => $job->hash === $post->hash && ! $job->autoActivate);
+    }
+
+    public function test_a_failed_staging_write_leaves_no_row_and_raises_the_staging_failure(): void {
+        Storage::fake('public');
+        $local = Mockery::mock(Storage::fake('local'))->makePartial();
+        $local->shouldReceive('putFileAs')->andReturn(false);
+        Storage::set('local', $local);
+        Queue::fake();
 
         try {
-            (new TrashpostService($processor))->createPost($user, null, $image, null);
-            $this->fail('Expected the processing failure to be rethrown.');
+            (new TrashpostService())->createPost(User::factory()->create(), 'X', UploadedFile::fake()->image('m.jpg', 10, 10), null);
+            $this->fail('Expected the staging failure.');
         }
-        catch (RuntimeException $e) {
-            $this->assertSame('disk full', $e->getMessage());
+        catch (UploadStagingFailed) {
         }
 
-        // The reserved row must not linger (not even soft-deleted).
         $this->assertDatabaseCount('trashposts', 0);
+        Queue::assertNothingPushed();
+    }
+
+    public function test_processing_a_staged_upload_makes_it_ready_with_its_variants(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $post = $this->stagedImagePost(User::factory()->create());
+
+        (new TrashpostService())->processStaged($post->hash, false);
+
+        $fresh = $post->fresh();
+        $this->assertSame(Trashpost::MEDIA_READY, $fresh->media_state);
+        $this->assertSame("{$post->hash}.jpg", $fresh->file);
+        $this->assertNull($fresh->media_source);
+        Storage::disk('public')->assertExists(MediaPath::imageRelativePath('original', $post->hash, 'jpg'));
+        Storage::disk('public')->assertExists(MediaPath::imageRelativePath('500', $post->hash, 'jpg'));
+        Storage::disk('local')->assertMissing((string) $post->media_source);
+        $this->assertNull($fresh->activated_at);
+    }
+
+    public function test_processing_for_a_trusted_uploader_activates_and_credits_once(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $member = $this->memberAt(RatingService::TRUST_THRESHOLD);
+        $post = $this->stagedImagePost($member);
+        $service = new TrashpostService();
+
+        $service->processStaged($post->hash, true);
+        $service->processStaged($post->hash, true);
+
+        // FR-016: a second run (an interrupted job re-delivered) changes nothing.
+        $this->assertNotNull($post->fresh()->activated_at);
+        $this->assertSame(RatingService::TRUST_THRESHOLD + 1, $member->fresh()->rating);
+    }
+
+    public function test_a_file_that_cannot_be_processed_ends_failed_with_no_files(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $member = $this->memberAt(RatingService::TRUST_THRESHOLD);
+        $post = $this->stagedImagePost($member);
+        $processor = Mockery::mock(TrashpostImageProcessor::class);
+        $processor->shouldReceive('discard');
+        $processor->shouldReceive('process')->andThrow(new RuntimeException('cannot decode'));
+
+        (new TrashpostService($processor))->processStaged($post->hash, true);
+
+        // FR-015/FR-007: failed, cleaned up, never activated, never credited — and not
+        // rethrown, so the queue does not retry a file that will never process.
+        $fresh = $post->fresh();
+        $this->assertSame(Trashpost::MEDIA_FAILED, $fresh->media_state);
+        $this->assertNull($fresh->activated_at);
+        $this->assertNull($fresh->media_source);
+        $this->assertSame(RatingService::TRUST_THRESHOLD, $member->fresh()->rating);
+        Storage::disk('local')->assertMissing((string) $post->media_source);
+    }
+
+    public function test_processing_a_purged_post_writes_nothing(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $post = $this->stagedImagePost(User::factory()->create());
+        $post->forceDelete();
+
+        (new TrashpostService())->processStaged($post->hash, true);
+
+        // FR-017: nothing is created for a post that no longer exists.
+        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->assertDatabaseCount('trashposts', 0);
+    }
+
+    public function test_a_post_deleted_while_processing_gets_its_media_but_is_not_activated(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $member = $this->memberAt(RatingService::TRUST_THRESHOLD);
+        $post = $this->stagedImagePost($member);
+        $post->delete();
+
+        (new TrashpostService())->processStaged($post->hash, true);
+
+        // A restore later must show a working post, so the media is made; but a deleted post
+        // does not come back to life by itself (FR-017).
+        $fresh = Trashpost::withTrashed()->find($post->id);
+        $this->assertSame(Trashpost::MEDIA_READY, $fresh->media_state);
+        $this->assertNull($fresh->activated_at);
+        $this->assertSame(RatingService::TRUST_THRESHOLD, $member->fresh()->rating);
+    }
+
+    public function test_fail_staged_marks_failed_and_cleans_up(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $post = $this->stagedImagePost(User::factory()->create());
+
+        (new TrashpostService())->failStaged($post->hash);
+
+        $this->assertSame(Trashpost::MEDIA_FAILED, $post->fresh()->media_state);
+        Storage::disk('local')->assertMissing((string) $post->media_source);
+    }
+
+    public function test_fail_staged_leaves_a_finished_post_alone(): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $post = $this->stagedImagePost(User::factory()->create());
+        $service = new TrashpostService();
+        $service->processStaged($post->hash, false);
+
+        $service->failStaged($post->hash);
+
+        $this->assertSame(Trashpost::MEDIA_READY, $post->fresh()->media_state);
+    }
+
+    public function test_a_youtube_upload_is_ready_at_once_and_its_still_is_queued(): void {
+        Queue::fake();
+        $post = (new TrashpostService())->createPost(User::factory()->create(), 'Yt', null, 'dQw4w9WgXcQ');
+
+        $this->assertSame(Trashpost::MEDIA_READY, $post->media_state);
+        Queue::assertPushed(FetchYoutubeThumbnail::class, static fn (FetchYoutubeThumbnail $job): bool => $job->hash === $post->hash);
     }
 
     public function test_creating_a_youtube_post_fetches_its_thumbnail_up_front(): void {
