@@ -20,6 +20,10 @@ final class SkipSessionForCookielessReadsTest extends TestCase {
 
     protected function setUp(): void {
         parent::setUp();
+        // The shell is a build artifact (`vite build` output), absent on a clean checkout and
+        // so in CI; the committed fixture keeps these from depending on whether anyone has
+        // built the frontend. Same fixture ShellControllerTest uses.
+        config(['seo.shell_path' => base_path('tests/fixtures/spa-shell.html')]);
         Config::set('services.google', [
             'client_id' => 'client-id',
             'client_secret' => 'client-secret',
