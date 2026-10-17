@@ -33,6 +33,24 @@ Key assertions (see contracts/ and data-model.md):
    nothing for media (handled), while a mail job with an unreachable SMTP host appears after its
    retries; `php artisan queue:retry all` re-runs it.
 
+## SC-001 measurement (dev stack)
+
+SC-001: while three maximum-size uploads are being processed, the home feed and a permalink
+answer no more than 20% slower than with nothing processing.
+
+1. `docker compose exec backend php artisan migrate:status` — the 024 migration must be `Ran`
+   (tests use sqlite, so the dev DB can lag; back it up with `scriptsackup-db.ps1` first).
+2. Baseline: time 20 requests each to `GET /api/posts` and `GET /api/posts/{hash}` (any public
+   hash) with the queue idle — `curl -s -o NUL -w "%{time_total}
+" http://localhost:8000/api/posts`
+   — and keep the median.
+3. Stage three maximum-size uploads at once (10 MiB, ~25 MP JPEGs) and, while
+   `docker compose logs queue` still shows them running, repeat the same 20 + 20 requests.
+4. Pass when each median is within 1.2x of its baseline. Purge the three test posts afterwards.
+
+Dev serves the API with `php artisan serve`, not php-fpm, so this measures the property that
+matters — media work no longer runs in the process answering requests — not production latency.
+
 ## Production
 
 After deploy: `docker compose ps` shows `ladybug-queue` running; `docker compose exec ladybug-php

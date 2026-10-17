@@ -73,15 +73,15 @@ delivered together; each keeps its own independent test.
 
 ## Phase 5: User Story 5 — Operator visibility (P3)
 
-- [ ] T037 [US5] Document the worker, `queue:failed` / `queue:retry` / `queue:forget`, the stuck-processing check and the memory budget in `docs/DEPLOYMENT.md`; make `deploy/deploy.sh`'s health summary print `queue:failed` count and confirm `ladybug-queue` is running
-- [ ] T038 [US5] Test (`backend/tests/Unit/Jobs/*`) that permanently failing mail/thumbnail jobs end in `failed_jobs` (tries exhausted) while a media processing failure is handled (post `failed`) and not left in `failed_jobs` twice
+- [X] T037 [US5] Document the worker, `queue:failed` / `queue:retry` / `queue:forget`, the stuck-processing check and the memory budget in `docs/DEPLOYMENT.md`; make `deploy/deploy.sh`'s health summary print `queue:failed` count and confirm `ladybug-queue` is running
+- [X] T038 [US5] Test (`backend/tests/Unit/Jobs/*`) that permanently failing mail/thumbnail jobs end in `failed_jobs` (tries exhausted) while a media processing failure is handled (post `failed`) and not left in `failed_jobs` twice
 
 ## Phase 6: Polish
 
-- [ ] T039 Keep `.env.e2e` on `sync` and confirm the Playwright upload specs still pass against it (document why in the e2e env comment)
-- [ ] T040 Update `CLAUDE.md` Current State with a 024 entry
-- [ ] T041 Add a SC-001 measurement step to `quickstart.md` (time home/permalink loads on the dev stack while three max-size uploads process) and run it once — analyze E1
-- [ ] T042 Run Pint, PHPUnit + coverage gate, ESLint, tsc, Vitest + coverage; fix anything red
+- [X] T039 Keep `.env.e2e` on `sync` and confirm the Playwright upload specs still pass against it (document why in the e2e env comment)
+- [X] T040 Update `CLAUDE.md` Current State with a 024 entry
+- [X] T041 Add a SC-001 measurement step to `quickstart.md` (time home/permalink loads on the dev stack while three max-size uploads process) and run it once — analyze E1
+- [X] T042 Run Pint, PHPUnit + coverage gate, ESLint, tsc, Vitest + coverage; fix anything red
 
 ## Dependencies
 
