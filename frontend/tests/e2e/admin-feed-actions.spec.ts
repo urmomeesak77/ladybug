@@ -75,7 +75,9 @@ test.describe('Admin in-place post actions', () => {
     // No banner while the meme is still public.
     await expect(page.getByRole('status')).toHaveCount(0);
 
-    await page.locator('.post-item .action-menu__trigger').click();
+    // The header's own kebab: comments carry action menus inside .post-item too, and the
+    // newest meme may already have some from the comments spec.
+    await page.locator('.post-item .feed-item__header .action-menu__trigger').click();
     await page.getByRole('menuitem', { name: 'Deactivate', exact: true }).click();
 
     // Deactivation flips the loaded post to pending in place — the hidden banner announces it.
