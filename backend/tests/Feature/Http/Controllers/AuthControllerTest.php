@@ -6,16 +6,18 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Models\User;
 use App\Models\UserIdentity;
+use App\Notifications\QueuedVerifyEmail;
 use App\Services\UserAdminService;
 use App\Support\RememberMe;
-use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
 use RuntimeException;
 use Tests\TestCase;
@@ -76,7 +78,7 @@ class AuthControllerTest extends TestCase {
 
         $response->assertCreated();
         $user = User::where('email', 'ada@example.com')->firstOrFail();
-        Notification::assertSentTo($user, VerifyEmail::class);
+        Notification::assertSentTo($user, QueuedVerifyEmail::class);
     }
 
     public function test_register_still_succeeds_when_the_verification_email_cannot_be_sent(): void {
@@ -1075,5 +1077,16 @@ class AuthControllerTest extends TestCase {
         // auth state on load without treating "logged out" as an error (FR-005).
         $response->assertOk();
         $response->assertExactJson(['data' => null]);
+    }
+
+    /** 024 US4: registration hands the verification mail to the worker instead of sending it. */
+    public function test_register_queues_the_verification_mail_rather_than_sending_it(): void {
+        Queue::fake();
+
+        $this->postJson('/api/register', $this->registration())->assertCreated();
+
+        $queued = Queue::pushed(SendQueuedNotifications::class)->map->notification->all();
+        $this->assertCount(1, $queued);
+        $this->assertInstanceOf(QueuedVerifyEmail::class, $queued[0]);
     }
 }

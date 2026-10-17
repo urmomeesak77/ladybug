@@ -25,12 +25,12 @@ class PasswordResetController extends Controller {
      * address — real account or not, enabled or not, inside the re-send interval or not,
      * mail transport working or not (FR-004, contracts/password-recovery-api.md §1).
      *
-     * There is nothing to branch on here by construction: sendRecoveryLink() returns void
+     * There is nothing to branch on here by construction: requestRecoveryLink() returns void
      * (research D4). If a future edit gives it a return value, this method is where the
      * enumeration oracle would reappear — so it should not.
      */
     public function request(ForgotPasswordRequest $request): JsonResponse {
-        $this->passwords->sendRecoveryLink($request->validated()['email']);
+        $this->passwords->requestRecoveryLink($request->validated()['email']);
 
         return response()->json([
             'message' => 'If an account exists for that address, a password recovery link is on its way.',

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use App\Http\Controllers\PasswordResetController;
+use App\Jobs\SendRecoveryLink;
 use App\Models\User;
+use App\Notifications\QueuedResetPassword;
 use App\Services\PasswordService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
@@ -15,6 +17,7 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Queue;
 use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
@@ -33,13 +36,33 @@ class PasswordServiceTest extends TestCase {
         return $this->app->make(PasswordService::class);
     }
 
+    /**
+     * 024 FR-004: the request-side entry point decides nothing. It queues the same one job
+     * for a real address and an unknown one, and touches no table the decision would.
+     */
+    public function test_requesting_a_link_queues_the_decision_and_decides_nothing(): void {
+        Queue::fake();
+        Notification::fake();
+        User::factory()->create(['email' => 'ada@example.com']);
+
+        $this->service()->requestRecoveryLink('ada@example.com');
+        $this->service()->requestRecoveryLink('nobody@example.com');
+
+        $this->assertSame(
+            ['ada@example.com', 'nobody@example.com'],
+            Queue::pushed(SendRecoveryLink::class)->map->email->all(),
+        );
+        Notification::assertNothingSent();
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+    }
+
     public function test_an_enabled_account_gets_one_notification_and_one_token_row(): void {
         Notification::fake();
         $user = User::factory()->create(['email' => 'ada@example.com']);
 
         $this->service()->sendRecoveryLink('ada@example.com');
 
-        Notification::assertSentToTimes($user, ResetPassword::class, 1);
+        Notification::assertSentToTimes($user, QueuedResetPassword::class, 1);
         $this->assertDatabaseHas('password_reset_tokens', ['email' => 'ada@example.com']);
     }
 
@@ -57,7 +80,7 @@ class PasswordServiceTest extends TestCase {
 
         $this->service()->sendRecoveryLink('grace@example.com');
 
-        Notification::assertSentToTimes($google, ResetPassword::class, 1);
+        Notification::assertSentToTimes($google, QueuedResetPassword::class, 1);
         $this->assertDatabaseHas('password_reset_tokens', ['email' => 'grace@example.com']);
         $this->assertSame($this->wordingFor($ordinary), $this->wordingFor($google));
     }
@@ -97,7 +120,7 @@ class PasswordServiceTest extends TestCase {
         $this->service()->sendRecoveryLink('ada@example.com');
         $this->service()->sendRecoveryLink('ada@example.com');
 
-        Notification::assertSentToTimes($user, ResetPassword::class, 1);
+        Notification::assertSentToTimes($user, QueuedResetPassword::class, 1);
     }
 
     /**

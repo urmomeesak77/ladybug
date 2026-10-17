@@ -64,12 +64,12 @@ delivered together; each keeps its own independent test.
 
 ## Phase 4: User Story 4 — Mail off the request path, no timing oracle (P2)
 
-- [ ] T031 [P] [US4] Tests `backend/tests/Unit/Notifications/QueuedVerifyEmailTest.php` + `QueuedResetPasswordTest.php`: implement ShouldQueue, tries/backoff, deleteWhenMissingModels, build the same link as today
-- [ ] T032 [P] [US4] Tests `backend/tests/Unit/Jobs/SendRecoveryLinkTest.php`: real enabled account → reset notification queued; unknown/disabled → nothing; behaviour identical to the old `PasswordService::sendRecoveryLink`
-- [ ] T033 [P] [US4] Feature tests: `POST /api/password/forgot` pushes exactly one `SendRecoveryLink` for a real AND an unknown address and does no other DB write; register/resend queue `QueuedVerifyEmail` (existing controller test files)
-- [ ] T034 [US4] Create `backend/app/Notifications/QueuedVerifyEmail.php` and `QueuedResetPassword.php`
-- [ ] T035 [US4] Override `sendEmailVerificationNotification()` / `sendPasswordResetNotification()` in `backend/app/Models/User.php`
-- [ ] T036 [US4] Create `backend/app/Jobs/SendRecoveryLink.php`; `PasswordService`'s request entry point dispatches it for every address, the job runs the existing lookup + broker logic (`backend/app/Services/PasswordService.php`, `PasswordResetController.php`)
+- [X] T031 [P] [US4] Tests `backend/tests/Unit/Notifications/QueuedVerifyEmailTest.php` + `QueuedResetPasswordTest.php`: implement ShouldQueue, tries/backoff, deleteWhenMissingModels, build the same link as today
+- [X] T032 [P] [US4] Tests `backend/tests/Unit/Jobs/SendRecoveryLinkTest.php`: real enabled account → reset notification queued; unknown/disabled → nothing; behaviour identical to the old `PasswordService::sendRecoveryLink`
+- [X] T033 [P] [US4] Feature tests: `POST /api/password/forgot` pushes exactly one `SendRecoveryLink` for a real AND an unknown address and does no other DB write; register/resend queue `QueuedVerifyEmail` (existing controller test files)
+- [X] T034 [US4] Create `backend/app/Notifications/QueuedVerifyEmail.php` and `QueuedResetPassword.php`
+- [X] T035 [US4] Override `sendEmailVerificationNotification()` / `sendPasswordResetNotification()` in `backend/app/Models/User.php`
+- [X] T036 [US4] Create `backend/app/Jobs/SendRecoveryLink.php`; `PasswordService`'s request entry point dispatches it for every address, the job runs the existing lookup + broker logic (`backend/app/Services/PasswordService.php`, `PasswordResetController.php`)
 
 ## Phase 5: User Story 5 — Operator visibility (P3)
 
