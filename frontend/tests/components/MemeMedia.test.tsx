@@ -462,8 +462,19 @@ describe('MemeMedia', () => {
       expect(thumb.getAttribute('loading')).toBe('lazy');
       const play = screen.getByRole('button', { name: 'Play video: Song' });
       expect(play).toBeInstanceOf(HTMLButtonElement);
-      // Visible text as well as the icon, so the control never relies on a glyph alone.
-      expect(play.textContent).toContain('Play');
+      // YouTube's own red play button: a decorative glyph, named by the aria-label alone.
+      expect(play.querySelector('svg.meme-media__facade-play-icon')?.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    // A blocker on i.ytimg.com (or a vanished video) must not leak the raw alt text into the
+    // box: the still is dropped and the dark box keeps only the play button.
+    it('drops a thumbnail that fails to load but keeps the play button', () => {
+      render(<MemeMedia media={youtubeMedia} shouldDeferEmbed />);
+
+      fireEvent.error(screen.getByRole('img', { name: 'Song' }));
+
+      expect(screen.queryByRole('img', { name: 'Song' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Play video: Song' })).toBeTruthy();
     });
 
     it('mounts the sandboxed, autoplaying iframe once activated and moves focus to it', () => {

@@ -654,29 +654,40 @@ main {
   object-fit: cover;
 }
 
-/* Same translucent chip as the video controls (fixed white-on-black over the still, not
-   theme tokens), with a visible "Play" label beside the icon (Principle IV). */
+/* YouTube's own play button: a bare 68x48 glyph, no chip behind it. Fixed colors, not theme
+   tokens — it sits over the video still, and it is YouTube's mark. The white triangle, not
+   the red, is what reads as "play", so color is never the only cue (Principle IV). */
 .meme-media__facade-play {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  min-height: 2.75rem; /* comfortable touch target (Principle VIII). */
-  padding: var(--space-sm) var(--space-md);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  color: #fff;
-  font-size: 1rem;
-  background-color: rgb(0 0 0 / 65%);
-  border: 1px solid rgb(255 255 255 / 40%);
+  padding: 0;
+  display: block;
+  line-height: 0;
+  background: none;
+  border: 0;
   border-radius: var(--radius-md);
   cursor: pointer;
 }
 
-.meme-media__facade-play:hover,
-.meme-media__facade-play:focus-visible {
-  background-color: rgb(0 0 0 / 85%);
+.meme-media__facade-play-icon {
+  width: 4.25rem; /* 68px wide, 48px tall: well past the touch-target minimum (Principle VIII). */
+  height: 3rem;
+}
+
+.meme-media__facade-play-body {
+  fill: #f03;
+  transition: fill 0.1s;
+}
+
+.meme-media__facade-play-arrow {
+  fill: #fff;
+}
+
+.meme-media__facade-play:hover .meme-media__facade-play-body,
+.meme-media__facade-play:focus-visible .meme-media__facade-play-body {
+  fill: #c00;
 }
 
 .meme-media__facade-play:focus-visible {

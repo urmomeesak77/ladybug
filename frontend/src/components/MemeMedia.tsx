@@ -207,20 +207,46 @@ function YoutubeEmbed({ media, shouldAutoplay }: { media: YoutubeFeedMedia; shou
   );
 }
 
-// The feed's stand-in for a player: the video's still plus a real, labelled Play button
-// with visible text (Principle IV). Nothing from YouTube but one image loads until pressed.
+// YouTube's own red play button (rounded body + white triangle), so the facade reads as a
+// YouTube video at a glance. The triangle's shape carries the meaning, not the red alone
+// (Principle IV); decorative only — the button's aria-label names it.
+function YoutubePlayGlyph() {
+  return (
+    <svg className="meme-media__facade-play-icon" viewBox="0 0 68 48" aria-hidden="true" focusable="false">
+      <path
+        className="meme-media__facade-play-body"
+        d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z"
+      />
+      <path className="meme-media__facade-play-arrow" d="M45 24 27 14v20z" />
+    </svg>
+  );
+}
+
+// The feed's stand-in for a player: the video's still plus a real, labelled Play button.
+// Nothing from YouTube but one image loads until pressed. A still that fails (a blocker on
+// i.ytimg.com, a removed video) is dropped rather than left showing its raw alt text; the
+// dark box and the button still mark the post as a playable video.
 function YoutubeFacade({ media, onActivate }: { media: YoutubeFeedMedia; onActivate: () => void }) {
+  const [isThumbBroken, setIsThumbBroken] = useState(false);
   return (
     <>
-      <img className="meme-media__facade-thumb" src={media.thumbnailUrl} alt={media.title} loading="lazy" decoding="async" />
+      {!isThumbBroken && (
+        <img
+          className="meme-media__facade-thumb"
+          src={media.thumbnailUrl}
+          alt={media.title}
+          loading="lazy"
+          decoding="async"
+          onError={() => setIsThumbBroken(true)}
+        />
+      )}
       <button
         type="button"
         className="meme-media__facade-play"
         aria-label={`Play video: ${media.title}`}
         onClick={onActivate}
       >
-        <VideoGlyph name="play" />
-        <span>Play</span>
+        <YoutubePlayGlyph />
       </button>
     </>
   );
