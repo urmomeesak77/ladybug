@@ -19,14 +19,15 @@
 #                       on the ./data/storage bind mount, so it survives the recreate and
 #                       the NEW container starts already in maintenance: new code never
 #                       answers a request against the old schema.
-#   3. up -d         -- recreate onto the new images.
-#   4. DB dump       -- immediately before migrating, so a bad migration is recoverable
+#   3. archive logs  -- the old containers' stdout/stderr, which `up -d` destroys.
+#   4. up -d         -- recreate onto the new images.
+#   5. DB dump       -- immediately before migrating, so a bad migration is recoverable
 #                       to the exact pre-deploy state, not to last night's backup.
-#   5. migrate
-#   6. artisan up    -- ONLY after a successful migration.
-#   7. health check
+#   6. migrate
+#   7. artisan up    -- ONLY after a successful migration.
+#   8. health check
 #
-# FAIL CLOSED: any failure from step 2 until step 6 leaves the site IN MAINTENANCE and
+# FAIL CLOSED: any failure from step 2 until step 7 leaves the site IN MAINTENANCE and
 # prints how to recover. It never runs `artisan up` on its own -- after a failed
 # migration the schema may be half-applied, and the old trap that lifted maintenance on
 # every exit served live traffic on exactly that schema.
@@ -54,6 +55,28 @@ prune_old_images() {
         docker rmi "$img" >/dev/null 2>&1 && echo "    removed $img" || true
     done
     docker image prune -f >/dev/null 2>&1 || true
+}
+
+# Recreating a container deletes its json-file log, and php-fpm's stderr lives nowhere
+# else: the php2shell review (CVE-2026-109618/9, 2026-10-22) could not see the pre-patch
+# FPM output because the patch deploy itself had wiped it. So copy every service's log
+# off the doomed containers first. Runs AFTER `artisan down` (FPM still parses every
+# request in maintenance, so those seconds matter too) and immediately before `up -d`.
+# Best effort: a deploy must never fail over forensics, hence no exit on error. Mode 600
+# because the logs carry visitor addresses and full request lines.
+LOG_ARCHIVE_DAYS=90
+archive_container_logs() {
+    local out
+    local prev="${PREV_TAG:-none}"
+    out="data/logs/containers-$(date +%Y%m%d-%H%M%S)-${prev:0:12}.log.gz"
+    mkdir -p data/logs
+    if (umask 077 && docker compose logs --no-color --timestamps 2>&1 | gzip > "$out"); then
+        echo "    ${out} ($(du -h "$out" | cut -f1))"
+    else
+        echo "    WARNING: could not archive container logs -- continuing" >&2
+        rm -f "$out"
+    fi
+    find data/logs -name 'containers-*.log.gz' -mtime +"$LOG_ARCHIVE_DAYS" -delete 2>/dev/null || true
 }
 
 # The queue worker (024) is the one service whose death the health poll cannot see: the
@@ -168,6 +191,9 @@ if [ -n "$(docker compose ps -q --status running ladybug-php 2>/dev/null)" ]; th
 else
     echo "    ladybug-php is not running -- nothing is serving, skipping"
 fi
+
+echo "==> Archiving container logs"
+archive_container_logs
 
 echo "==> Recreating containers"
 PHASE="container recreate"

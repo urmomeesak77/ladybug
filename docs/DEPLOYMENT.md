@@ -425,18 +425,26 @@ re-running with the full SHA is the whole fix. `git rev-parse master` prints the
    `./data/storage` bind mount, so it survives the recreate and the new
    container boots already in maintenance — new code never answers a request
    against the old schema;
-3. `docker compose up -d --remove-orphans`;
-4. dumps the database to
+3. archives every service's container log (`docker compose logs --timestamps`)
+   to `data/logs/containers-<timestamp>-<previous-tag>.log.gz` (mode 600, kept
+   90 days, on the box only). Recreating a container deletes its Docker log, and
+   php-fpm's stderr — out-of-memory fatals, worker segfaults — exists nowhere
+   else; the 2026-10-22 php2shell review could not see the pre-patch FPM output
+   because the patch deploy had wiped it. Best effort: a failure prints a
+   warning and the deploy continues. Read one with
+   `zcat data/logs/containers-….log.gz | less`;
+4. `docker compose up -d --remove-orphans`;
+5. dumps the database to
    `data/backups/predeploy-<timestamp>-<tag>.sql.gz.gpg` — the same
    `mysqldump --single-transaction | gzip | gpg` pipeline and passphrase as
    `backup.sh`, with the root password handed over via `MYSQL_PWD` inside the
    mysql container (never on a command line). The newest three are kept, on the
    box only;
-5. `php artisan migrate --force` against the **new** image;
-6. `php artisan up` — **only** if the migration succeeded;
-7. polls the health endpoint for up to 20 seconds.
+6. `php artisan migrate --force` against the **new** image;
+7. `php artisan up` — **only** if the migration succeeded;
+8. polls the health endpoint for up to 20 seconds.
 
-**It fails closed.** Any failure between steps 2 and 6 leaves the site **in
+**It fails closed.** Any failure between steps 2 and 7 leaves the site **in
 maintenance mode** and prints what happened and how to recover: the exact
 `./deploy.sh <previous-sha>` rollback command and, if the migration itself
 failed, the command that restores the pre-migration dump (tables the failed
